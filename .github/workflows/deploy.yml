@@ -1,0 +1,59 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches:
+      - master
+      - pre-prod
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  IMAGE_NAME: gcr.io/${{ secrets.GCP_PROJECT_ID }}/credmapping
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SA_EMAIL }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      # --- NEW STEP: BUILD ---
+      # We pass the SHA as a substitution variable (_TAG) to Cloud Build
+      - name: Submit Build
+        run: |
+          gcloud builds submit --config=cloudbuild.yaml \
+            --substitutions=_TAG=${{ github.sha }},_IMAGE_NAME=${{ env.IMAGE_NAME }}
+
+      # --- DEPLOY TO PRE-PROD ---
+      - name: Deploy to Staging (Private)
+        if: github.ref == 'refs/heads/pre-prod'
+        run: |
+          gcloud run deploy credmapping-staging \
+            --image ${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            --region us-central1 \
+            --no-allow-unauthenticated \
+            --project ${{ secrets.GCP_PROJECT_ID }}
+
+      # --- DEPLOY TO PROD ---
+      - name: Deploy to Production (Public)
+        if: github.ref == 'refs/heads/master'
+        run: |
+          gcloud run deploy credmapping \
+            --image ${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            --region us-central1 \
+            --allow-unauthenticated \
+            --project ${{ secrets.GCP_PROJECT_ID }}
