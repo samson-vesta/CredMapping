@@ -71,7 +71,6 @@ export const workflowPhases = pgTable("workflow_phases", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
-// NOTE: `related_type` is a Postgres user-defined type in your DB; modeled as text here.
 export const commLogs = pgTable("comm_logs", {
   id: uuid("id").defaultRandom().primaryKey(),
   relatedType: text("related_type"),
@@ -203,7 +202,6 @@ export const providerVestaPrivileges = pgTable("provider_vesta_privileges", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
-// NOTE: `initial_or_renewal` is a Postgres user-defined type in your DB; modeled as text here.
 export const stateLicenseWorkflows = pgTable("state_license_workflows", {
   id: uuid("id").defaultRandom().primaryKey(),
   providerId: uuid("provider_id").references(() => providers.id),
@@ -248,5 +246,4 @@ export const teamAndAgentTasks = pgTable("team_and_agent_tasks", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
-// Keep a generic updated-at SQL expression available for migrations/manual queries.
 export const nowSql = sql`now()`;
