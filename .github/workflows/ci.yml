@@ -2,8 +2,7 @@ name: CI
 
 on:
   pull_request:
-  push:
-    branches: [ master, qa-local, test-prod ]
+    branches: [ master, qa-local, pre-prod ]
 
 jobs:
   lint:

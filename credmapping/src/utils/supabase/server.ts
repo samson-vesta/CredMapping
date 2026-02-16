@@ -21,8 +21,13 @@ export const createClient = async () => {
           return cookieStore.getAll();
         },
         setAll(cookiesToSet: CookieToSet[]) {
-          for (const cookie of cookiesToSet) {
-            cookieStore.set(cookie.name, cookie.value, cookie.options);
+          try {
+            for (const cookie of cookiesToSet) {
+              cookieStore.set(cookie.name, cookie.value, cookie.options);
+            }
+          } catch {
+            // `cookies()` is read-only in Server Components.
+            // Ignore write failures here and rely on middleware to refresh cookies.
           }
         },
       },

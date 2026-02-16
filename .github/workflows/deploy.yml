@@ -35,7 +35,7 @@ jobs:
       # We pass the SHA as a substitution variable (_TAG) to Cloud Build
       - name: Submit Build
         run: |
-          gcloud builds submit --config=cloudbuild.yaml \
+          gcloud builds submit --config=credmapping/cloudbuild.yaml \
             --substitutions=_TAG=${{ github.sha }},_IMAGE_NAME=${{ env.IMAGE_NAME }}
 
       # --- DEPLOY TO PRE-PROD ---
