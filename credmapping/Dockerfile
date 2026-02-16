@@ -17,6 +17,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 ENV SKIP_ENV_VALIDATION=1
+ENV DATABASE_URL="postgresql://postgres:password@localhost:5432/dummy"
 RUN pnpm build
 
 FROM base AS runner
