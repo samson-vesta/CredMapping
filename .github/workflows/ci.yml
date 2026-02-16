@@ -13,7 +13,7 @@ jobs:
       run:
         working-directory: credmapping
     env:
-      SKIP_ENV_VALIDATION: "true"
+      SKIP_ENV_VALIDATION: 1
     steps:
       - uses: actions/checkout@v4
 
