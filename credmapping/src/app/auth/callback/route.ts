@@ -6,7 +6,11 @@ import { createClient } from "~/utils/supabase/server";
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
-  const nextPath = requestUrl.searchParams.get("next") ?? "/";
+  const rawNextPath = requestUrl.searchParams.get("next");
+  const nextPath =
+    rawNextPath && rawNextPath.startsWith("/") && !rawNextPath.startsWith("//")
+      ? rawNextPath
+      : "/";
 
   if (!code) {
     return NextResponse.redirect(new URL("/?error=oauth_callback_failed", request.url));
