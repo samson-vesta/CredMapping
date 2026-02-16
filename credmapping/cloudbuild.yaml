@@ -1,7 +1,15 @@
 steps:
   # 1. Build the container image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', '$_IMAGE_NAME:$_TAG', '.']
+    args: 
+      - 'build'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_SUPABASE_URL=$_SUPABASE_URL'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_SUPABASE_ANON_KEY=$_SUPABASE_ANON_KEY'
+      - '-t'
+      - '$_IMAGE_NAME:$_TAG'
+      - '.'
 
   # 2. Push the container image to Google Container Registry
   - name: 'gcr.io/cloud-builders/docker'
@@ -10,4 +18,4 @@ steps:
 # These are the variables passed from GitHub Actions
 substitutions:
   _TAG: 'latest'
-  _IMAGE_NAME: 'gcr.io/my-project/my-app' # default fallback
+  _IMAGE_NAME: 'gcr.io/my-project/my-app' 

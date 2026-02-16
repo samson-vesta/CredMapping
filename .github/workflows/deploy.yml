@@ -36,7 +36,7 @@ jobs:
       - name: Submit Build
         run: |
           gcloud builds submit credmapping --config=credmapping/cloudbuild.yaml \
-            --substitutions=_TAG=${{ github.sha }},_IMAGE_NAME=${{ env.IMAGE_NAME }}
+            --substitutions=_TAG=${{ github.sha }},_IMAGE_NAME=${{ env.IMAGE_NAME }},_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }},_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
 
       # --- DEPLOY TO PRE-PROD ---
       - name: Deploy to Staging (Private)
