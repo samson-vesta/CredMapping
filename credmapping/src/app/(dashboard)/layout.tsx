@@ -3,6 +3,9 @@ import { Header } from "~/components/layout/header";
 import { createClient } from "~/utils/supabase/server";
 import { getAppRole } from "~/server/auth/domain";
 import { redirect } from "next/navigation";
+import { db } from "~/server/db";
+import { agents } from "~/server/db/schema";
+import { eq, sql } from "drizzle-orm";
 
 export default async function DashboardLayout({
   children,
@@ -15,10 +18,19 @@ export default async function DashboardLayout({
 
   if (error || !user) redirect("/");
 
-  // impossible to be super admin here, change later?
-  const appRole = getAppRole({ email: user.email });
+  const normalizedEmail = user.email?.toLowerCase();
+  
+  const agentRecord = normalizedEmail 
+    ? await db
+        .select({ role: agents.role })
+        .from(agents)
+        .where(eq(sql`lower(${agents.email})`, normalizedEmail))
+        .limit(1)
+    : [];
 
-  const userRole = "admin"
+  const dbRole = agentRecord[0]?.role;
+
+  const userRole = getAppRole({ agentRole: dbRole });
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
