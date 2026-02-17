@@ -51,7 +51,7 @@ jobs:
         working-directory: credmapping
     env:
       SKIP_ENV_VALIDATION: 1
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL || "postgresql://postgres:password@localhost:5432/credmapping1"}}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
