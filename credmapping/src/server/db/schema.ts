@@ -12,10 +12,18 @@ import {
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core";
+import { authenticatedRole } from "drizzle-orm/supabase";
 
 export const relatedTypeEnum = pgEnum("facility_or_provider", ["facility", "provider"]);
 export const initialOrRenewalEnum = pgEnum("initial_or_renewal", ["initial", "renewal"]);
 export const agentRoleEnum = pgEnum("agent_role", ["user", "admin", "superadmin"]);
+
+const isAdminOrSuperAdmin = sql`exists (
+  select 1
+  from public.agents a
+  where lower(a.email) = lower((auth.jwt() ->> 'email'))
+    and a.role in ('admin', 'superadmin')
+)`;
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().notNull(),
@@ -35,17 +43,25 @@ export const agents = pgTable("agents", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
+export const auditLog = pgTable(
+  "audit_log",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
 
-export const auditLog = pgTable("audit_log", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  tableName: text("table_name"),
-  recordId: uuid("record_id"),
-  action: text("action"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  actor: uuid("actor").references(() => agents.id),
-  oldData: jsonb("old_data"),
-  newData: jsonb("new_data"),
-});
+    tableName: text("table_name").notNull(),
+    recordId: uuid("record_id"),
+
+    action: text("action").notNull(),
+
+    actorId: uuid("actor_id").references(() => agents.id, { onDelete: "set null" }),
+    actorEmail: text("actor_email"),
+
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+
+    oldData: jsonb("old_data").default(sql`'{}'::jsonb`),
+    newData: jsonb("new_data").default(sql`'{}'::jsonb`),
+  },
+);
 
 export const facilities = pgTable("facilities", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -101,26 +117,7 @@ export const commLogs = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
     zohoTicketId: text("zoho_ticket_id"),
     updatedAt: timestamp("updated_at", { withTimezone: true }),
-  },
-  () => [
-    pgPolicy("comm_logs_admin_mutations", {
-      for: "all",
-      to: "authenticated",
-      using: sql`exists(
-        select 1
-        from agents
-        where lower(agents.email) = lower(auth.email())
-          and agents.role in ('admin', 'superadmin')
-      )`,
-      withCheck: sql`exists(
-        select 1
-        from agents
-        where lower(agents.email) = lower(auth.email())
-          and agents.role in ('admin', 'superadmin')
-      )`,
-    }),
-  ],
-).enableRLS();
+  });
 
 export const configEnums = pgTable("config_enums", {
   key: text("key").primaryKey(),
@@ -280,3 +277,9 @@ export const teamAndAgentTasks = pgTable("team_and_agent_tasks", {
 });
 
 export const nowSql = sql`now()`;
+
+export const commLogsSelectAdmin = pgPolicy("comm_logs_admin_all", {
+  for: "all",
+  to: authenticatedRole,
+  using: isAdminOrSuperAdmin,
+}).link(commLogs);
