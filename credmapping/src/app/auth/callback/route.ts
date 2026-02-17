@@ -12,8 +12,10 @@ export async function GET(request: NextRequest) {
       ? rawNextPath
       : "/";
 
-  const forwardedHost = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
-  const forwardedProto = request.headers.get("x-forwarded-proto") ?? "http";
+  const forwardedHostHeader = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
+  const forwardedProtoHeader = request.headers.get("x-forwarded-proto") ?? requestUrl.protocol.replace(":", "");
+  const forwardedHost = forwardedHostHeader?.split(",")[0]?.trim();
+  const forwardedProto = forwardedProtoHeader?.split(",")[0]?.trim();
   const baseUrl = forwardedHost ? `${forwardedProto}://${forwardedHost}` : requestUrl.origin;
 
   if (!code) {
