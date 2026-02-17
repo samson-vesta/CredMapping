@@ -9,7 +9,11 @@ import {
   text,
   timestamp,
   uuid,
+  pgEnum
 } from "drizzle-orm/pg-core";
+
+export const relatedTypeEnum = pgEnum("facility_or_provider", ["facility", "provider"]);
+export const initialOrRenewalEnum = pgEnum("initial_or_renewal", ["initial", "renewal"]);
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().notNull(),
@@ -26,9 +30,7 @@ export const agents = pgTable("agents", {
   lastName: text("last_name").notNull(),
   email: text("email").notNull().unique(),
   team: text("team"),
-  isAdmin: boolean("is_admin").default(false),
-  isActive: boolean("is_active").default(true),
-  externalZohoId: text("external_zoho_id"),
+  role: text("role"), 
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
@@ -82,7 +84,7 @@ export const workflowPhases = pgTable("workflow_phases", {
 
 export const commLogs = pgTable("comm_logs", {
   id: uuid("id").defaultRandom().primaryKey(),
-  relatedType: text("related_type"),
+  relatedType: relatedTypeEnum("related_type"),
   relatedId: uuid("related_id"),
   kind: text("kind"),
   subject: text("subject"),
@@ -207,6 +209,7 @@ export const providerVestaPrivileges = pgTable("provider_vesta_privileges", {
   initialExpiresAt: date("initial_expires_at"),
   termDate: date("term_date"),
   termReason: text("term_reason"),
+  pastPrivileges: jsonb("past_privileges"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
@@ -217,7 +220,7 @@ export const stateLicenseWorkflows = pgTable("state_license_workflows", {
   state: text("state"),
   path: text("path"),
   priority: text("priority"),
-  initialOrRenewal: text("initial_or_renewal"),
+  initialOrRenewal: initialOrRenewalEnum("initial_or_renewal"),
   requestedAt: date("requested_at"),
   submittedAt: date("submitted_at"),
   approvedAt: date("approved_at"),
