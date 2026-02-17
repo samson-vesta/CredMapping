@@ -8,7 +8,6 @@ export default {
   dbCredentials: {
     url: env.DATABASE_URL,
   },
-  tablesFilter: ["credmapping_*"],
 } satisfies Config;
 
 
