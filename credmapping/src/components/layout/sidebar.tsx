@@ -21,11 +21,11 @@ import {
 
 // Current sidebar items I could think of with role requirement assumptions. We can easily add more and change the roles as needed. For now, I just have it so if you're an admin you see everything, and if you're a user you see everything except workflows and admin panel. We can also easily change it so that the admin panel is only visible to a "super admin" role or something like that.
 const sidebarItems = [
-  { name: "Overview", href: "/dashboard", icon: LayoutDashboard, roles: ["user", "admin"] },
-  { name: "Agents", href: "/agents", icon: Users, roles: ["user", "admin"] },
-  { name: "Facilities", href: "/facilities", icon: Building2, roles: ["user", "admin"] },
-  { name: "Workflows", href: "/workflows", icon: Workflow, roles: ["admin"] },
-  { name: "Admin Panel", href: "/admin", icon: ShieldCheck, roles: ["admin"] },
+  { name: "Overview", href: "/dashboard", icon: LayoutDashboard, roles: ["user", "admin", "superadmin"] },
+  { name: "Agents", href: "/agents", icon: Users, roles: ["user", "admin", "superadmin"] },
+  { name: "Facilities", href: "/facilities", icon: Building2, roles: ["user", "admin", "superadmin"] },
+  { name: "Workflows", href: "/workflows", icon: Workflow, roles: ["admin", "superadmin"] },
+  { name: "Admin Panel", href: "/admin", icon: ShieldCheck, roles: ["superadmin"] },
 ];
 
 interface SidebarProps {

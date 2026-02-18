@@ -91,9 +91,7 @@ export const createTRPCContext = async (opts: { headers: Headers }) => {
     db,
     user: authenticatedUser,
     appRole: authenticatedUser
-      ? getAppRole({
-          agentRole: agent?.role,
-        })
+      ? getAppRole({ agentRole: agent?.role })
       : "user",
     ...opts,
   };
@@ -184,4 +182,15 @@ export const protectedProcedure = publicProcedure.use(({ ctx, next }) => {
       user: ctx.user,
     },
   });
+});
+
+export const superAdminProcedure = protectedProcedure.use(({ ctx, next }) => {
+  if (ctx.appRole !== "superadmin") {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Super admin access required.",
+    });
+  }
+
+  return next({ ctx });
 });
