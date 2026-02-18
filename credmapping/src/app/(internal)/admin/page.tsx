@@ -110,11 +110,7 @@ function AssignAgentDialog({ onSuccess }: { onSuccess: () => void }) {
     setSearch("");
   };
 
-  const normalizedUsers =
-    users?.filter(
-      (u): u is { id: string; email: string } =>
-        typeof u.id === "string" && typeof u.email === "string",
-    ) ?? [];
+  const normalizedUsers = users ?? [];
 
   const selectedUser = normalizedUsers.find((u) => u.id === selectedUserId);
 
