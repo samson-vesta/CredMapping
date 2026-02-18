@@ -17,6 +17,7 @@ import { authenticatedRole } from "drizzle-orm/supabase";
 export const relatedTypeEnum = pgEnum("facility_or_provider", ["facility", "provider"]);
 export const initialOrRenewalEnum = pgEnum("initial_or_renewal", ["initial", "renewal"]);
 export const agentRoleEnum = pgEnum("agent_role", ["user", "admin", "superadmin"]);
+export const teamEnum = pgEnum("team_enum", ["IN", "US"]);
 
 const isAdminOrSuperAdmin = sql`exists (
   select 1
@@ -38,7 +39,8 @@ export const agents = pgTable("agents", {
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
   email: text("email").notNull().unique(),
-  team: text("team"),
+  team: teamEnum("team").notNull(),
+  teamNumber: integer("team_number"),
   role: agentRoleEnum("role").default("user").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
@@ -278,8 +280,137 @@ export const teamAndAgentTasks = pgTable("team_and_agent_tasks", {
 
 export const nowSql = sql`now()`;
 
-export const commLogsSelectAdmin = pgPolicy("comm_logs_admin_all", {
+// export const commLogsSelectAdmin = pgPolicy("comm_logs_admin_all", {
+//   for: "all",
+//   to: authenticatedRole,
+//   using: isAdminOrSuperAdmin,
+// }).link(commLogs);
+
+
+
+const isAgent = sql`
+  EXISTS (
+    SELECT 1
+    FROM agents a
+    WHERE a.user_id = auth.uid()
+  )
+`;
+
+
+
+//agentsPolicy
+export const agentsPolicy = pgPolicy("agents_agent_access", {
   for: "all",
   to: authenticatedRole,
-  using: isAdminOrSuperAdmin,
+  using: isAgent,
+}).link(agents);
+
+//audit_log policy
+export const auditLogPolicy = pgPolicy("audit_log_agent_access", {
+  for: "all",
+  to: authenticatedRole,
+  using: isAgent,
+}).link(auditLog);
+
+//comm_logs policy: 
+export const commLogsPolicy = pgPolicy("comm_logs_agent_access", {
+  for: "all",
+  to: authenticatedRole,
+  using: isAgent,
 }).link(commLogs);
+
+//config_enums policy
+export const configEnumsPolicy = pgPolicy("config_enums_agent_access", {
+  for: "all",
+  to: authenticatedRole,
+  using: isAgent,
+}).link(configEnums);
+
+//facilities policy
+export const facilitiesPolicy = pgPolicy("facilities_agent_access", {
+  for: "all",
+  to: authenticatedRole,
+  using: isAgent,
+}).link(facilities);
+
+//facility_contacts policy
+export const facilityContactsPolicy = pgPolicy("facility_contacts_agent_access", {
+  for: "all",
+  to: authenticatedRole,
+  using: isAgent,
+}).link(facilityContacts);
+
+//incident_logs policy
+export const incidentLogsPolicy = pgPolicy("incident_logs_agent_access", {
+  for: "all",
+  to: authenticatedRole,
+  using: isAgent,
+}).link(incidentLogs);
+
+//pfc_workflows policy
+export const pfcWorkflowsPolicy = pgPolicy("pfc_workflows_agent_access", {
+  for: "all",
+  to: authenticatedRole,
+  using: isAgent,
+}).link(pfcWorkflows);
+
+//prelive_pipeline policy
+export const prelivePipelinePolicy = pgPolicy("prelive_pipeline_agent_access", {
+  for: "all",
+  to: authenticatedRole,
+  using: isAgent,
+}).link(prelivePipeline);
+
+//provider_facility_credentials policy
+export const providerFacilityCredentialsPolicy = pgPolicy("provider_facility_credentials_agent_access", {
+  for: "all",
+  to: authenticatedRole,
+  using: isAgent,
+}).link(providerFacilityCredentials);
+
+//provider_vesta_privileges policy
+export const providerVestaPrivilegesPolicy = pgPolicy("provider_vesta_privileges_agent_access", {
+  for: "all",
+  to: authenticatedRole,
+  using: isAgent,
+}).link(providerVestaPrivileges);
+
+//providers policy
+export const providersPolicy = pgPolicy("providers_agent_access", {
+  for: "all",
+  to: authenticatedRole,
+  using: isAgent,
+}).link(providers);
+
+//state_license_workflows policy
+export const stateLicenseWorkflowsPolicy = pgPolicy("state_license_workflows_agent_access", {
+  for: "all",
+  to: authenticatedRole,
+  using: isAgent,
+}).link(stateLicenseWorkflows);
+
+//state_licenses policy
+export const stateLicensesPolicy = pgPolicy("state_licenses_agent_access", {
+  for: "all",
+  to: authenticatedRole,
+  using: isAgent,
+}).link(stateLicenses);
+
+//team_and_agent_tasks policy
+export const teamAndAgentTasksPolicy = pgPolicy("team_and_agent_tasks_agent_access", {
+  for: "all",
+  to: authenticatedRole,
+  using: isAgent,
+}).link(teamAndAgentTasks);
+
+//workflow_phases policy
+export const workflowPhasesPolicy = pgPolicy("workflow_phases_agent_access", {
+  for: "all",
+  to: authenticatedRole,
+  using: isAgent,
+}).link(workflowPhases);
+
+
+
+
+
