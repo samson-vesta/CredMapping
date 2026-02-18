@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import { int4 } from "drizzle-orm/cockroach-core";
 import {
   bigint,
   boolean,
@@ -54,6 +55,7 @@ export const agents = pgTable("agents", {
   lastName: text("last_name").notNull(),
   email: text("email").notNull().unique(),
   team: teamEnum("team"),
+  teamNumber: bigint("team_num", { mode: "number" }),
   role: agentRoleEnum("role").default("user").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
