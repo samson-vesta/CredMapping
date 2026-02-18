@@ -8,12 +8,14 @@
  */
 import { createServerClient } from "@supabase/ssr";
 import { TRPCError, initTRPC } from "@trpc/server";
+import { eq, sql } from "drizzle-orm";
 import superjson from "superjson";
 import { ZodError } from "zod";
 
 import { env } from "~/env";
 import { getAppRole, isAllowedEmail } from "~/server/auth/domain";
-import { db } from "~/server/db";
+import { db, withRls } from "~/server/db";
+import { agents } from "~/server/db/schema";
 
 const parseCookieHeader = (cookieHeader: string): { name: string; value: string }[] => {
   return cookieHeader
@@ -66,14 +68,31 @@ export const createTRPCContext = async (opts: { headers: Headers }) => {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isAllowedUser = isAllowedEmail(user?.email);
+  const authenticatedUser = user && isAllowedEmail(user.email) ? user : null;
+  const normalizedEmail = authenticatedUser?.email?.toLowerCase();
+
+  const [agent] = authenticatedUser && normalizedEmail
+    ? await withRls({
+        jwtClaims: {
+          sub: authenticatedUser.id,
+          email: normalizedEmail,
+          role: "authenticated",
+        },
+        run: (tx) =>
+          tx
+            .select({ role: agents.role })
+            .from(agents)
+            .where(eq(sql`lower(${agents.email})`, normalizedEmail))
+            .limit(1),
+      })
+    : [];
 
   return {
     db,
-    user: isAllowedUser ? user : null,
-    appRole: isAllowedUser
+    user: authenticatedUser,
+    appRole: authenticatedUser
       ? getAppRole({
-          email: user?.email,
+          agentRole: agent?.role,
         })
       : "user",
     ...opts,

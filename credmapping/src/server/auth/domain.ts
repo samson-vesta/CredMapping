@@ -1,4 +1,4 @@
-type AppRole = "superadmin" | "admin" | "user";
+export type AppRole = "superadmin" | "admin" | "user";
 
 const allowedDomains = ["vestasolutions.com", "vestatelemed.com"] as const;
 
@@ -10,11 +10,12 @@ export const isAllowedEmail = (email: string | null | undefined): boolean => {
 };
 
 export const getAppRole = (params: {
-  email: string | null | undefined;
+  agentRole: string | null | undefined;
 }): AppRole => {
-  if (params.email?.toLowerCase().endsWith("@vestasolutions.com")) {
-    return "admin";
-  }
+  const normalizedRole = params.agentRole?.trim().toLowerCase();
+
+  if (normalizedRole === "superadmin") return "superadmin";
+  if (normalizedRole === "admin") return "admin";
 
   return "user";
 };

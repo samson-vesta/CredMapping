@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-import { getAppRole, isAllowedEmail } from "~/server/auth/domain";
+import { isAllowedEmail } from "~/server/auth/domain";
 import { createClient } from "~/utils/supabase/server";
 
 export async function GET(request: NextRequest) {
@@ -38,15 +38,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/?error=domain_not_allowed", baseUrl));
   }
 
-  const appRole = getAppRole({
-    email: user.email,
-  });
-
-  await supabase.auth.updateUser({
-    data: {
-      app_role: appRole,
-    },
-  });
 
   return NextResponse.redirect(new URL(nextPath, baseUrl));
 }

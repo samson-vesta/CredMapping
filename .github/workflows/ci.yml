@@ -45,6 +45,7 @@ jobs:
 
   build:
     name: build
+    if: github.base_ref != 'qa-local'
     runs-on: ubuntu-latest
     defaults:
       run:
