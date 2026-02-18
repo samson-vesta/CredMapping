@@ -115,14 +115,8 @@ export function Sidebar({ userRole }: SidebarProps) {
     >
       <div className="h-16 overflow-hidden border-b px-4">
         <div className="flex h-full items-center gap-3 font-semibold text-primary">
-          <Image src="/logo.png" alt="CredMapping+ logo" width={30} height={32} />
-          <span
-            className={`truncate text-lg tracking-tight duration-200 ${
-              isCollapsed ? "invisible w-0 opacity-0" : "visible w-auto opacity-100"
-            }`}
-          >
-            CredMapping+
-          </span>
+          <Image src="/logo.png" alt="CredMapping+ logo" width={25} height={32} />
+          
         </div>
       </div>
 
