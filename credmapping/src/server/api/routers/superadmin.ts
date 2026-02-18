@@ -5,7 +5,7 @@ import {
   createTRPCRouter,
   superAdminProcedure,
 } from "~/server/api/trpc";
-import { agents, users } from "~/server/db/schema";
+import { agents, authUsers } from "~/server/db/schema";
 
 export const superadminRouter = createTRPCRouter({
   /**
@@ -44,31 +44,37 @@ export const superadminRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => {
       const allUsers = await ctx.db
         .select({
-          id: users.id,
-          email: users.email,
-          createdAt: users.createdAt,
+          id: authUsers.id,
+          email: authUsers.email,
+          createdAt: authUsers.createdAt,
         })
-        .from(users)
-        .orderBy(users.email);
+        .from(authUsers)
+        .where(sql`${authUsers.email} is not null`)
+        .orderBy(authUsers.email);
 
       // Get all agent emails to exclude already-assigned users
       const agentEmails = await ctx.db
         .select({ email: agents.email })
         .from(agents);
 
-      const assignedEmails = new Set(
-        agentEmails.map((a) => a.email.toLowerCase()),
-      );
+      const assignedEmails = new Set(agentEmails.map((a) => a.email.toLowerCase()));
 
-      let unassigned = allUsers.filter(
-        (u) => !assignedEmails.has(u.email.toLowerCase()),
+      const usersWithEmail = allUsers.flatMap((user) => {
+        if (!user.email) return [];
+
+        return {
+          ...user,
+          email: user.email,
+        };
+      });
+
+      let unassigned = usersWithEmail.filter(
+        (user) => !assignedEmails.has(user.email.toLowerCase()),
       );
 
       if (input?.search) {
         const q = input.search.toLowerCase();
-        unassigned = unassigned.filter((u) =>
-          u.email.toLowerCase().includes(q),
-        );
+        unassigned = unassigned.filter((user) => user.email.toLowerCase().includes(q));
       }
 
       return unassigned;

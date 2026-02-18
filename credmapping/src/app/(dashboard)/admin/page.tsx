@@ -447,7 +447,7 @@ export default function SuperAdminPage() {
       a.email.toLowerCase().includes(q) ||
       a.firstName.toLowerCase().includes(q) ||
       a.lastName.toLowerCase().includes(q) ||
-      a.team.toLowerCase().includes(q)
+      (a.team?.toLowerCase().includes(q) ?? false)
     );
   });
 

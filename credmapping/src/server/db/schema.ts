@@ -32,6 +32,8 @@ const authSchema = pgSchema("auth");
 
 export const authUsers = authSchema.table("users", {
   id: uuid("id").primaryKey().notNull(),
+  email: text("email"),
+  createdAt: timestamp("created_at", { withTimezone: true }),
 });
 
 const allowAllForAuthenticated = sql`true`;
