@@ -116,15 +116,15 @@ export function Sidebar({ userRole }: SidebarProps) {
     <aside
       onMouseEnter={() => setIsHoveringSidebar(true)}
       onMouseLeave={() => setIsHoveringSidebar(false)}
-      className={`relative flex flex-col border-r bg-muted/30 transition-all duration-300 ease-in-out ${
+      className={`relative flex flex-col border-r bg-muted/30  duration-300 ease-in-out ${
         isCollapsed ? "w-16" : "w-64"
       }`}
     >
       <div className="h-16 overflow-hidden border-b px-4">
         <div className="flex h-full items-center gap-3 font-semibold text-primary">
-          <Image src="/logo.png" alt="CredMapping+ logo" width={32} height={32} />
+          <Image src="/logo.png" alt="CredMapping+ logo" width={30} height={32} />
           <span
-            className={`truncate text-lg tracking-tight transition-all duration-200 ${
+            className={`truncate text-lg tracking-tight duration-200 ${
               isCollapsed ? "invisible w-0 opacity-0" : "visible w-auto opacity-100"
             }`}
           >
