@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BriefcaseMedical,
   Building2,
   LayoutDashboard,
   Settings2,
@@ -28,6 +29,7 @@ import {
 } from "~/components/ui/tooltip";
 
 const sidebarItems = [
+  // External
   {
     name: "Overview",
     href: "/dashboard",
@@ -46,6 +48,13 @@ const sidebarItems = [
     icon: Building2,
     roles: ["user", "admin", "superadmin"],
   },
+  {
+    name: "Providers",
+    href: "/providers",
+    icon: BriefcaseMedical,
+    roles: ["user", "admin", "superadmin"],
+  },
+  // Internal
   {
     name: "Workflows",
     href: "/workflows",
