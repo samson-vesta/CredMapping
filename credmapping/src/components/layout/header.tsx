@@ -13,10 +13,6 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuPortal,
-  DropdownMenuSubContent,
 } from "~/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { GlobalSearch } from "~/components/layout/global-search";
@@ -101,36 +97,39 @@ export function Header({ user }: { user: UserType }) {
             </Avatar>
           </DropdownMenuTrigger>
           
-          <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuContent align="end" className="w-full min-w-0">
             <DropdownMenuLabel className="font-normal">
-              <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium leading-none">{fullName}</p>
-                <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
+              <div className="flex w-full flex-col space-y-1">
+                <p className="truncate text-sm font-medium leading-none">{fullName}</p>
+                <p className="truncate text-xs leading-none text-muted-foreground">{user?.email}</p>
               </div>
             </DropdownMenuLabel>
             
             <DropdownMenuSeparator />
             
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger className="gap-2">
-                <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-                <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-                <span>Appearance</span>
-              </DropdownMenuSubTrigger>
-              <DropdownMenuPortal>
-                <DropdownMenuSubContent>
-                  <DropdownMenuItem onClick={() => setTheme("light")} className="gap-2">
-                    <Sun size={14} /> Light
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setTheme("dark")} className="gap-2">
-                    <Moon size={14} /> Dark
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setTheme("system")} className="gap-2">
-                    <Monitor size={14} /> System
-                  </DropdownMenuItem>
-                </DropdownMenuSubContent>
-              </DropdownMenuPortal>
-            </DropdownMenuSub>
+            <div className="flex items-center justify-center gap-1 px-1 py-1">
+              <DropdownMenuItem
+                onClick={() => setTheme("light")}
+                className="size-8 justify-center rounded-md p-0"
+                aria-label="Set light theme"
+              >
+                <Sun size={14} />
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setTheme("dark")}
+                className="size-8 justify-center rounded-md p-0"
+                aria-label="Set dark theme"
+              >
+                <Moon size={14} />
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setTheme("system")}
+                className="size-8 justify-center rounded-md p-0"
+                aria-label="Set system theme"
+              >
+                <Monitor size={14} />
+              </DropdownMenuItem>
+            </div>
 
             <DropdownMenuSeparator />
             
@@ -138,7 +137,7 @@ export function Header({ user }: { user: UserType }) {
               onClick={handleSignOut}
               onSelect={(e) => e.preventDefault()}
               disabled={isPending}
-              className="text-destructive focus:text-destructive gap-2 cursor-pointer"
+              className="mx-auto w-28 justify-center text-destructive focus:text-destructive gap-2 cursor-pointer"
             >
               <LogOut size={16} />
               {isPending ? "Signing out..." : "Sign out"}
