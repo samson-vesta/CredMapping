@@ -21,6 +21,7 @@ export const teamEnum = pgEnum("team_location", ["IN", "US"]);
 export const privilegeTierEnum = pgEnum("privilege_tier", ["Inactive", "Full", "Temp", "In Progress"]);
 export const formSizes = pgEnum("form_size", ["small", "medium", "large"])
 export const workflowType = pgEnum("workflow_type", ["pfc", "state_licenses", "prelive_pipeline", "provider_vesta_privileges"])
+export const facilityStatus = pgEnum("status", ["Active", "Inactive", "In Progress"])
 
 const isAdminOrSuperAdmin = sql`exists (
   select 1
@@ -80,7 +81,7 @@ export const facilities = pgTable("facilities", {
   name: text("name"),
   state: text("state"),
   proxy: text("proxy"),
-  active: boolean("active").default(true),
+  status: facilityStatus("status"),
   yearlyVolume: bigint("yearly_volume", { mode: "number" }),
   modalities: text("modalities").array(),
   tatSla: text("tat_sla"),
@@ -107,7 +108,7 @@ export const workflowPhases = pgTable("workflow_phases", {
   id: uuid("id").defaultRandom().primaryKey(),
   agentAssigned: uuid("agent_assigned").references(() => agents.id),
   supportingAgents: jsonb("supporting_agents"), 
-  workflowType: workflowType("workflow_type"),
+  workflowType: workflowType("workflow_type").notNull(),
   relatedId: uuid("related_id").notNull(),  
   status: text("status").default("Pending"),
   phaseName: text("phase_name").notNull(), 
@@ -158,7 +159,7 @@ export const facilityContacts = pgTable("facility_contacts", {
 
 export const incidentLogs = pgTable("incident_logs", {
   id: uuid("id").defaultRandom().primaryKey(),
-  workflowID: uuid("workflow_id").references(() => workflowPhases.id).notNull(),
+  workflowID: uuid("workflow_id").references(() => workflowPhases.id, { onDelete: 'cascade' }).notNull(),
   whoReported: uuid("who_reported").references(() => agents.id).notNull(), 
   staffResponsible: jsonb("staff_responsible"),
   escalatedTo: uuid("escalated_to").references(() => agents.id).notNull(), 

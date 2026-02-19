@@ -2,7 +2,6 @@ import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { Mail, Phone } from "lucide-react";
 import { AddProviderDialog } from "~/components/providers/add-provider-dialog";
 import { ProvidersAutoAdvance } from "~/components/providers-auto-advance";
-import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { VirtualScrollContainer } from "~/components/ui/virtual-scroll-container";
 import { getAppRole } from "~/server/auth/domain";
