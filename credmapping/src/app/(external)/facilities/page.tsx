@@ -378,15 +378,15 @@ export default async function FacilitiesPage(props: {
 
                       <div className="text-muted-foreground space-y-2 text-right text-sm">
                         <div className="flex items-center justify-end gap-2">
-                          {facility.email ? (
+                          {primaryContact?.email ? (
                             <a
                               className="text-foreground underline-offset-4 transition hover:underline"
-                              href={`mailto:${facility.email}`}
+                              href={`mailto:${primaryContact.email}`}
                             >
-                              {facility.email}
+                              {primaryContact.email}
                             </a>
                           ) : (
-                            <p>No facility email</p>
+                            <p>No facility contact email</p>
                           )}
                           <Mail className="text-muted-foreground size-4" />
                         </div>
@@ -399,7 +399,7 @@ export default async function FacilitiesPage(props: {
                               {primaryContact.phone}
                             </a>
                           ) : (
-                            <p>No primary phone</p>
+                            <p>No facility contact phone</p>
                           )}
                           <Phone className="text-muted-foreground size-4" />
                         </div>
