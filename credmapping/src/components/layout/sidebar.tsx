@@ -166,9 +166,7 @@ export function Sidebar({ userRole, initialSidebarMode }: SidebarProps) {
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
-                  className={`w-full gap-3 transition-all ${
-                    isCollapsed ? "justify-center px-0" : "justify-start"
-                  }`}
+                  className="w-full justify-start gap-3"
                 >
                   <Settings2 className="h-5 w-5 shrink-0" />
                   <span

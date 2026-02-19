@@ -492,19 +492,19 @@ export default function SuperAdminPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-end">
-        <AssignAgentDialog onSuccess={refetch} />
-      </div>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        {/* Search / filter bar */}
+        <div className="relative w-full max-w-sm">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Filter agents…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-8"
+          />
+        </div>
 
-      {/* Search / filter bar */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Filter agents…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-8"
-        />
+        <AssignAgentDialog onSuccess={refetch} />
       </div>
 
       {/* Agents table */}

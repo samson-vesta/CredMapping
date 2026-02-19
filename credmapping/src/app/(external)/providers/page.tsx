@@ -3,6 +3,7 @@ import { Mail, Phone } from "lucide-react";
 import { AddProviderDialog } from "~/components/providers/add-provider-dialog";
 import { ProvidersAutoAdvance } from "~/components/providers-auto-advance";
 import { Badge } from "~/components/ui/badge";
+import { Button } from "~/components/ui/button";
 import { VirtualScrollContainer } from "~/components/ui/virtual-scroll-container";
 import { getAppRole } from "~/server/auth/domain";
 import { db } from "~/server/db";
@@ -45,19 +46,9 @@ type ProviderSort =
   | "expired_privs_desc"
   | "expired_privs_asc";
 
-type ProviderPrivilegeTier = NonNullable<
-  typeof providerVestaPrivileges.$inferSelect.privilegeTier
+type PrivilegeTier = NonNullable<
+  (typeof providerVestaPrivileges.$inferSelect)["privilegeTier"]
 >;
-
-const providerPrivilegeTiers: ProviderPrivilegeTier[] = [
-  "inactive",
-  "full",
-  "temp",
-  "in progress",
-];
-
-const isProviderPrivilegeTier = (value: string): value is ProviderPrivilegeTier =>
-  providerPrivilegeTiers.includes(value as ProviderPrivilegeTier);
 
 const isProviderSort = (value: string): value is ProviderSort =>
   ["name_asc", "name_desc", "expired_privs_desc", "expired_privs_asc"].includes(
@@ -126,10 +117,6 @@ export default async function ProvidersPage(props: {
     typeof searchParams?.doctorStatus === "string"
       ? searchParams.doctorStatus.trim()
       : "all";
-  const doctorStatusFilter =
-    rawStatusFilter.length > 0 && isProviderPrivilegeTier(rawStatusFilter)
-      ? rawStatusFilter
-      : "all";
 
   const pageSize = 10;
   const rawLimit = typeof searchParams?.limit === "string" ? searchParams.limit : `${pageSize}`;
@@ -152,6 +139,18 @@ export default async function ProvidersPage(props: {
     .selectDistinct({ privilegeTier: providerVestaPrivileges.privilegeTier })
     .from(providerVestaPrivileges)
     .where(sql`${providerVestaPrivileges.privilegeTier} is not null`);
+
+  const statusOptions = statusRows
+    .map((row) => row.privilegeTier)
+    .filter((status): status is PrivilegeTier => Boolean(status))
+    .sort((a, b) => a.localeCompare(b));
+
+  const doctorStatusFilter =
+    rawStatusFilter === "all"
+      ? "all"
+      : statusOptions.find(
+          (status) => status.toLowerCase() === rawStatusFilter.toLowerCase(),
+        ) ?? "all";
 
   const filteredProviderIdRows =
     doctorStatusFilter === "all"
@@ -309,11 +308,6 @@ export default async function ProvidersPage(props: {
       return a.displayName.localeCompare(b.displayName);
     });
 
-  const statusOptions = statusRows
-    .map((row) => row.privilegeTier?.trim())
-    .filter((status): status is string => Boolean(status))
-    .sort((a, b) => a.localeCompare(b));
-
   const hasMoreProviders = visibleLimit < totalProviders;
   const queryParams = new URLSearchParams();
   if (search) queryParams.set("search", search);
@@ -396,12 +390,12 @@ export default async function ProvidersPage(props: {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <button className="h-9 rounded-md border px-3 text-sm font-medium" type="submit">
+          <Button type="submit" variant="outline">
             Apply
-          </button>
-          <a className="h-9 rounded-md border px-3 py-2 text-sm font-medium" href="/providers">
-            Reset
-          </a>
+          </Button>
+          <Button asChild variant="outline">
+            <a href="/providers">Reset</a>
+          </Button>
           {isSuperAdmin ? <AddProviderDialog /> : null}
         </div>
       </form>
