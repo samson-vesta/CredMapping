@@ -3,7 +3,6 @@ import {
   bigint,
   boolean,
   date,
-  integer,
   jsonb,
   pgEnum,
   pgPolicy,
@@ -20,6 +19,7 @@ export const initialOrRenewalEnum = pgEnum("initial_or_renewal", ["initial", "re
 export const agentRoleEnum = pgEnum("agent_role", ["user", "admin", "superadmin"]);
 export const teamEnum = pgEnum("team_location", ["IN", "US"]);
 export const privilegeTierEnum = pgEnum("privilege_tier", ["Inactive", "Full", "Temp", "In Progress"]);
+export const formSizes = pgEnum("form_size", ["small", "medium", "large"])
 export const workflowType = pgEnum("workflow_type", ["pfc", "state_licenses", "prelive_pipeline", "provider_vesta_privileges"])
 
 const isAdminOrSuperAdmin = sql`exists (
@@ -106,6 +106,7 @@ export const providers = pgTable("providers", {
 export const workflowPhases = pgTable("workflow_phases", {
   id: uuid("id").defaultRandom().primaryKey(),
   agentAssigned: uuid("agent_assigned").references(() => agents.id),
+  supportingAgents: jsonb("supporting_agents"), 
   workflowType: workflowType("workflow_type"),
   relatedId: uuid("related_id").notNull(),  
   status: text("status").default("Pending"),
@@ -159,6 +160,7 @@ export const incidentLogs = pgTable("incident_logs", {
   id: uuid("id").defaultRandom().primaryKey(),
   workflowID: uuid("workflow_id").references(() => workflowPhases.id).notNull(),
   whoReported: uuid("who_reported").references(() => agents.id).notNull(), 
+  staffResponsible: jsonb("staff_responsible"),
   escalatedTo: uuid("escalated_to").references(() => agents.id).notNull(), 
   dateIdentified: date("date_identified").notNull(),
   resolutionDate: date("resolution_date"), 
@@ -184,8 +186,9 @@ export const providerFacilityCredentials = pgTable("provider_facility_credential
   privileges: text("privileges"),
   decision: text("decision"),
   notes: text("notes"),
+  priority: text("priority"), 
+  formSize: formSizes("form_size"),  
   applicationRequired: boolean("application_required"),
-  // todo form size 
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
@@ -202,7 +205,6 @@ export const facilityPreliveInfo = pgTable("facility_prelive_info", {
   payorEnrollmentRequired: boolean("payor_enrollment_required"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
-
 });
 
 export const providerVestaPrivileges = pgTable("provider_vesta_privileges", {
