@@ -22,18 +22,26 @@ import { GlobalSearch } from "~/components/layout/global-search";
 import { type User as UserType } from "@supabase/supabase-js";
 import { useTransition } from "react";
 
-const routeLabels: Record<string, string> = {
-  facilities: "Management",
-  providers: "Management",
-  workflows: "System",
-  "agent-management": "System",
-};
+function formatSegmentLabel(segment: string) {
+  const decodedSegment = decodeURIComponent(segment).replace(/[-_]+/g, " ").trim();
+
+  return decodedSegment
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
 
 export function Header({ user }: { user: UserType }) {
   const [isPending, startTransition] = useTransition();
 
   const pathname = usePathname();
   const segments = pathname.split("/").filter(Boolean);
+  const breadcrumbItems = segments.map((segment, index) => ({
+    href: `/${segments.slice(0, index + 1).join("/")}`,
+    label: formatSegmentLabel(segment),
+    isCurrent: index === segments.length - 1,
+  }));
 
   const { setTheme } = useTheme();
 
@@ -49,55 +57,47 @@ export function Header({ user }: { user: UserType }) {
   const avatarUrl = user?.user_metadata?.avatar_url as string | undefined;
 
   return (
-    <header className="sticky top-0 z-50 flex h-16 w-full items-center border-b bg-background px-6">
-      <div className="flex w-64 shrink-0 items-center border-r pr-6">
-        <Link href="/dashboard" className="flex items-center gap-3 font-semibold text-primary">
-          <Image src="/logo.png" alt="CredMapping+ logo" width={25} height={32} priority />
-        </Link>
-      </div>
+    <header className="sticky top-0 z-50 flex h-16 w-full items-center border-b bg-muted/30 px-5">
+      <div className="grid w-full grid-cols-[minmax(0,1fr)_minmax(20rem,40rem)_minmax(0,1fr)] items-center gap-4">
+        <div className="-ml-1 flex min-w-0 items-center gap-2">
+          <Link href="/dashboard" className="flex items-center gap-3 font-semibold text-primary">
+            <Image src="/logo.png" alt="CredMapping+ logo" width={25} height={32} priority />
+          </Link>
+          <span className="h-6 w-px shrink-0 bg-border mx-2" aria-hidden="true" />
 
-      <div className="flex min-w-0 flex-1 items-center gap-6 pl-6">
-        {/* Breadcrumb */}
-        <div className="flex min-w-0 items-center gap-2 text-sm font-medium">
-          {segments.length === 0 ? (
-            <span className="text-foreground">Overview</span>
-          ) : (
-            <>
-              {routeLabels[segments[0] ?? ""] && (
-                <>
-                  <span className="text-muted-foreground">{routeLabels[segments[0] ?? ""]}</span>
-                  <span className="text-muted-foreground/50">/</span>
-                </>
-              )}
-
-              {segments.map((segment, index) => {
-                const isLast = index === segments.length - 1;
-                const label = segment.charAt(0).toUpperCase() + segment.slice(1).replace(/-/g, " ");
-
-                return (
-                  <div key={segment} className="flex min-w-0 items-center gap-2">
-                    <span
-                      className={`truncate ${isLast ? "text-foreground" : "text-muted-foreground"}`}
-                    >
-                      {label}
-                    </span>
-                    {!isLast && <span className="text-muted-foreground/50">/</span>}
-                  </div>
-                );
-              })}
-            </>
-          )}
+          <nav className="flex min-w-0 items-center gap-2 text-sm font-medium" aria-label="Breadcrumb">
+            {breadcrumbItems.length === 0 ? (
+              <Link
+                href="/dashboard"
+                aria-current="page"
+                className="truncate text-foreground transition-colors hover:text-foreground/90 hover:underline underline-offset-4"
+              >
+                Dashboard
+              </Link>
+            ) : (
+              breadcrumbItems.map((item) => (
+                <React.Fragment key={item.href}>
+                  <Link
+                    href={item.href}
+                    aria-current={item.isCurrent ? "page" : undefined}
+                    className={`truncate transition-colors hover:text-foreground hover:underline underline-offset-4 ${
+                      item.isCurrent ? "text-foreground" : "text-muted-foreground"
+                    }`}
+                  >
+                    {item.label}
+                  </Link>
+                  {!item.isCurrent && <span className="text-muted-foreground/50">/</span>}
+                </React.Fragment>
+              ))
+            )}
+          </nav>
         </div>
 
-        {/* Search Bar */}
-        <div className="mx-auto w-full max-w-2xl">
-          <div className="relative group">
-            <GlobalSearch />
-          </div>
+        <div className="w-full">
+          <GlobalSearch />
         </div>
 
-        {/* User Menu */}
-        <div className="flex shrink-0 items-center gap-4">
+        <div className="flex items-center justify-end">
           <DropdownMenu>
             <DropdownMenuTrigger className="focus:outline-none">
               <Avatar className="h-9 w-9 border transition-opacity hover:opacity-80">
