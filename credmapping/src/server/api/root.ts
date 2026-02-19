@@ -1,4 +1,5 @@
 import { authRouter } from "~/server/api/routers/auth";
+import { facilitiesRouter } from "~/server/api/routers/facilities";
 import { searchRouter } from "~/server/api/routers/search";
 import { superadminRouter } from "~/server/api/routers/superadmin";
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
@@ -10,6 +11,7 @@ import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
  */
 export const appRouter = createTRPCRouter({
   auth: authRouter,
+  facilities: facilitiesRouter,
   search: searchRouter,
   superadmin: superadminRouter,
 });
