@@ -185,6 +185,7 @@ export const providerFacilityCredentials = pgTable("provider_facility_credential
   decision: text("decision"),
   notes: text("notes"),
   applicationRequired: boolean("application_required"),
+  // todo form size 
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
