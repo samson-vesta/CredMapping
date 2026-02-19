@@ -15,7 +15,6 @@ import {
   Command,
   CommandEmpty,
   CommandGroup,
-  CommandInput,
   CommandItem,
   CommandList,
   CommandSeparator,
@@ -95,11 +94,6 @@ export function GlobalSearch() {
       {open && (
         <div className="absolute top-full left-0 right-0 mt-1 z-50 border bg-popover text-popover-foreground shadow-xl rounded-md overflow-hidden animate-in fade-in zoom-in-95 duration-100">
           <Command shouldFilter={false} className="rounded-none border-none">
-            <CommandInput
-              value={query}
-              onValueChange={setQuery}
-              placeholder="Type at least 2 characters to search..."
-            />
             <CommandList className="max-h-100">
               {!hasSearchQuery ? (
                 <CommandEmpty>Type at least 2 characters to search the platform.</CommandEmpty>
