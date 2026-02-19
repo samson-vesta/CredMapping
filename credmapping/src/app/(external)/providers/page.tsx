@@ -1,5 +1,6 @@
-import { desc, ilike, inArray, or, sql } from "drizzle-orm";
-import { ChevronDown, Mail, Phone } from "lucide-react";
+import { desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { Mail, Phone } from "lucide-react";
+import { ProvidersAutoAdvance } from "~/components/providers-auto-advance";
 import { Badge } from "~/components/ui/badge";
 import { VirtualScrollContainer } from "~/components/ui/virtual-scroll-container";
 import { db } from "~/server/db";
@@ -48,34 +49,19 @@ const isProviderSort = (value: string): value is ProviderSort =>
 const getPrivilegeTierTone = (privilegeTier: string | null) => {
   const normalizedTier = privilegeTier?.toLowerCase() ?? "";
 
-  if (normalizedTier.includes("in progress")) {
-    return "border-l-4 border-l-blue-500";
-  }
-
-  if (normalizedTier.includes("temp")) {
-    return "border-l-4 border-l-amber-500";
-  }
-
-  if (normalizedTier.includes("full")) {
-    return "border-l-4 border-l-emerald-500";
-  }
-
-  if (normalizedTier.includes("inactive")) {
-    return "border-l-4 border-l-zinc-500";
-  }
+  if (normalizedTier.includes("in progress")) return "border-l-4 border-l-blue-500";
+  if (normalizedTier.includes("temp")) return "border-l-4 border-l-amber-500";
+  if (normalizedTier.includes("full")) return "border-l-4 border-l-emerald-500";
+  if (normalizedTier.includes("inactive")) return "border-l-4 border-l-zinc-500";
 
   return "";
 };
 
 const getLicenseExpirationTone = (value: Date | string | null) => {
-  if (!value) {
-    return "";
-  }
+  if (!value) return "";
 
   const expirationDate = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(expirationDate.getTime())) {
-    return "";
-  }
+  if (Number.isNaN(expirationDate.getTime())) return "";
 
   const now = new Date();
   const daysUntilExpiration =
@@ -99,33 +85,95 @@ export default async function ProvidersPage(props: {
   const rawSearch = searchParams?.search;
   const search = typeof rawSearch === "string" ? rawSearch.trim() : "";
   const hasSearch = search.length > 0;
-  const rawSort =
-    typeof searchParams?.sort === "string" ? searchParams.sort : "";
+
+  const rawSort = typeof searchParams?.sort === "string" ? searchParams.sort : "";
   const sort: ProviderSort = isProviderSort(rawSort) ? rawSort : "name_asc";
+
   const rawStatusFilter =
     typeof searchParams?.doctorStatus === "string"
       ? searchParams.doctorStatus.trim()
       : "all";
-  const doctorStatusFilter =
-    rawStatusFilter.length > 0 ? rawStatusFilter : "all";
+  const doctorStatusFilter = rawStatusFilter.length > 0 ? rawStatusFilter : "all";
+
+  const pageSize = 10;
+  const rawLimit = typeof searchParams?.limit === "string" ? searchParams.limit : `${pageSize}`;
+  const requestedLimit = Number.isFinite(Number(rawLimit))
+    ? Math.max(pageSize, Number.parseInt(rawLimit, 10) || pageSize)
+    : pageSize;
+
+  const providerSearchWhere = hasSearch
+    ? or(
+        ilike(providers.firstName, `%${search}%`),
+        ilike(providers.middleName, `%${search}%`),
+        ilike(providers.lastName, `%${search}%`),
+        ilike(providers.email, `%${search}%`),
+        ilike(providers.notes, `%${search}%`),
+        sql`concat_ws(' ', ${providers.firstName}, ${providers.middleName}, ${providers.lastName}) ilike ${`%${search}%`}`,
+      )
+    : undefined;
+
+  const statusRows = await db
+    .selectDistinct({ privilegeTier: providerVestaPrivileges.privilegeTier })
+    .from(providerVestaPrivileges)
+    .where(sql`${providerVestaPrivileges.privilegeTier} is not null`);
+
+  const filteredProviderIdRows =
+    doctorStatusFilter === "all"
+      ? []
+      : await db
+          .selectDistinct({ providerId: providerVestaPrivileges.providerId })
+          .from(providerVestaPrivileges)
+          .where(eq(providerVestaPrivileges.privilegeTier, doctorStatusFilter));
+
+  const filteredProviderIds = filteredProviderIdRows
+    .map((row) => row.providerId)
+    .filter((id): id is string => Boolean(id));
+
+  const providerFilterWhere =
+    doctorStatusFilter === "all"
+      ? providerSearchWhere
+      : filteredProviderIds.length > 0
+        ? providerSearchWhere
+          ? sql`${providerSearchWhere} and ${inArray(providers.id, filteredProviderIds)}`
+          : inArray(providers.id, filteredProviderIds)
+        : sql`false`;
+
+  const [
+    totalProvidersRow,
+    totalLicensesRow,
+    totalPrivilegesRow,
+    totalCredentialsRow,
+  ] = await Promise.all([
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(providers)
+      .where(providerFilterWhere),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(stateLicenses)
+      .innerJoin(providers, eq(stateLicenses.providerId, providers.id))
+      .where(providerFilterWhere),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(providerVestaPrivileges)
+      .innerJoin(providers, eq(providerVestaPrivileges.providerId, providers.id))
+      .where(providerFilterWhere),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(providerFacilityCredentials)
+      .innerJoin(providers, eq(providerFacilityCredentials.providerId, providers.id))
+      .where(providerFilterWhere),
+  ]);
+
+  const totalProviders = totalProvidersRow[0]?.count ?? 0;
+  const visibleLimit = Math.min(requestedLimit, Math.max(totalProviders, pageSize));
 
   const providerRows = await db
     .select()
     .from(providers)
-    .where(
-      hasSearch
-        ? or(
-            ilike(providers.firstName, `%${search}%`),
-            ilike(providers.middleName, `%${search}%`),
-            ilike(providers.lastName, `%${search}%`),
-            ilike(providers.email, `%${search}%`),
-            ilike(providers.notes, `%${search}%`),
-            sql`concat_ws(' ' , ${providers.firstName}, ${providers.middleName}, ${providers.lastName}) ilike ${`%${search}%`}`,
-          )
-        : undefined,
-    )
+    .where(providerFilterWhere)
     .orderBy(providers.lastName, providers.firstName, providers.middleName)
-    .limit(100);
+    .limit(visibleLimit);
 
   const providerIds = providerRows.map((provider) => provider.id);
 
@@ -136,10 +184,7 @@ export default async function ProvidersPage(props: {
             .select()
             .from(stateLicenses)
             .where(inArray(stateLicenses.providerId, providerIds))
-            .orderBy(
-              desc(stateLicenses.expiresAt),
-              desc(stateLicenses.createdAt),
-            ),
+            .orderBy(desc(stateLicenses.expiresAt), desc(stateLicenses.createdAt)),
           db
             .select()
             .from(providerVestaPrivileges)
@@ -155,29 +200,26 @@ export default async function ProvidersPage(props: {
 
   const licensesByProvider = new Map<string, typeof licenseRows>();
   for (const license of licenseRows) {
-    const providerId = license.providerId;
-    if (!providerId) continue;
-    const current = licensesByProvider.get(providerId) ?? [];
+    if (!license.providerId) continue;
+    const current = licensesByProvider.get(license.providerId) ?? [];
     current.push(license);
-    licensesByProvider.set(providerId, current);
+    licensesByProvider.set(license.providerId, current);
   }
 
   const privilegesByProvider = new Map<string, typeof privilegeRows>();
   for (const privilege of privilegeRows) {
-    const providerId = privilege.providerId;
-    if (!providerId) continue;
-    const current = privilegesByProvider.get(providerId) ?? [];
+    if (!privilege.providerId) continue;
+    const current = privilegesByProvider.get(privilege.providerId) ?? [];
     current.push(privilege);
-    privilegesByProvider.set(providerId, current);
+    privilegesByProvider.set(privilege.providerId, current);
   }
 
   const credentialsByProvider = new Map<string, typeof credentialRows>();
   for (const credential of credentialRows) {
-    const providerId = credential.providerId;
-    if (!providerId) continue;
-    const current = credentialsByProvider.get(providerId) ?? [];
+    if (!credential.providerId) continue;
+    const current = credentialsByProvider.get(credential.providerId) ?? [];
     current.push(credential);
-    credentialsByProvider.set(providerId, current);
+    credentialsByProvider.set(credential.providerId, current);
   }
 
   const pfcStatusBreakdown = credentialRows.reduce<Record<string, number>>(
@@ -190,105 +232,99 @@ export default async function ProvidersPage(props: {
   );
 
   const now = new Date();
-  const providerCards = providerRows.map((provider) => {
-    const providerLicenses = licensesByProvider.get(provider.id) ?? [];
-    const providerPrivileges = privilegesByProvider.get(provider.id) ?? [];
-    const providerCredentials = credentialsByProvider.get(provider.id) ?? [];
-    const doctorStatus = providerPrivileges[0]?.privilegeTier ?? "Unspecified";
-    const expiredPrivileges = providerLicenses.reduce((count, license) => {
-      if (!license.expiresAt) return count;
-      const expirationDate =
-        license.expiresAt instanceof Date
-          ? license.expiresAt
-          : new Date(license.expiresAt);
-      if (Number.isNaN(expirationDate.getTime())) return count;
-      return expirationDate < now ? count + 1 : count;
-    }, 0);
+  const providerCards = providerRows
+    .map((provider) => {
+      const providerLicenses = licensesByProvider.get(provider.id) ?? [];
+      const providerPrivileges = privilegesByProvider.get(provider.id) ?? [];
+      const providerCredentials = credentialsByProvider.get(provider.id) ?? [];
+      const doctorStatus = providerPrivileges[0]?.privilegeTier ?? "Unspecified";
+      const expiredPrivileges = providerLicenses.reduce((count, license) => {
+        if (!license.expiresAt) return count;
+        const expirationDate =
+          license.expiresAt instanceof Date
+            ? license.expiresAt
+            : new Date(license.expiresAt);
+        if (Number.isNaN(expirationDate.getTime())) return count;
+        return expirationDate < now ? count + 1 : count;
+      }, 0);
 
-    return {
-      provider,
-      providerLicenses,
-      providerPrivileges,
-      providerCredentials,
-      doctorStatus,
-      expiredPrivileges,
-      privilegeTierTone: getPrivilegeTierTone(
-        providerPrivileges[0]?.privilegeTier ?? null,
-      ),
-      displayName: formatProviderName(provider),
-    };
-  });
-
-  const statusOptions = Array.from(
-    new Set(providerCards.map((item) => item.doctorStatus)),
-  ).sort();
-
-  const filteredProviderCards = providerCards
-    .filter(
-      (item) =>
-        doctorStatusFilter === "all" ||
-        item.doctorStatus === doctorStatusFilter,
-    )
+      return {
+        provider,
+        providerLicenses,
+        providerPrivileges,
+        providerCredentials,
+        doctorStatus,
+        expiredPrivileges,
+        privilegeTierTone: getPrivilegeTierTone(providerPrivileges[0]?.privilegeTier ?? null),
+        displayName: formatProviderName(provider),
+      };
+    })
     .sort((a, b) => {
-      if (sort === "name_desc") {
-        return b.displayName.localeCompare(a.displayName);
-      }
-
+      if (sort === "name_desc") return b.displayName.localeCompare(a.displayName);
       if (sort === "expired_privs_desc") {
         return (
           b.expiredPrivileges - a.expiredPrivileges ||
           a.displayName.localeCompare(b.displayName)
         );
       }
-
       if (sort === "expired_privs_asc") {
         return (
           a.expiredPrivileges - b.expiredPrivileges ||
           a.displayName.localeCompare(b.displayName)
         );
       }
-
       return a.displayName.localeCompare(b.displayName);
     });
+
+  const statusOptions = statusRows
+    .map((row) => row.privilegeTier?.trim())
+    .filter((status): status is string => Boolean(status))
+    .sort((a, b) => a.localeCompare(b));
+
+  const hasMoreProviders = visibleLimit < totalProviders;
+  const queryParams = new URLSearchParams();
+  if (search) queryParams.set("search", search);
+  if (sort !== "name_asc") queryParams.set("sort", sort);
+  if (doctorStatusFilter !== "all") queryParams.set("doctorStatus", doctorStatusFilter);
+
+  const createLimitHref = (nextLimit: number) => {
+    const nextParams = new URLSearchParams(queryParams);
+    if (nextLimit > pageSize) nextParams.set("limit", String(nextLimit));
+    const query = nextParams.toString();
+    return `/providers${query ? `?${query}` : ""}`;
+  };
 
   return (
     <div className="space-y-6 pb-6">
       <div className="space-y-2 border-b pb-4">
         <h1 className="text-2xl font-semibold tracking-tight">Providers</h1>
         <p className="text-muted-foreground text-sm">
-          Unified provider records with direct access to licenses, Vesta
-          privileges, and PFC status.
+          Unified provider records with direct access to licenses, Vesta privileges, and
+          PFC status.
         </p>
         {hasSearch && (
           <p className="text-muted-foreground text-xs">
-            Filtered by search:{" "}
-            <span className="text-foreground font-medium">{search}</span>
+            Filtered by search: <span className="text-foreground font-medium">{search}</span>
           </p>
         )}
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
         <div className="bg-card rounded-lg border p-4">
-          <p className="text-muted-foreground text-xs uppercase">
-            Provider records
-          </p>
-          <p className="mt-2 text-2xl font-semibold">{providerRows.length}</p>
+          <p className="text-muted-foreground text-xs uppercase">Provider records</p>
+          <p className="mt-2 text-2xl font-semibold">{totalProviders}</p>
         </div>
         <div className="bg-card rounded-lg border p-4">
-          <p className="text-muted-foreground text-xs uppercase">
-            State licenses
-          </p>
-          <p className="mt-2 text-2xl font-semibold">{licenseRows.length}</p>
+          <p className="text-muted-foreground text-xs uppercase">State licenses</p>
+          <p className="mt-2 text-2xl font-semibold">{totalLicensesRow[0]?.count ?? 0}</p>
         </div>
         <div className="bg-card rounded-lg border p-4">
-          <p className="text-muted-foreground text-xs uppercase">
-            Vesta privilege records
-          </p>
-          <p className="mt-2 text-2xl font-semibold">{privilegeRows.length}</p>
+          <p className="text-muted-foreground text-xs uppercase">Vesta privilege records</p>
+          <p className="mt-2 text-2xl font-semibold">{totalPrivilegesRow[0]?.count ?? 0}</p>
         </div>
         <div className="bg-card rounded-lg border p-4">
           <p className="text-muted-foreground text-xs uppercase">PFC records</p>
-          <p className="mt-2 text-2xl font-semibold">{credentialRows.length}</p>
+          <p className="mt-2 text-2xl font-semibold">{totalCredentialsRow[0]?.count ?? 0}</p>
         </div>
       </div>
 
@@ -298,9 +334,7 @@ export default async function ProvidersPage(props: {
       >
         <div className="grid flex-1 gap-3 md:grid-cols-3">
           <label className="space-y-1">
-            <span className="text-muted-foreground text-xs uppercase">
-              Sort providers
-            </span>
+            <span className="text-muted-foreground text-xs uppercase">Sort providers</span>
             <select
               className="bg-background h-9 w-full rounded-md border px-3 text-sm"
               defaultValue={sort}
@@ -308,19 +342,13 @@ export default async function ProvidersPage(props: {
             >
               <option value="name_asc">Doctor name (A → Z)</option>
               <option value="name_desc">Doctor name (Z → A)</option>
-              <option value="expired_privs_desc">
-                Expired privileges (high → low)
-              </option>
-              <option value="expired_privs_asc">
-                Expired privileges (low → high)
-              </option>
+              <option value="expired_privs_desc">Expired privileges (high → low)</option>
+              <option value="expired_privs_asc">Expired privileges (low → high)</option>
             </select>
           </label>
 
           <label className="space-y-1">
-            <span className="text-muted-foreground text-xs uppercase">
-              Doctor status
-            </span>
+            <span className="text-muted-foreground text-xs uppercase">Doctor status</span>
             <select
               className="bg-background h-9 w-full rounded-md border px-3 text-sm"
               defaultValue={doctorStatusFilter}
@@ -336,9 +364,7 @@ export default async function ProvidersPage(props: {
           </label>
 
           <label className="space-y-1">
-            <span className="text-muted-foreground text-xs uppercase">
-              Search providers
-            </span>
+            <span className="text-muted-foreground text-xs uppercase">Search providers</span>
             <input
               className="bg-background h-9 w-full rounded-md border px-3 text-sm"
               defaultValue={search}
@@ -350,16 +376,10 @@ export default async function ProvidersPage(props: {
         </div>
 
         <div className="flex gap-2">
-          <button
-            className="h-9 rounded-md border px-3 text-sm font-medium"
-            type="submit"
-          >
+          <button className="h-9 rounded-md border px-3 text-sm font-medium" type="submit">
             Apply
           </button>
-          <a
-            className="h-9 rounded-md border px-3 py-2 text-sm font-medium"
-            href="/providers"
-          >
+          <a className="h-9 rounded-md border px-3 py-2 text-sm font-medium" href="/providers">
             Reset
           </a>
         </div>
@@ -382,14 +402,17 @@ export default async function ProvidersPage(props: {
         </div>
       )}
 
-      {filteredProviderCards.length === 0 ? (
+      {providerCards.length === 0 ? (
         <div className="text-muted-foreground rounded-lg border border-dashed p-8 text-sm">
           No providers found.
         </div>
       ) : (
-        <VirtualScrollContainer>
+        <VirtualScrollContainer
+          heightClassName="h-[53vh]"
+          viewportClassName="providers-scroll-viewport"
+        >
           <div className="space-y-4 p-4">
-            {filteredProviderCards.map((card) => {
+            {providerCards.map((card) => {
               const {
                 provider,
                 providerLicenses,
@@ -400,19 +423,16 @@ export default async function ProvidersPage(props: {
               } = card;
               const hasEmail = Boolean(provider.email);
               const hasPhone = Boolean(provider.phone);
-              const phoneHref = provider.phone
-                ? sanitizePhoneForHref(provider.phone)
-                : "";
+              const phoneHref = provider.phone ? sanitizePhoneForHref(provider.phone) : "";
 
               return (
                 <section
                   key={provider.id}
                   className={`bg-card rounded-lg border ${privilegeTierTone}`}
                 >
-                  <details className="group">
-                    <summary className="flex cursor-pointer list-none flex-wrap items-start justify-between gap-3 border-b p-4 [&::-webkit-details-marker]:hidden">
-                      <div className="flex items-center gap-2">
-                        <ChevronDown className="text-muted-foreground size-4 shrink-0 transition-transform duration-200 group-open:rotate-180" />
+                  <details>
+                    <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 border-b p-4 [&::-webkit-details-marker]:hidden">
+                      <div className="flex min-h-9 items-center">
                         <h2 className="text-lg font-semibold">{displayName}</h2>
                       </div>
                       <div className="text-muted-foreground space-y-2 text-right text-sm">
@@ -447,9 +467,7 @@ export default async function ProvidersPage(props: {
 
                     <div className="grid gap-4 p-4 lg:grid-cols-4">
                       <div className="rounded-md border p-3">
-                        <p className="text-muted-foreground text-xs uppercase">
-                          General
-                        </p>
+                        <p className="text-muted-foreground text-xs uppercase">General</p>
                         <dl className="mt-2 space-y-1 text-sm">
                           <div className="flex justify-between gap-2">
                             <dt>Created</dt>
@@ -461,78 +479,97 @@ export default async function ProvidersPage(props: {
                           </div>
                           <div>
                             <dt className="text-muted-foreground">Notes</dt>
-                            <dd className="text-foreground line-clamp-3">
-                              {provider.notes ?? "—"}
-                            </dd>
+                            <dd className="text-foreground line-clamp-2">{provider.notes ?? "—"}</dd>
                           </div>
                         </dl>
                       </div>
 
                       <div className="rounded-md border p-3 lg:col-span-3">
-                        <p className="text-muted-foreground text-xs uppercase">
-                          State Licenses
-                        </p>
+                        <p className="text-muted-foreground text-xs uppercase">State Licenses</p>
                         {providerLicenses.length === 0 ? (
                           <p className="text-muted-foreground mt-2 text-sm">
                             No linked state licenses.
                           </p>
                         ) : (
-                          <div className="mt-2 overflow-x-auto">
-                            <table className="w-full text-left text-sm">
-                              <thead className="text-muted-foreground text-xs uppercase">
-                                <tr>
-                                  <th className="py-1 pr-3">state</th>
-                                  <th className="py-1 pr-3">status</th>
-                                  <th className="py-1 pr-3">issued</th>
-                                  <th className="py-1 pr-3">expires</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {providerLicenses.map((license) => (
-                                  <tr key={license.id} className="border-t">
-                                    <td className="py-1 pr-3">
-                                      {license.state ?? "—"}
-                                    </td>
-                                    <td className="py-1 pr-3">
-                                      {license.status ?? "—"}
-                                    </td>
-                                    <td className="py-1 pr-3">
-                                      {formatDate(license.issuedAt)}
-                                    </td>
-                                    <td className="py-1 pr-3">
-                                      <span
-                                        className={getLicenseExpirationTone(
-                                          license.expiresAt,
-                                        )}
-                                      >
-                                        {formatDate(license.expiresAt)}
-                                      </span>
-                                    </td>
+                          <>
+                            <div className="mt-2 overflow-x-auto">
+                              <table className="w-full table-fixed text-left text-sm">
+                                <colgroup>
+                                  <col className="w-[16%]" />
+                                  <col className="w-[44%]" />
+                                  <col className="w-[20%]" />
+                                  <col className="w-[20%]" />
+                                </colgroup>
+                                <thead className="text-muted-foreground text-xs uppercase">
+                                  <tr>
+                                    <th className="py-1 pr-3">state</th>
+                                    <th className="py-1 pr-3">status</th>
+                                    <th className="py-1 pr-3">issued</th>
+                                    <th className="py-1 pr-3">expires</th>
                                   </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
+                                </thead>
+                                <tbody>
+                                  {providerLicenses.slice(0, 4).map((license) => (
+                                    <tr key={license.id} className="border-t align-top">
+                                      <td className="py-1 pr-3">{license.state ?? "—"}</td>
+                                      <td className="py-1 pr-3">{license.status ?? "—"}</td>
+                                      <td className="py-1 pr-3">{formatDate(license.issuedAt)}</td>
+                                      <td className="py-1 pr-3">
+                                        <span className={getLicenseExpirationTone(license.expiresAt)}>
+                                          {formatDate(license.expiresAt)}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                            {providerLicenses.length > 10 && (
+                              <details className="mt-3">
+                                <summary className="bg-muted text-foreground hover:bg-muted/80 cursor-pointer rounded-md border px-4 py-2 text-sm font-semibold tracking-wide uppercase transition">
+                                  Show {providerLicenses.length - 10} More Licenses
+                                </summary>
+                                <div className="mt-2 overflow-x-auto">
+                                  <table className="w-full table-fixed text-left text-sm">
+                                    <colgroup>
+                                      <col className="w-[16%]" />
+                                      <col className="w-[44%]" />
+                                      <col className="w-[20%]" />
+                                      <col className="w-[20%]" />
+                                    </colgroup>
+                                    <tbody>
+                                      {providerLicenses.slice(10).map((license) => (
+                                        <tr key={license.id} className="border-t align-top">
+                                          <td className="py-1 pr-3">{license.state ?? "—"}</td>
+                                          <td className="py-1 pr-3">{license.status ?? "—"}</td>
+                                          <td className="py-1 pr-3">{formatDate(license.issuedAt)}</td>
+                                          <td className="py-1 pr-3">
+                                            <span className={getLicenseExpirationTone(license.expiresAt)}>
+                                              {formatDate(license.expiresAt)}
+                                            </span>
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </details>
+                            )}
+                          </>
                         )}
                       </div>
 
                       <div className="rounded-md border p-3 lg:col-span-2">
-                        <p className="text-muted-foreground text-xs uppercase">
-                          Vesta Privileges
-                        </p>
+                        <p className="text-muted-foreground text-xs uppercase">Vesta Privileges</p>
                         {providerPrivileges.length === 0 ? (
-                          <p className="text-muted-foreground mt-2 text-sm">
-                            No linked Vesta privileges.
-                          </p>
+                          <p className="text-muted-foreground mt-2 text-sm">No linked Vesta privileges.</p>
                         ) : (
                           <div className="mt-2 overflow-x-auto">
                             <table className="w-full text-left text-sm">
                               <thead className="text-muted-foreground text-xs uppercase">
                                 <tr>
                                   <th className="py-1 pr-3">tier</th>
-                                  <th className="py-1 pr-3">
-                                    initial approved
-                                  </th>
+                                  <th className="py-1 pr-3">initial approved</th>
                                   <th className="py-1 pr-3">initial expires</th>
                                   <th className="py-1 pr-3">term date</th>
                                 </tr>
@@ -540,18 +577,10 @@ export default async function ProvidersPage(props: {
                               <tbody>
                                 {providerPrivileges.map((privilege) => (
                                   <tr key={privilege.id} className="border-t">
-                                    <td className="py-1 pr-3">
-                                      {privilege.privilegeTier ?? "—"}
-                                    </td>
-                                    <td className="py-1 pr-3">
-                                      {formatDate(privilege.initialApprovedAt)}
-                                    </td>
-                                    <td className="py-1 pr-3">
-                                      {formatDate(privilege.initialExpiresAt)}
-                                    </td>
-                                    <td className="py-1 pr-3">
-                                      {formatDate(privilege.termDate)}
-                                    </td>
+                                    <td className="py-1 pr-3">{privilege.privilegeTier ?? "—"}</td>
+                                    <td className="py-1 pr-3">{formatDate(privilege.initialApprovedAt)}</td>
+                                    <td className="py-1 pr-3">{formatDate(privilege.initialExpiresAt)}</td>
+                                    <td className="py-1 pr-3">{formatDate(privilege.termDate)}</td>
                                   </tr>
                                 ))}
                               </tbody>
@@ -561,13 +590,9 @@ export default async function ProvidersPage(props: {
                       </div>
 
                       <div className="rounded-md border p-3 lg:col-span-2">
-                        <p className="text-muted-foreground text-xs uppercase">
-                          PFC Statuses
-                        </p>
+                        <p className="text-muted-foreground text-xs uppercase">PFC Statuses</p>
                         {providerCredentials.length === 0 ? (
-                          <p className="text-muted-foreground mt-2 text-sm">
-                            No linked PFC records.
-                          </p>
+                          <p className="text-muted-foreground mt-2 text-sm">No linked PFC records.</p>
                         ) : (
                           <div className="mt-2 overflow-x-auto">
                             <table className="w-full text-left text-sm">
@@ -582,18 +607,10 @@ export default async function ProvidersPage(props: {
                               <tbody>
                                 {providerCredentials.map((credential) => (
                                   <tr key={credential.id} className="border-t">
-                                    <td className="py-1 pr-3">
-                                      {credential.priority ?? "—"}
-                                    </td>
-                                    <td className="py-1 pr-3">
-                                      {credential.status ?? "—"}
-                                    </td>
-                                    <td className="py-1 pr-3">
-                                      {credential.decision ?? "—"}
-                                    </td>
-                                    <td className="py-1 pr-3">
-                                      {formatDate(credential.requestedAt)}
-                                    </td>
+                                    <td className="py-1 pr-3">{credential.priority ?? "—"}</td>
+                                    <td className="py-1 pr-3">{credential.status ?? "—"}</td>
+                                    <td className="py-1 pr-3">{credential.decision ?? "—"}</td>
+                                    <td className="py-1 pr-3">{formatDate(credential.requestedAt)}</td>
                                   </tr>
                                 ))}
                               </tbody>
@@ -606,6 +623,18 @@ export default async function ProvidersPage(props: {
                 </section>
               );
             })}
+
+            <div className="border-t pt-3 text-sm">
+              <p className="text-muted-foreground">
+                Showing {providerCards.length} of {totalProviders} providers
+              </p>
+            </div>
+
+            <ProvidersAutoAdvance
+              enabled={hasMoreProviders}
+              nextHref={createLimitHref(Math.min(visibleLimit + pageSize, totalProviders))}
+              rootSelector=".providers-scroll-viewport"
+            />
           </div>
         </VirtualScrollContainer>
       )}
