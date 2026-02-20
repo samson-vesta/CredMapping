@@ -154,6 +154,15 @@ export const commLogsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      const parsedUserId = z.string().uuid().safeParse(ctx.user.id);
+      const [currentAgent] = parsedUserId.success
+        ? await ctx.db
+            .select({ id: agents.id })
+            .from(agents)
+            .where(eq(agents.userId, parsedUserId.data))
+            .limit(1)
+        : [];
+
       const result = await ctx.db
         .insert(commLogs)
         .values([
@@ -174,7 +183,7 @@ export const commLogsRouter = createTRPCRouter({
               ? new Date(input.nextFollowupAt)
               : null,
             receivedAt: input.receivedAt ? new Date(input.receivedAt) : null,
-            createdBy: String(ctx.user.id),
+            createdBy: currentAgent?.id ?? null,
             createdAt: new Date(),
           } as never,
         ])
@@ -201,6 +210,15 @@ export const commLogsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      const parsedUserId = z.string().uuid().safeParse(ctx.user.id);
+      const [currentAgent] = parsedUserId.success
+        ? await ctx.db
+            .select({ id: agents.id })
+            .from(agents)
+            .where(eq(agents.userId, parsedUserId.data))
+            .limit(1)
+        : [];
+
       const result = await ctx.db
         .update(commLogs)
         .set({
@@ -216,7 +234,7 @@ export const commLogsRouter = createTRPCRouter({
             ? new Date(input.nextFollowupAt)
             : null,
           receivedAt: input.receivedAt ? new Date(input.receivedAt) : null,
-          lastUpdatedBy: String(ctx.user.id),
+          lastUpdatedBy: currentAgent?.id ?? null,
           updatedAt: new Date(),
         } as never)
         .where(eq(commLogs.id, input.id))
