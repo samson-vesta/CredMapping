@@ -15,9 +15,14 @@ const formatProviderName = (provider: {
   lastName: string | null;
   degree: string | null;
 }) => {
-  const fullName = [provider.firstName, provider.middleName, provider.lastName]
+  const firstAndMiddle = [provider.firstName, provider.middleName]
     .filter(Boolean)
     .join(" ");
+  const fullName = provider.lastName
+    ? firstAndMiddle
+      ? `${provider.lastName}, ${firstAndMiddle}`
+      : provider.lastName
+    : firstAndMiddle;
 
   if (!fullName) return "Unnamed Provider";
 
