@@ -606,6 +606,11 @@ export function DashboardClient({ providerFacilityRows, facilityPreliveRows, pro
                     {group.subtitle ? <div className="mt-0.5 text-xs text-muted-foreground">{group.subtitle}</div> : null}
                   </button>
                 ))}
+                <div className="flex items-center justify-center gap-2 py-4 text-xs text-muted-foreground">
+                  <span className="h-px w-6 bg-border" />
+                  {activeGroups.length} of {groupsForView.length} shown
+                  <span className="h-px w-6 bg-border" />
+                </div>
               </div>
             )}
           </div>
@@ -695,6 +700,14 @@ export function DashboardClient({ providerFacilityRows, facilityPreliveRows, pro
                       ))}
                     </tbody>
                   </table>
+                )}
+
+                {selectedRows.length > 0 && (
+                  <div className="flex items-center justify-center gap-2 py-4 text-xs text-muted-foreground">
+                    <span className="h-px w-6 bg-border" />
+                    End of list · {selectedRows.length} {selectedRows.length === 1 ? "record" : "records"}
+                    <span className="h-px w-6 bg-border" />
+                  </div>
                 )}
               </>
             )}

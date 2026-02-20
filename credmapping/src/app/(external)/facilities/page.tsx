@@ -1,5 +1,6 @@
 import { and, count, desc, eq, ilike, inArray, not, or, sql } from "drizzle-orm";
 import { Mail, Phone } from "lucide-react";
+import Link from "next/link";
 import { AddFacilityDialog } from "~/components/facilities/add-facility-dialog";
 import { MetricsTrendChart } from "~/components/metrics-trend-chart";
 import { ProvidersAutoAdvance } from "~/components/providers-auto-advance";
@@ -348,7 +349,7 @@ export default async function FacilitiesPage(props: {
             Apply
           </Button>
           <Button asChild variant="outline">
-            <a href="/facilities">Reset</a>
+            <Link href="/facilities">Reset</Link>
           </Button>
           {isSuperAdmin ? <AddFacilityDialog /> : null}
         </div>
@@ -381,7 +382,11 @@ export default async function FacilitiesPage(props: {
                     <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 border-b p-4 [&::-webkit-details-marker]:hidden">
                       <div className="flex min-h-9 items-center gap-3">
                         <div>
-                          <h2 className="text-lg font-semibold">{facility.name ?? "Unnamed Facility"}</h2>
+                          <h2 className="text-lg font-semibold">
+                            <Link className="hover:underline" href={`/facilities/${facility.id}`}>
+                              {facility.name ?? "Unnamed Facility"}
+                            </Link>
+                          </h2>
                           <p className="text-muted-foreground text-sm">
                             {facility.state ?? "—"} {facility.proxy ? `• Proxy: ${facility.proxy}` : ""}
                           </p>
@@ -557,12 +562,6 @@ export default async function FacilitiesPage(props: {
               );
             })}
 
-            <div className="border-t pt-3 text-sm">
-              <p className="text-muted-foreground">
-                Showing {facilityCards.length} of {totalVisibleRow[0]?.count ?? 0} facilities
-              </p>
-            </div>
-
             <ProvidersAutoAdvance
               enabled={hasMoreFacilities}
               nextHref={createLimitHref(
@@ -570,6 +569,12 @@ export default async function FacilitiesPage(props: {
               )}
               rootSelector=".facilities-scroll-viewport"
             />
+
+            <div className="border-t pt-3 text-sm">
+              <p className="text-muted-foreground">
+                Showing {facilityCards.length} of {totalVisibleRow[0]?.count ?? 0} facilities
+              </p>
+            </div>
           </div>
         </VirtualScrollContainer>
       )}

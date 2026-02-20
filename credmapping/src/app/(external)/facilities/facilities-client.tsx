@@ -58,14 +58,19 @@ interface FacilityContact {
   updatedAt: string | null;
 }
 
+type FacilityStatus = "Inactive" | "Active" | "In Progress";
+
 interface Facility {
   id: string;
   name: string | null;
   state: string | null;
   proxy: string | null;
-  active: boolean | null;
+  status: FacilityStatus | null;
   email: string | null;
   address: string | null;
+  yearlyVolume: number | null;
+  modalities: string[] | null;
+  tatSla: string | null;
   createdAt: string | null;
   updatedAt: string | null;
   contacts: FacilityContact[];
@@ -148,14 +153,25 @@ function ContactsPanel({ contacts }: { contacts: FacilityContact[] }) {
 }
 
 // ─── Status badge ───────────────────────────────────────────────
-function StatusBadge({ active }: { active: boolean | null }) {
-  return active ? (
-    <Badge className="bg-emerald-500/15 text-emerald-600 border-emerald-500/25 dark:text-emerald-400">
-      Active
-    </Badge>
-  ) : (
+function StatusBadge({ status }: { status: FacilityStatus | null }) {
+  const normalized = status?.toLowerCase() ?? "";
+  if (normalized === "active") {
+    return (
+      <Badge className="bg-emerald-500/15 text-emerald-600 border-emerald-500/25 dark:text-emerald-400">
+        Active
+      </Badge>
+    );
+  }
+  if (normalized === "in progress") {
+    return (
+      <Badge className="bg-blue-500/15 text-blue-600 border-blue-500/25 dark:text-blue-400">
+        In Progress
+      </Badge>
+    );
+  }
+  return (
     <Badge variant="secondary" className="text-muted-foreground">
-      Inactive
+      {status ?? "Inactive"}
     </Badge>
   );
 }
@@ -482,7 +498,7 @@ export function FacilitiesClient({
                           )}
                         </TableCell>
                         <TableCell className="text-center">
-                          <StatusBadge active={f.active} />
+                          <StatusBadge status={f.status} />
                         </TableCell>
                       </TableRow>
                       {isExpanded && (
@@ -524,7 +540,7 @@ export function FacilitiesClient({
                       <h2 className="text-base font-semibold">
                         {f.name?.trim() ?? "Unnamed Facility"}
                       </h2>
-                      <StatusBadge active={f.active} />
+                      <StatusBadge status={f.status} />
                     </div>
                     <dl className="mt-3 space-y-1 text-sm text-muted-foreground">
                       <div className="flex justify-between gap-2">
