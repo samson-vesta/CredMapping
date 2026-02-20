@@ -6,7 +6,7 @@ import {
   createTRPCRouter,
   superAdminProcedure,
 } from "~/server/api/trpc";
-import { agents, authUsers, providers } from "~/server/db/schema";
+import { agents, authUsers, facilities, providers } from "~/server/db/schema";
 
 export const superadminRouter = createTRPCRouter({
   /**
@@ -88,8 +88,6 @@ export const superadminRouter = createTRPCRouter({
     .input(
       z.object({
         userId: z.string().uuid(),
-        firstName: z.string().min(1, "First name is required"),
-        lastName: z.string().min(1, "Last name is required"),
         email: z.string().email(),
         team: z.enum(["IN", "US"]),
         teamNumber: z.number().int().positive().optional(),
@@ -112,8 +110,8 @@ export const superadminRouter = createTRPCRouter({
         .insert(agents)
         .values({
           userId: input.userId,
-          firstName: input.firstName,
-          lastName: input.lastName,
+          firstName: "",
+          lastName: "",
           email: input.email.toLowerCase(),
           team: input.team,
           teamNumber: input.teamNumber ?? null,
@@ -201,6 +199,37 @@ export const superadminRouter = createTRPCRouter({
       }
 
       return { success: true };
+    }),
+
+  /**
+   * Create a facility record.
+   */
+  createFacility: superAdminProcedure
+    .input(
+      z.object({
+        name: z.string().trim().min(1, "Facility name is required"),
+        state: z.string().trim().max(2).optional(),
+        email: z.string().trim().email().optional(),
+        address: z.string().trim().optional(),
+        proxy: z.string().trim().optional(),
+        tatSla: z.string().trim().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const [newFacility] = await ctx.db
+        .insert(facilities)
+        .values({
+          name: input.name,
+          state: input.state?.toUpperCase() ?? null,
+          email: input.email?.toLowerCase() ?? null,
+          address: input.address ?? null,
+          proxy: input.proxy ?? null,
+          tatSla: input.tatSla ?? null,
+          status: "Active",
+        })
+        .returning();
+
+      return newFacility;
     }),
 
   /**

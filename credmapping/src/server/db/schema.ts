@@ -3,7 +3,6 @@ import {
   bigint,
   boolean,
   date,
-  integer,
   jsonb,
   pgEnum,
   pgPolicy,
@@ -19,8 +18,11 @@ export const relatedTypeEnum = pgEnum("facility_or_provider", ["facility", "prov
 export const initialOrRenewalEnum = pgEnum("initial_or_renewal", ["initial", "renewal"]);
 export const agentRoleEnum = pgEnum("agent_role", ["user", "admin", "superadmin"]);
 export const teamEnum = pgEnum("team_location", ["IN", "US"]);
-export const privilegeTierEnum = pgEnum("privilege_tier", ["inactive", "full", "temp", "in progress"]);
-
+export const privilegeTierEnum = pgEnum("privilege_tier", ["Inactive", "Full", "Temp", "In Progress"]);
+export const facilityStatusEnum = pgEnum("facility_status", ["Inactive", "Active", "In Progress"]);
+export const formSizes = pgEnum("form_size", ["small", "medium", "large"])
+export const workflowType = pgEnum("workflow_type", ["pfc", "state_licenses", "prelive_pipeline", "provider_vesta_privileges"])
+export const facilityStatus = pgEnum("status", ["Active", "Inactive", "In Progress"])
 
 const isAdminOrSuperAdmin = sql`exists (
   select 1
@@ -80,7 +82,10 @@ export const facilities = pgTable("facilities", {
   name: text("name"),
   state: text("state"),
   proxy: text("proxy"),
-  active: boolean("active").default(true),
+  status: facilityStatusEnum("status"),
+  yearlyVolume: bigint("yearly_volume", { mode: "number" }),
+  modalities: text("modalities").array(),
+  tatSla: text("tat_sla"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
   email: text("email"),
@@ -102,9 +107,14 @@ export const providers = pgTable("providers", {
 
 export const workflowPhases = pgTable("workflow_phases", {
   id: uuid("id").defaultRandom().primaryKey(),
-  phaseNum: bigint("phase_num", { mode: "number" }).notNull(),
-  dueDate: date("due_date").notNull(),
+  agentAssigned: uuid("agent_assigned").references(() => agents.id),
+  supportingAgents: jsonb("supporting_agents"), 
+  workflowType: workflowType("workflow_type").notNull(),
+  relatedId: uuid("related_id").notNull(),  
   status: text("status").default("Pending"),
+  phaseName: text("phase_name").notNull(), 
+  startDate: date("start_date").notNull(), 
+  dueDate: date("due_date").notNull(),
   completedAt: date("completed_at"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
@@ -116,6 +126,7 @@ export const commLogs = pgTable("comm_logs", {
   relatedId: uuid("related_id"),
   subject: text("subject"),
   status: text("status"),
+  commType: text("comm_type"), 
   requestedAt: date("requested_at"),
   lastFollowupAt: date("last_followup_at"),
   nextFollowupAt: date("next_followup_at"),
@@ -149,90 +160,61 @@ export const facilityContacts = pgTable("facility_contacts", {
 
 export const incidentLogs = pgTable("incident_logs", {
   id: uuid("id").defaultRandom().primaryKey(),
-  category: text("category"),
-  criticality: text("criticality"),
-  reportedBy: text("reported_by"),
-  responsibleOwner: text("responsible_owner"),
-  occurredAt: date("occurred_at"),
-  escalatedTo: text("escalated_to"),
-  immediateAction: text("immediate_action"),
-  finalResolution: text("final_resolution"),
-  rootCauseFlag: boolean("root_cause_flag"),
-  rootCauseSummary: text("root_cause_summary"),
-  preventiveActions: text("preventive_actions"),
-  followupNeeded: boolean("followup_needed"),
-  followupDate: date("followup_date"),
-  notes: text("notes"),
-  relatedType: text("related_type"),
-  relatedId: uuid("related_id"),
+  workflowID: uuid("workflow_id").references(() => workflowPhases.id, { onDelete: 'cascade' }).notNull(),
+  whoReported: uuid("who_reported").references(() => agents.id).notNull(), 
+  staffResponsible: jsonb("staff_responsible"),
+  escalatedTo: uuid("escalated_to").references(() => agents.id).notNull(), 
+  dateIdentified: date("date_identified").notNull(),
+  resolutionDate: date("resolution_date"), 
+  subcategory: text("subcategory").notNull(), 
+  critical: boolean("critical").notNull(), 
+  incidentDescription: text("incident_description"), 
+  immediateResolutionAttempt: text("immediate_resolution_attempt"), 
+  finalResolution: text("final_resolution"), 
+  preventativeActionTaken: text("preventative_action_taken"), 
+  followUpRequired: boolean("follow_up_required"),
+  followUpDate: date("follow_up_date"), 
+  finalNotes: text("final_notes"), 
+  discussed: boolean("discussed").default(false).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow()
 });
 
 export const providerFacilityCredentials = pgTable("provider_facility_credentials", {
   id: uuid("id").defaultRandom().primaryKey(),
   providerId: uuid("provider_id").references(() => providers.id),
-  facilityId: uuid("facility_id").references(() => facilities.id),
-  priority: text("priority"),
-  status: text("status"),
-  privileges: text("privileges"),
-  requestedAt: date("requested_at"),
-  submittedAt: date("submitted_at"),
-  completedAt: date("completed_at"),
-  decision: text("decision"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
-});
-
-export const pfcWorkflows = pgTable("pfc_workflows", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  pfcId: uuid("pfc_id").references(() => providerFacilityCredentials.id),
+  facilityId: uuid("facility_id").references(() => facilities.id),  
   facilityType: text("facility_type"),
-  status: text("status"),
   privileges: text("privileges"),
-  dueDate: date("due_date"),
-  startedAt: date("started_at"),
-  sentForReviewAt: date("sent_for_review_at"),
-  reviewerFirst: text("reviewer_first"),
-  reviewerSecond: text("reviewer_second"),
-  reviewerFinal: text("reviewer_final"),
-  nonCriticalErrors: integer("non_critical_errors"),
-  criticalErrors: integer("critical_errors"),
-  submittedAt: date("submitted_at"),
-  decisionDate: date("decision_date"),
   decision: text("decision"),
   notes: text("notes"),
+  priority: text("priority"), 
+  formSize: formSizes("form_size"),  
+  applicationRequired: boolean("application_required"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
-  applicationRequired: boolean("application_required"),
-  activePhaseId: uuid("active_phase_id").references(() => workflowPhases.id),
 });
 
-export const prelivePipeline = pgTable("prelive_pipeline", {
+export const facilityPreliveInfo = pgTable("facility_prelive_info", {
   id: uuid("id").defaultRandom().primaryKey(),
   facilityId: uuid("facility_id").references(() => facilities.id),
   priority: text("priority"),
   goLiveDate: date("go_live_date"),
   boardMeetingDate: date("board_meeting_date"),
+  credentialingDueDate: date("credentialing_due_date"),
   tempsPossible: boolean("temps_possible"),
   rolesNeeded: jsonb("roles_needed"),
   payorEnrollmentRequired: boolean("payor_enrollment_required"),
-  yearlyVolume: bigint("yearly_volume", { mode: "number" }),
-  modalities: text("modalities").array(),
-  tatSla: text("tat_sla"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
-  credentialingDueDate: date("credentialing_due_date"),
-  activePhaseId: uuid("active_phase_id").references(() => workflowPhases.id),
 });
 
 export const providerVestaPrivileges = pgTable("provider_vesta_privileges", {
   id: uuid("id").defaultRandom().primaryKey(),
   providerId: uuid("provider_id").references(() => providers.id),
   privilegeTier: privilegeTierEnum("privilege_tier"),
-  tempApprovedAt: date("temp_approved_at"),
-  tempExpiresAt: date("temp_expires_at"),
-  initialApprovedAt: date("initial_approved_at"),
-  initialExpiresAt: date("initial_expires_at"),
+  currentPrivInitDate: date("current_priv_init_date"), 
+  currentPrivEndDate: date("current_priv_exp_date"), 
   termDate: date("term_date"),
   termReason: text("term_reason"),
   pastPrivileges: jsonb("past_privileges"),
@@ -240,48 +222,19 @@ export const providerVestaPrivileges = pgTable("provider_vesta_privileges", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
-export const stateLicenseWorkflows = pgTable("state_license_workflows", {
+export const providerStateLicenses = pgTable("provider_state_licenses", {
   id: uuid("id").defaultRandom().primaryKey(),
   providerId: uuid("provider_id").references(() => providers.id),
   state: text("state"),
+  status: text("status"),
   path: text("path"),
   priority: text("priority"),
   initialOrRenewal: initialOrRenewalEnum("initial_or_renewal"),
-  requestedAt: date("requested_at"),
-  submittedAt: date("submitted_at"),
-  approvedAt: date("approved_at"),
-  agentAssigned: uuid("agent_assigned").references(() => agents.id),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }),
-  activePhaseId: uuid("active_phase_id").references(() => workflowPhases.id),
-});
-
-export const stateLicenses = pgTable("state_licenses", {
-  id: uuid("id").primaryKey().notNull(),
-  providerId: uuid("provider_id").references(() => providers.id),
-  state: text("state"),
-  status: text("status"),
-  issuedAt: date("issued_at"),
   expiresAt: date("expires_at"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  renewalDate: date("renewal_date"),
-  updatedAt: timestamp("updated_at", { withTimezone: true }),
+  startsAt: date("starts_at"),
   number: text("number"),
-});
-
-export const teamAndAgentTasks = pgTable("team_and_agent_tasks", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  relatedType: text("related_type"),
-  relatedId: uuid("related_id"),
-  title: text("title"),
-  description: text("description"),
-  priority: text("priority"),
-  dueAt: date("due_at"),
-  status: text("status"),
-  ownerUser: text("owner_user"),
-  ownerTeam: text("owner_team"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }),
 });
 
 export const nowSql = sql`now()`;
@@ -302,19 +255,13 @@ export const facilityContactsAuthenticatedAll = createAuthenticatedAllPolicy("fa
 
 export const incidentLogsAuthenticatedAll = createAuthenticatedAllPolicy("incident_logs_authenticated_all").link(incidentLogs);
 
-export const providerFacilityCredentialsAuthenticatedAll = createAuthenticatedAllPolicy("provider_facility_credentials_authenticated_all").link(providerFacilityCredentials);
+export const pfcWorkflowsAuthenticatedAll = createAuthenticatedAllPolicy("provider_facility_credentials_authenticated_all").link(providerFacilityCredentials);
 
-export const pfcWorkflowsAuthenticatedAll = createAuthenticatedAllPolicy("pfc_workflows_authenticated_all").link(pfcWorkflows);
-
-export const prelivePipelineAuthenticatedAll = createAuthenticatedAllPolicy("prelive_pipeline_authenticated_all").link(prelivePipeline);
+export const prelivePipelineAuthenticatedAll = createAuthenticatedAllPolicy("facility_preline_info_authenticated_all").link(facilityPreliveInfo);
 
 export const providerVestaPrivilegesAuthenticatedAll = createAuthenticatedAllPolicy("provider_vesta_privileges_authenticated_all").link(providerVestaPrivileges);
 
-export const stateLicenseWorkflowsAuthenticatedAll = createAuthenticatedAllPolicy("state_license_workflows_authenticated_all").link(stateLicenseWorkflows);
-
-export const stateLicensesAuthenticatedAll = createAuthenticatedAllPolicy("state_licenses_authenticated_all").link(stateLicenses);
-
-export const teamAndAgentTasksAuthenticatedAll = createAuthenticatedAllPolicy("team_and_agent_tasks_authenticated_all").link(teamAndAgentTasks);
+export const stateLicenseWorkflowsAuthenticatedAll = createAuthenticatedAllPolicy("provider_state_licenses_authenticated_all").link(providerStateLicenses);
 
 export const commLogsSelectAdmin = pgPolicy("comm_logs_admin_all", {
   for: "all",

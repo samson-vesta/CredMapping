@@ -1,8 +1,9 @@
-import { desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { Mail, Phone } from "lucide-react";
+import Link from "next/link";
 import { AddProviderDialog } from "~/components/providers/add-provider-dialog";
 import { ProvidersAutoAdvance } from "~/components/providers-auto-advance";
-import { Badge } from "~/components/ui/badge";
+import { MetricsTrendChart } from "~/components/metrics-trend-chart";
 import { Button } from "~/components/ui/button";
 import { VirtualScrollContainer } from "~/components/ui/virtual-scroll-container";
 import { getAppRole } from "~/server/auth/domain";
@@ -10,9 +11,10 @@ import { db } from "~/server/db";
 import {
   agents,
   providerFacilityCredentials,
+  providerStateLicenses,
   providers,
   providerVestaPrivileges,
-  stateLicenses,
+  workflowPhases,
 } from "~/server/db/schema";
 import { createClient } from "~/utils/supabase/server";
 
@@ -173,32 +175,57 @@ export default async function ProvidersPage(props: {
           : inArray(providers.id, filteredProviderIds)
         : sql`false`;
 
-  const [
-    totalProvidersRow,
-    totalLicensesRow,
-    totalPrivilegesRow,
-    totalCredentialsRow,
-  ] = await Promise.all([
+  const [totalProvidersRow, providerCreatedRows, credentialCreatedRows, workflowIncidentRows] =
+    await Promise.all([
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(providers)
+        .where(providerFilterWhere),
     db
-      .select({ count: sql<number>`count(*)::int` })
+      .select({ createdAt: providers.createdAt })
       .from(providers)
       .where(providerFilterWhere),
     db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(stateLicenses)
-      .innerJoin(providers, eq(stateLicenses.providerId, providers.id))
-      .where(providerFilterWhere),
-    db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(providerVestaPrivileges)
-      .innerJoin(providers, eq(providerVestaPrivileges.providerId, providers.id))
-      .where(providerFilterWhere),
-    db
-      .select({ count: sql<number>`count(*)::int` })
+      .select({ createdAt: providerFacilityCredentials.createdAt })
       .from(providerFacilityCredentials)
       .innerJoin(providers, eq(providerFacilityCredentials.providerId, providers.id))
       .where(providerFilterWhere),
+    db
+      .select({ createdAt: workflowPhases.createdAt })
+      .from(workflowPhases)
+      .innerJoin(
+        providerFacilityCredentials,
+        and(
+          eq(workflowPhases.relatedId, providerFacilityCredentials.id),
+          eq(workflowPhases.workflowType, "pfc"),
+        ),
+      )
+      .innerJoin(providers, eq(providerFacilityCredentials.providerId, providers.id))
+      .where(providerFilterWhere),
   ]);
+
+  const providerTimeline = new Map<string, { primary: number; secondary: number; tertiary: number }>();
+
+  const addToTimeline = (
+    dateValue: Date | string | null,
+    metric: "primary" | "secondary" | "tertiary",
+  ) => {
+    if (!dateValue) return;
+    const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
+    if (Number.isNaN(date.getTime())) return;
+    const key = date.toISOString().slice(0, 10);
+    const current = providerTimeline.get(key) ?? { primary: 0, secondary: 0, tertiary: 0 };
+    current[metric] += 1;
+    providerTimeline.set(key, current);
+  };
+
+  for (const row of providerCreatedRows) addToTimeline(row.createdAt, "primary");
+  for (const row of credentialCreatedRows) addToTimeline(row.createdAt, "secondary");
+  for (const row of workflowIncidentRows) addToTimeline(row.createdAt, "tertiary");
+
+  const providerTrendPoints = Array.from(providerTimeline.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([date, values]) => ({ date, ...values }));
 
   const totalProviders = totalProvidersRow[0]?.count ?? 0;
   const visibleLimit = Math.min(requestedLimit, Math.max(totalProviders, pageSize));
@@ -217,9 +244,9 @@ export default async function ProvidersPage(props: {
       ? await Promise.all([
           db
             .select()
-            .from(stateLicenses)
-            .where(inArray(stateLicenses.providerId, providerIds))
-            .orderBy(desc(stateLicenses.expiresAt), desc(stateLicenses.createdAt)),
+            .from(providerStateLicenses)
+            .where(inArray(providerStateLicenses.providerId, providerIds))
+            .orderBy(desc(providerStateLicenses.expiresAt), desc(providerStateLicenses.createdAt)),
           db
             .select()
             .from(providerVestaPrivileges)
@@ -257,14 +284,28 @@ export default async function ProvidersPage(props: {
     credentialsByProvider.set(credential.providerId, current);
   }
 
-  const pfcStatusBreakdown = credentialRows.reduce<Record<string, number>>(
-    (acc, credential) => {
-      const key = credential.status?.trim() ?? "Unspecified";
-      acc[key] = (acc[key] ?? 0) + 1;
-      return acc;
-    },
-    {},
-  );
+  const credentialIds = credentialRows.map((credential) => credential.id);
+
+  const pfcWorkflowRows =
+    credentialIds.length > 0
+      ? await db
+          .select()
+          .from(workflowPhases)
+          .where(
+            and(
+              eq(workflowPhases.workflowType, "pfc"),
+              inArray(workflowPhases.relatedId, credentialIds),
+            ),
+          )
+          .orderBy(desc(workflowPhases.updatedAt))
+      : [];
+
+  const workflowsByCredential = new Map<string, typeof pfcWorkflowRows>();
+  for (const workflow of pfcWorkflowRows) {
+    const current = workflowsByCredential.get(workflow.relatedId) ?? [];
+    current.push(workflow);
+    workflowsByCredential.set(workflow.relatedId, current);
+  }
 
   const now = new Date();
   const providerCards = providerRows
@@ -272,6 +313,9 @@ export default async function ProvidersPage(props: {
       const providerLicenses = licensesByProvider.get(provider.id) ?? [];
       const providerPrivileges = privilegesByProvider.get(provider.id) ?? [];
       const providerCredentials = credentialsByProvider.get(provider.id) ?? [];
+      const providerPfcWorkflows = providerCredentials.flatMap((credential) =>
+        workflowsByCredential.get(credential.id) ?? [],
+      );
       const doctorStatus = providerPrivileges[0]?.privilegeTier ?? "Unspecified";
       const expiredPrivileges = providerLicenses.reduce((count, license) => {
         if (!license.expiresAt) return count;
@@ -285,6 +329,7 @@ export default async function ProvidersPage(props: {
         providerLicenses,
         providerPrivileges,
         providerCredentials,
+        providerPfcWorkflows,
         doctorStatus,
         expiredPrivileges,
         privilegeTierTone: getPrivilegeTierTone(providerPrivileges[0]?.privilegeTier ?? null),
@@ -323,24 +368,15 @@ export default async function ProvidersPage(props: {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-6 overflow-hidden">
-      <div className="grid gap-4 md:grid-cols-4">
-        <div className="bg-card rounded-lg border p-4">
-          <p className="text-muted-foreground text-xs uppercase">Provider records</p>
-          <p className="mt-2 text-2xl font-semibold">{totalProviders}</p>
-        </div>
-        <div className="bg-card rounded-lg border p-4">
-          <p className="text-muted-foreground text-xs uppercase">State licenses</p>
-          <p className="mt-2 text-2xl font-semibold">{totalLicensesRow[0]?.count ?? 0}</p>
-        </div>
-        <div className="bg-card rounded-lg border p-4">
-          <p className="text-muted-foreground text-xs uppercase">Vesta privilege records</p>
-          <p className="mt-2 text-2xl font-semibold">{totalPrivilegesRow[0]?.count ?? 0}</p>
-        </div>
-        <div className="bg-card rounded-lg border p-4">
-          <p className="text-muted-foreground text-xs uppercase">PFC records</p>
-          <p className="mt-2 text-2xl font-semibold">{totalCredentialsRow[0]?.count ?? 0}</p>
-        </div>
-      </div>
+      <MetricsTrendChart
+        labels={{
+          primary: "New providers",
+          secondary: "New PFC records",
+          tertiary: "Related incidents",
+        }}
+        points={providerTrendPoints}
+        title="Provider onboarding velocity"
+      />
 
       <form
         className="bg-card flex flex-col gap-3 rounded-lg border p-4 lg:flex-row lg:items-end"
@@ -394,28 +430,11 @@ export default async function ProvidersPage(props: {
             Apply
           </Button>
           <Button asChild variant="outline">
-            <a href="/providers">Reset</a>
+            <Link href="/providers">Reset</Link>
           </Button>
           {isSuperAdmin ? <AddProviderDialog /> : null}
         </div>
       </form>
-
-      {Object.keys(pfcStatusBreakdown).length > 0 && (
-        <div className="bg-card rounded-lg border p-4">
-          <h2 className="text-muted-foreground mb-3 text-sm font-semibold uppercase">
-            PFC status distribution
-          </h2>
-          <div className="flex flex-wrap gap-2">
-            {Object.entries(pfcStatusBreakdown)
-              .sort((a, b) => b[1] - a[1])
-              .map(([status, count]) => (
-                <Badge key={status} variant="secondary" className="font-medium">
-                  {status}: {count}
-                </Badge>
-              ))}
-          </div>
-        </div>
-      )}
 
       {providerCards.length === 0 ? (
         <div className="text-muted-foreground rounded-lg border border-dashed p-8 text-sm">
@@ -434,6 +453,7 @@ export default async function ProvidersPage(props: {
                 providerLicenses,
                 providerPrivileges,
                 providerCredentials,
+                providerPfcWorkflows,
                 privilegeTierTone,
                 displayName,
               } = card;
@@ -449,7 +469,14 @@ export default async function ProvidersPage(props: {
                   <details>
                     <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 border-b p-4 [&::-webkit-details-marker]:hidden">
                       <div className="flex min-h-9 items-center">
-                        <h2 className="text-lg font-semibold">{displayName}</h2>
+                        <h2 className="text-lg font-semibold">
+                          <Link
+                            className="hover:underline"
+                            href={`/providers/${provider.id}`}
+                          >
+                            {displayName}
+                          </Link>
+                        </h2>
                       </div>
                       <div className="text-muted-foreground space-y-2 text-right text-sm">
                         <div className="flex items-center justify-end gap-2">
@@ -529,7 +556,7 @@ export default async function ProvidersPage(props: {
                                     <tr key={license.id} className="border-t align-top">
                                       <td className="py-1 pr-3">{license.state ?? "—"}</td>
                                       <td className="py-1 pr-3">{license.status ?? "—"}</td>
-                                      <td className="py-1 pr-3">{formatDate(license.issuedAt)}</td>
+                                      <td className="py-1 pr-3">{formatDate(license.startsAt)}</td>
                                       <td className="py-1 pr-3">
                                         <span className={getLicenseExpirationTone(license.expiresAt)}>
                                           {formatDate(license.expiresAt)}
@@ -558,7 +585,7 @@ export default async function ProvidersPage(props: {
                                         <tr key={license.id} className="border-t align-top">
                                           <td className="py-1 pr-3">{license.state ?? "—"}</td>
                                           <td className="py-1 pr-3">{license.status ?? "—"}</td>
-                                          <td className="py-1 pr-3">{formatDate(license.issuedAt)}</td>
+                                          <td className="py-1 pr-3">{formatDate(license.startsAt)}</td>
                                           <td className="py-1 pr-3">
                                             <span className={getLicenseExpirationTone(license.expiresAt)}>
                                               {formatDate(license.expiresAt)}
@@ -594,8 +621,8 @@ export default async function ProvidersPage(props: {
                                 {providerPrivileges.map((privilege) => (
                                   <tr key={privilege.id} className="border-t">
                                     <td className="py-1 pr-3">{privilege.privilegeTier ?? "—"}</td>
-                                    <td className="py-1 pr-3">{formatDate(privilege.initialApprovedAt)}</td>
-                                    <td className="py-1 pr-3">{formatDate(privilege.initialExpiresAt)}</td>
+                                    <td className="py-1 pr-3">{formatDate(privilege.currentPrivInitDate)}</td>
+                                    <td className="py-1 pr-3">{formatDate(privilege.currentPrivEndDate)}</td>
                                     <td className="py-1 pr-3">{formatDate(privilege.termDate)}</td>
                                   </tr>
                                 ))}
@@ -606,27 +633,33 @@ export default async function ProvidersPage(props: {
                       </div>
 
                       <div className="rounded-md border p-3 lg:col-span-2">
-                        <p className="text-muted-foreground text-xs uppercase">PFC Statuses</p>
+                        <p className="text-muted-foreground text-xs uppercase">PFC Workflows</p>
                         {providerCredentials.length === 0 ? (
                           <p className="text-muted-foreground mt-2 text-sm">No linked PFC records.</p>
+                        ) : providerPfcWorkflows.length === 0 ? (
+                          <p className="text-muted-foreground mt-2 text-sm">
+                            No linked PFC workflow phases.
+                          </p>
                         ) : (
                           <div className="mt-2 overflow-x-auto">
                             <table className="w-full text-left text-sm">
                               <thead className="text-muted-foreground text-xs uppercase">
                                 <tr>
-                                  <th className="py-1 pr-3">priority</th>
+                                  <th className="py-1 pr-3">phase</th>
                                   <th className="py-1 pr-3">status</th>
-                                  <th className="py-1 pr-3">decision</th>
-                                  <th className="py-1 pr-3">requested</th>
+                                  <th className="py-1 pr-3">start</th>
+                                  <th className="py-1 pr-3">due</th>
+                                  <th className="py-1 pr-3">completed</th>
                                 </tr>
                               </thead>
                               <tbody>
-                                {providerCredentials.map((credential) => (
-                                  <tr key={credential.id} className="border-t">
-                                    <td className="py-1 pr-3">{credential.priority ?? "—"}</td>
-                                    <td className="py-1 pr-3">{credential.status ?? "—"}</td>
-                                    <td className="py-1 pr-3">{credential.decision ?? "—"}</td>
-                                    <td className="py-1 pr-3">{formatDate(credential.requestedAt)}</td>
+                                {providerPfcWorkflows.map((workflow) => (
+                                  <tr key={workflow.id} className="border-t">
+                                    <td className="py-1 pr-3">{workflow.phaseName}</td>
+                                    <td className="py-1 pr-3">{workflow.status ?? "—"}</td>
+                                    <td className="py-1 pr-3">{formatDate(workflow.startDate)}</td>
+                                    <td className="py-1 pr-3">{formatDate(workflow.dueDate)}</td>
+                                    <td className="py-1 pr-3">{formatDate(workflow.completedAt)}</td>
                                   </tr>
                                 ))}
                               </tbody>

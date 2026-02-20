@@ -83,8 +83,6 @@ function AssignAgentDialog({ onSuccess }: { onSuccess: () => void }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
   const [team, setTeam] = useState<"IN" | "US">("IN");
   const [teamNumber, setTeamNumber] = useState("");
   const [role, setRole] = useState<"user" | "admin" | "superadmin">("user");
@@ -109,8 +107,6 @@ function AssignAgentDialog({ onSuccess }: { onSuccess: () => void }) {
 
   const resetForm = () => {
     setSelectedUserId(null);
-    setFirstName("");
-    setLastName("");
     setTeam("IN");
     setTeamNumber("");
     setRole("user");
@@ -125,8 +121,6 @@ function AssignAgentDialog({ onSuccess }: { onSuccess: () => void }) {
     if (!selectedUserId || !selectedUser) return;
     assignMutation.mutate({
       userId: selectedUserId,
-      firstName,
-      lastName,
       email: selectedUser.email,
       team,
       teamNumber: teamNumber ? parseInt(teamNumber, 10) : undefined,
@@ -205,25 +199,6 @@ function AssignAgentDialog({ onSuccess }: { onSuccess: () => void }) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium">First Name</label>
-                  <Input
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
-                    placeholder="John"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Last Name</label>
-                  <Input
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                    placeholder="Doe"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
                   <label className="text-sm font-medium">Team</label>
                   <Select
                     value={team}
@@ -279,10 +254,6 @@ function AssignAgentDialog({ onSuccess }: { onSuccess: () => void }) {
               ? "Assignment in progress…"
               : !selectedUserId
               ? "Select a user first"
-              : !firstName.trim()
-              ? "First name is required"
-              : !lastName.trim()
-              ? "Last name is required"
               : null;
             const btn = (
               <Button

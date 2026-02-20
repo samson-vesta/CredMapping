@@ -214,12 +214,6 @@ export function FacilitiesClient({
     setTimer(t);
   };
 
-  const toggleViewMode = () => {
-    const next = viewMode === "table" ? "grid" : "table";
-    setViewMode(next);
-    localStorage.setItem("facilities-view", next);
-  };
-
   const toggleRow = (id: string) => {
     setExpandedRows((prev) => {
       const next = new Set(prev);

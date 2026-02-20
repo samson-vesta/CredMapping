@@ -20,7 +20,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { GlobalSearch } from "~/components/layout/global-search";
 
 import { type User as UserType } from "@supabase/supabase-js";
-import { useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 
 function formatSegmentLabel(segment: string) {
   const decodedSegment = decodeURIComponent(segment).replace(/[-_]+/g, " ").trim();
@@ -32,16 +32,60 @@ function formatSegmentLabel(segment: string) {
     .join(" ");
 }
 
+const isLikelyUuid = (value: string) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+
 export function Header({ user }: { user: UserType }) {
   const [isPending, startTransition] = useTransition();
+  const [providerBreadcrumbLabel, setProviderBreadcrumbLabel] = useState<string | null>(null);
 
   const pathname = usePathname();
-  const segments = pathname.split("/").filter(Boolean);
-  const breadcrumbItems = segments.map((segment, index) => ({
-    href: `/${segments.slice(0, index + 1).join("/")}`,
-    label: formatSegmentLabel(segment),
-    isCurrent: index === segments.length - 1,
-  }));
+  const segments = useMemo(() => pathname.split("/").filter(Boolean), [pathname]);
+
+  useEffect(() => {
+    const providerId = segments[0] === "providers" ? segments[1] : undefined;
+
+    if (!providerId || !isLikelyUuid(providerId)) {
+      setProviderBreadcrumbLabel(null);
+      return;
+    }
+
+    let mounted = true;
+    void fetch(`/api/providers/${providerId}/breadcrumb`, { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) return null;
+        const data: unknown = await response.json();
+        if (!data || typeof data !== "object" || !("label" in data)) return null;
+        const label = data.label;
+        return typeof label === "string" ? label : null;
+      })
+      .then((label) => {
+        if (!mounted) return;
+        setProviderBreadcrumbLabel(label);
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setProviderBreadcrumbLabel(null);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [segments]);
+
+  const breadcrumbItems = segments.map((segment, index) => {
+    const isProviderProfileSegment = index === 1 && segments[0] === "providers" && isLikelyUuid(segment);
+
+    const label = isProviderProfileSegment
+      ? providerBreadcrumbLabel ?? "Provider Profile"
+      : formatSegmentLabel(segment);
+
+    return {
+      href: `/${segments.slice(0, index + 1).join("/")}`,
+      label,
+      isCurrent: index === segments.length - 1,
+    };
+  });
 
   const { theme, setTheme } = useTheme();
 
@@ -69,7 +113,7 @@ export function Header({ user }: { user: UserType }) {
           <Link href="/dashboard" className="flex items-center gap-3 font-semibold text-primary">
             <Image src="/logo.png" alt="CredMapping+ logo" width={25} height={32} priority />
           </Link>
-          <span className="h-6 w-px shrink-0 bg-border mx-2" aria-hidden="true" />
+          <span className="mx-2 h-6 w-px shrink-0 bg-border" aria-hidden="true" />
 
           <nav className="flex min-w-0 items-center gap-2 text-sm font-medium" aria-label="Breadcrumb">
             {breadcrumbItems.length === 0 ? (
@@ -117,8 +161,9 @@ export function Header({ user }: { user: UserType }) {
             <DropdownMenuContent align="end" className="w-28 min-w-0">
               <DropdownMenuLabel className="font-normal">
                 <div className="flex w-full flex-col space-y-1">
-                  <p className="truncate text-sm flex justify-center items-center font-medium leading-none">{fullName.split(" ")[0]}</p>
-                  
+                  <p className="flex items-center justify-center truncate text-sm font-medium leading-none">
+                    {fullName.split(" ")[0]}
+                  </p>
                 </div>
               </DropdownMenuLabel>
 
@@ -152,7 +197,7 @@ export function Header({ user }: { user: UserType }) {
                 onClick={handleSignOut}
                 onSelect={(e) => e.preventDefault()}
                 disabled={isPending}
-                className="mx-auto w-24 truncate cursor-pointer justify-center gap-2 text-destructive focus:text-destructive"
+                className="mx-auto w-24 cursor-pointer justify-center gap-2 truncate text-destructive focus:text-destructive"
               >
                 <LogOut size={16} />
                 {isPending ? "Signing out..." : "Sign out"}
