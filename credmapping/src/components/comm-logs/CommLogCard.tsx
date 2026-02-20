@@ -12,6 +12,8 @@ interface CommLogCardProps {
   createdAt: Date | string | null;
   nextFollowupAt: Date | string | null;
   agentName: string | null;
+  createdByName: string | null;
+  lastUpdatedByName: string | null;
 }
 
 const commTypeIcons: Record<string, React.ReactNode> = {
@@ -38,13 +40,15 @@ export function CommLogCard({
   status, 
   createdAt,
   nextFollowupAt,
-  agentName 
+  agentName,
+  createdByName,
+  lastUpdatedByName 
 }: CommLogCardProps) {
   const icon = commTypeIcons[commType ?? ""] ?? <FileText className="w-5 h-5" />;
   const statusColor = statusColors[status ?? ""] ?? "bg-zinc-700 text-zinc-400";
   
   return (
-    <div className="p-4 bg-[#1e2022] rounded-lg border border-zinc-700 hover:border-zinc-600 transition-colors">
+    <div className="rounded-lg border border-border bg-card p-4 transition-colors hover:border-zinc-600">
       <div className="flex items-start gap-3">
         <div className="text-zinc-400 flex-shrink-0 mt-1">{icon}</div>
         
@@ -65,16 +69,29 @@ export function CommLogCard({
             <p className="text-sm text-zinc-300 mt-2 line-clamp-2">{notes}</p>
           )}
 
-          <div className="flex items-center justify-between mt-3 text-xs text-zinc-400">
+          <div className="mt-3 flex items-center justify-between text-xs text-zinc-400">
             <div className="flex items-center gap-2">
               {agentName && (
-                <span className="px-2 py-1 rounded bg-zinc-800">
+                <span className="rounded bg-zinc-800 px-2 py-1">
                   {agentName}
                 </span>
               )}
               {nextFollowupAt && (
-                <span className="px-2 py-1 rounded bg-zinc-800">
+                <span className="rounded bg-zinc-800 px-2 py-1">
                   Follow-up: {format(new Date(nextFollowupAt), "MMM d")}
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              {createdByName && (
+                <span className="rounded border border-blue-500/30 bg-blue-500/10 px-2 py-1 text-blue-300">
+                  Created by: {createdByName}
+                </span>
+              )}
+              {lastUpdatedByName && (
+                <span className="rounded border border-violet-500/30 bg-violet-500/10 px-2 py-1 text-violet-300">
+                  Updated by: {lastUpdatedByName}
                 </span>
               )}
             </div>

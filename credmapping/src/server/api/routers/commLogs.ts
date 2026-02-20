@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, desc, count, and, sql, or } from "drizzle-orm";
+import { eq, desc, count, and, sql, or, inArray } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import {
   commLogs,
@@ -34,12 +34,8 @@ export const commLogsRouter = createTRPCRouter({
           lastUpdatedBy: commLogs.lastUpdatedBy,
           createdAt: commLogs.createdAt,
           updatedAt: commLogs.updatedAt,
-          agentFirstName: agents.firstName,
-          agentLastName: agents.lastName,
-          agentEmail: agents.email,
         })
         .from(commLogs)
-        .leftJoin(agents, eq(commLogs.createdBy, agents.id))
         .where(
           and(
             eq(commLogs.relatedType, "provider"),
@@ -48,11 +44,31 @@ export const commLogsRouter = createTRPCRouter({
         )
         .orderBy(desc(commLogs.createdAt));
 
+      const agentIds = Array.from(
+        new Set(
+          rows.flatMap((row) => [row.createdBy, row.lastUpdatedBy]).filter((id): id is string => id != null),
+        ),
+      );
+
+      const agentRows = agentIds.length
+        ? await ctx.db
+            .select({ id: agents.id, firstName: agents.firstName, lastName: agents.lastName })
+            .from(agents)
+            .where(inArray(agents.id, agentIds))
+        : [];
+
+      const agentNameById = new Map(
+        agentRows.map((agent) => [
+          agent.id,
+          [agent.firstName, agent.lastName].filter(Boolean).join(" ").trim(),
+        ]),
+      );
+
       return rows.map((row) => ({
         ...row,
-        agentName: row.agentFirstName
-          ? `${row.agentFirstName} ${row.agentLastName ?? ""}`
-          : null,
+        agentName: row.createdBy ? (agentNameById.get(row.createdBy) ?? null) : null,
+        createdByName: row.createdBy ? (agentNameById.get(row.createdBy) ?? null) : null,
+        lastUpdatedByName: row.lastUpdatedBy ? (agentNameById.get(row.lastUpdatedBy) ?? null) : null,
       }));
     }),
 
@@ -79,12 +95,8 @@ export const commLogsRouter = createTRPCRouter({
           lastUpdatedBy: commLogs.lastUpdatedBy,
           createdAt: commLogs.createdAt,
           updatedAt: commLogs.updatedAt,
-          agentFirstName: agents.firstName,
-          agentLastName: agents.lastName,
-          agentEmail: agents.email,
         })
         .from(commLogs)
-        .leftJoin(agents, eq(commLogs.createdBy, agents.id))
         .where(
           and(
             eq(commLogs.relatedType, "facility"),
@@ -95,11 +107,31 @@ export const commLogsRouter = createTRPCRouter({
         )
         .orderBy(desc(commLogs.createdAt));
 
+      const agentIds = Array.from(
+        new Set(
+          rows.flatMap((row) => [row.createdBy, row.lastUpdatedBy]).filter((id): id is string => id != null),
+        ),
+      );
+
+      const agentRows = agentIds.length
+        ? await ctx.db
+            .select({ id: agents.id, firstName: agents.firstName, lastName: agents.lastName })
+            .from(agents)
+            .where(inArray(agents.id, agentIds))
+        : [];
+
+      const agentNameById = new Map(
+        agentRows.map((agent) => [
+          agent.id,
+          [agent.firstName, agent.lastName].filter(Boolean).join(" ").trim(),
+        ]),
+      );
+
       return rows.map((row) => ({
         ...row,
-        agentName: row.agentFirstName
-          ? `${row.agentFirstName} ${row.agentLastName ?? ""}`
-          : null,
+        agentName: row.createdBy ? (agentNameById.get(row.createdBy) ?? null) : null,
+        createdByName: row.createdBy ? (agentNameById.get(row.createdBy) ?? null) : null,
+        lastUpdatedByName: row.lastUpdatedBy ? (agentNameById.get(row.lastUpdatedBy) ?? null) : null,
       }));
     }),
 

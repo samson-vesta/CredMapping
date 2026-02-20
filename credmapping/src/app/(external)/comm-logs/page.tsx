@@ -73,7 +73,7 @@ export default function CommLogsPage() {
     : null;
 
   return (
-    <div className="flex h-screen bg-[#111213]">
+    <div className="flex h-full min-h-0 overflow-hidden bg-background">
       {/* Left Panel */}
       <LeftPanel
         mode={mode}
@@ -109,7 +109,7 @@ export default function CommLogsPage() {
       />
 
       {/* Right Panel - Content */}
-      <div className="flex-1 relative">
+      <div className="relative flex-1 min-h-0 overflow-hidden">
         {!selectedId ? (
           <div className="h-full flex items-center justify-center">
             <div className="text-center">

@@ -11,6 +11,8 @@ interface CommLog {
   createdAt: Date | string | null;
   nextFollowupAt: Date | string | null;
   agentName: string | null;
+  createdByName: string | null;
+  lastUpdatedByName: string | null;
 }
 
 interface CommLogFeedProps {
@@ -24,7 +26,7 @@ export function CommLogFeed({ logs, isLoading = false, onNewLog }: CommLogFeedPr
     return (
       <div className="space-y-3">
         {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="h-32 bg-[#1e2022] rounded-lg animate-pulse" />
+          <div key={i} className="h-32 bg-card rounded-lg animate-pulse" />
         ))}
       </div>
     );
@@ -37,7 +39,7 @@ export function CommLogFeed({ logs, isLoading = false, onNewLog }: CommLogFeedPr
         {onNewLog && (
           <button
             onClick={onNewLog}
-            className="inline-block px-4 py-2 bg-[#c8a84b] text-black font-medium rounded hover:bg-[#dab855] transition-colors"
+            className="inline-block px-4 py-2 bg-primary text-primary-foreground font-medium rounded hover:bg-primary/90 transition-colors"
           >
             + Create First Log
           </button>
@@ -59,6 +61,8 @@ export function CommLogFeed({ logs, isLoading = false, onNewLog }: CommLogFeedPr
           createdAt={log.createdAt}
           nextFollowupAt={log.nextFollowupAt}
           agentName={log.agentName}
+          createdByName={log.createdByName}
+          lastUpdatedByName={log.lastUpdatedByName}
         />
       ))}
     </div>

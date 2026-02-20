@@ -90,9 +90,9 @@ export function ProviderDetail({ providerId, provider }: ProviderDetailProps) {
   };
 
   return (
-    <div className="flex-1 bg-[#111213] overflow-hidden flex flex-col">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
       {/* Header Card */}
-      <div className="bg-[#1e2022] border-b border-zinc-700 p-6">
+      <div className="border-b border-border bg-card p-6">
         <div className="mb-4">
           <h2 className="text-2xl font-bold text-white mb-2">{displayName}</h2>
           {provider.email && (
@@ -134,14 +134,11 @@ export function ProviderDetail({ providerId, provider }: ProviderDetailProps) {
           </div>
         </div>
 
-        {/* Missing Docs Warning Bar */}
-        <div className="mt-4 p-3 bg-red-500/8 border border-red-500/20 rounded-md text-red-400 text-sm">
-          ⚠️ Missing Docs: Review and Wet Signature Required – POA Form · Education & Employment History gap #228540
-        </div>
+
       </div>
 
       {/* Tabs */}
-      <div className="bg-[#1e2022] border-b border-zinc-700 px-6 flex gap-4">
+      <div className="flex gap-4 border-b border-border bg-card px-6">
         {[
           { id: "logs", label: "Comm Log" },
           { id: "psv", label: "Pending PSVs / Missing Docs" },
@@ -152,7 +149,7 @@ export function ProviderDetail({ providerId, provider }: ProviderDetailProps) {
             onClick={() => setActiveTab(tab.id as typeof activeTab)}
             className={`px-4 py-4 text-sm font-medium border-b-2 transition-colors ${
               activeTab === tab.id
-                ? "border-[#c8a84b] text-white"
+                ? "border-primary text-white"
                 : "border-transparent text-zinc-400 hover:text-white"
             }`}
           >
@@ -171,7 +168,7 @@ export function ProviderDetail({ providerId, provider }: ProviderDetailProps) {
               </h3>
               <button
                 onClick={() => setIsModalOpen(true)}
-                className="px-4 py-2 bg-[#c8a84b] text-black font-medium rounded hover:bg-[#dab855] transition-colors"
+                className="px-4 py-2 bg-primary text-primary-foreground font-medium rounded hover:bg-primary/90 transition-colors"
               >
                 + New Log Entry
               </button>
@@ -184,7 +181,7 @@ export function ProviderDetail({ providerId, provider }: ProviderDetailProps) {
                 <select
                   value={selectedCommType}
                   onChange={(e) => setSelectedCommType(e.target.value)}
-                  className="bg-zinc-800 border border-zinc-700 text-zinc-300 rounded px-2.5 py-1.5 text-xs font-medium cursor-pointer focus:outline-none focus:border-yellow-600/50"
+                  className="bg-zinc-800 border border-zinc-700 text-zinc-300 rounded px-2.5 py-1.5 text-xs font-medium cursor-pointer focus:outline-none focus:border-ring"
                 >
                   <option value="all">All Types</option>
                   <option value="Email">Email</option>
@@ -200,7 +197,7 @@ export function ProviderDetail({ providerId, provider }: ProviderDetailProps) {
                 <select
                   value={selectedAgent}
                   onChange={(e) => setSelectedAgent(e.target.value)}
-                  className="bg-zinc-800 border border-zinc-700 text-zinc-300 rounded px-2.5 py-1.5 text-xs font-medium cursor-pointer focus:outline-none focus:border-yellow-600/50"
+                  className="bg-zinc-800 border border-zinc-700 text-zinc-300 rounded px-2.5 py-1.5 text-xs font-medium cursor-pointer focus:outline-none focus:border-ring"
                 >
                   <option value="all">All Agents</option>
                   {uniqueAgents.map((agent) => (
@@ -216,7 +213,7 @@ export function ProviderDetail({ providerId, provider }: ProviderDetailProps) {
                 <select
                   value={selectedStatus}
                   onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="bg-zinc-800 border border-zinc-700 text-zinc-300 rounded px-2.5 py-1.5 text-xs font-medium cursor-pointer focus:outline-none focus:border-yellow-600/50"
+                  className="bg-zinc-800 border border-zinc-700 text-zinc-300 rounded px-2.5 py-1.5 text-xs font-medium cursor-pointer focus:outline-none focus:border-ring"
                 >
                   <option value="all">All Status</option>
                   <option value="pending_response">Pending Response</option>
@@ -233,7 +230,7 @@ export function ProviderDetail({ providerId, provider }: ProviderDetailProps) {
                   onChange={(e) =>
                     setSortOrder(e.target.value as "newest" | "oldest")
                   }
-                  className="bg-zinc-800 border border-zinc-700 text-zinc-300 rounded px-2.5 py-1.5 text-xs font-medium cursor-pointer focus:outline-none focus:border-yellow-600/50"
+                  className="bg-zinc-800 border border-zinc-700 text-zinc-300 rounded px-2.5 py-1.5 text-xs font-medium cursor-pointer focus:outline-none focus:border-ring"
                 >
                   <option value="newest">Newest First</option>
                   <option value="oldest">Oldest First</option>
@@ -252,6 +249,8 @@ export function ProviderDetail({ providerId, provider }: ProviderDetailProps) {
                   createdAt: log.createdAt,
                   nextFollowupAt: log.nextFollowupAt,
                   agentName: log.agentName,
+                  createdByName: log.createdByName,
+                  lastUpdatedByName: log.lastUpdatedByName,
                 })) || []
               }
               isLoading={logsLoading}
@@ -267,7 +266,7 @@ export function ProviderDetail({ providerId, provider }: ProviderDetailProps) {
                 {Array.from({ length: 3 }).map((_, i) => (
                   <div
                     key={i}
-                    className="h-12 bg-[#1e2022] rounded animate-pulse"
+                    className="h-12 bg-card rounded animate-pulse"
                   />
                 ))}
               </div>
@@ -350,7 +349,7 @@ export function ProviderDetail({ providerId, provider }: ProviderDetailProps) {
                 Provider Notes
               </h3>
               {provider.notes ? (
-                <div className="p-4 bg-[#1e2022] rounded-lg border border-zinc-700 text-zinc-300">
+                <div className="p-4 bg-card rounded-lg border border-zinc-700 text-zinc-300">
                   {provider.notes}
                 </div>
               ) : (

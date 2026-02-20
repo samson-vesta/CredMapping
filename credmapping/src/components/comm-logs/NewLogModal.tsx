@@ -80,7 +80,7 @@ export function NewLogModal({
               onChange={(e) =>
                 setFormData({ ...formData, commType: e.target.value })
               }
-              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white focus:outline-none focus:border-[#c8a84b]"
+              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white focus:outline-none focus:border-ring"
             >
               <option>Email</option>
               <option>Phone Call</option>
@@ -102,7 +102,7 @@ export function NewLogModal({
                 setFormData({ ...formData, subject: e.target.value })
               }
               placeholder="Email subject or brief description"
-              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white placeholder-zinc-500 focus:outline-none focus:border-[#c8a84b]"
+              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white placeholder-zinc-500 focus:outline-none focus:border-ring"
             />
           </div>
 
@@ -117,7 +117,7 @@ export function NewLogModal({
               }
               placeholder="Details about the communication"
               rows={4}
-              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white placeholder-zinc-500 focus:outline-none focus:border-[#c8a84b]"
+              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white placeholder-zinc-500 focus:outline-none focus:border-ring"
             />
           </div>
 
@@ -130,7 +130,7 @@ export function NewLogModal({
               onChange={(e) =>
                 setFormData({ ...formData, status: e.target.value })
               }
-              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white focus:outline-none focus:border-[#c8a84b]"
+              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white focus:outline-none focus:border-ring"
             >
               <option value="pending_response">Pending Response</option>
               <option value="fu_completed">Follow-up Completed</option>
@@ -149,7 +149,7 @@ export function NewLogModal({
               onChange={(e) =>
                 setFormData({ ...formData, nextFollowupAt: e.target.value })
               }
-              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white focus:outline-none focus:border-[#c8a84b]"
+              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white focus:outline-none focus:border-ring"
             />
           </div>
 
@@ -165,7 +165,7 @@ export function NewLogModal({
             <button
               type="submit"
               disabled={createMutation.isPending}
-              className="flex-1 px-4 py-2 bg-[#c8a84b] text-black font-medium rounded hover:bg-[#dab855] transition-colors disabled:opacity-50"
+              className="flex-1 px-4 py-2 bg-primary text-primary-foreground font-medium rounded hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
               {createMutation.isPending ? "Creating..." : "Create Log"}
             </button>

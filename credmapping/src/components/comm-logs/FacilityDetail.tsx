@@ -105,13 +105,13 @@ export function FacilityDetail({
   };
 
   return (
-    <div className="flex-1 bg-[#111213] overflow-hidden flex flex-col">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
       {/* Header Card */}
-      <div className="bg-[#1e2022] border-b border-zinc-700 p-6">
+      <div className="border-b border-border bg-card p-6">
         <div className="mb-4">
           <div className="flex items-center gap-3 mb-2">
             <h2 className="text-2xl font-bold text-white">{facility.name}</h2>
-            <span className="px-2 py-1 text-xs font-medium rounded bg-[#c8a84b]/20 text-[#c8a84b] border border-[#c8a84b]">
+            <span className="rounded border border-border bg-secondary px-2 py-1 text-xs font-medium text-secondary-foreground">
               {facility.state}
             </span>
             <span
@@ -173,7 +173,7 @@ export function FacilityDetail({
       </div>
 
       {/* Tabs */}
-      <div className="bg-[#1e2022] border-b border-zinc-700 px-6 flex gap-4">
+      <div className="flex gap-4 border-b border-border bg-card px-6">
         {[
           { id: "logs", label: "Comm Log" },
           { id: "cred-docs", label: "Missing Docs (CRED)" },
@@ -193,7 +193,7 @@ export function FacilityDetail({
             }
             className={`px-4 py-4 text-sm font-medium border-b-2 transition-colors ${
               activeTab === tab.id
-                ? "border-[#c8a84b] text-white"
+                ? "border-primary text-white"
                 : "border-transparent text-zinc-400 hover:text-white"
             }`}
           >
@@ -212,7 +212,7 @@ export function FacilityDetail({
               </h3>
               <button
                 onClick={() => setIsModalOpen(true)}
-                className="px-4 py-2 bg-[#c8a84b] text-black font-medium rounded hover:bg-[#dab855] transition-colors"
+                className="px-4 py-2 bg-primary text-primary-foreground font-medium rounded hover:bg-primary/90 transition-colors"
               >
                 + New Log Entry
               </button>
@@ -225,7 +225,7 @@ export function FacilityDetail({
                 <select
                   value={selectedCommType}
                   onChange={(e) => setSelectedCommType(e.target.value)}
-                  className="bg-zinc-800 border border-zinc-700 text-zinc-300 rounded px-2.5 py-1.5 text-xs font-medium cursor-pointer focus:outline-none focus:border-yellow-600/50"
+                  className="bg-zinc-800 border border-zinc-700 text-zinc-300 rounded px-2.5 py-1.5 text-xs font-medium cursor-pointer focus:outline-none focus:border-ring"
                 >
                   <option value="all">All Types</option>
                   <option value="Email">Email</option>
@@ -242,7 +242,7 @@ export function FacilityDetail({
                 <select
                   value={selectedAgent}
                   onChange={(e) => setSelectedAgent(e.target.value)}
-                  className="bg-zinc-800 border border-zinc-700 text-zinc-300 rounded px-2.5 py-1.5 text-xs font-medium cursor-pointer focus:outline-none focus:border-yellow-600/50"
+                  className="bg-zinc-800 border border-zinc-700 text-zinc-300 rounded px-2.5 py-1.5 text-xs font-medium cursor-pointer focus:outline-none focus:border-ring"
                 >
                   <option value="all">All Agents</option>
                   {uniqueAgents.map((agent) => (
@@ -258,7 +258,7 @@ export function FacilityDetail({
                 <select
                   value={selectedStatus}
                   onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="bg-zinc-800 border border-zinc-700 text-zinc-300 rounded px-2.5 py-1.5 text-xs font-medium cursor-pointer focus:outline-none focus:border-yellow-600/50"
+                  className="bg-zinc-800 border border-zinc-700 text-zinc-300 rounded px-2.5 py-1.5 text-xs font-medium cursor-pointer focus:outline-none focus:border-ring"
                 >
                   <option value="all">All Status</option>
                   <option value="pending_response">Pending Response</option>
@@ -275,7 +275,7 @@ export function FacilityDetail({
                   onChange={(e) =>
                     setSortOrder(e.target.value as "newest" | "oldest")
                   }
-                  className="bg-zinc-800 border border-zinc-700 text-zinc-300 rounded px-2.5 py-1.5 text-xs font-medium cursor-pointer focus:outline-none focus:border-yellow-600/50"
+                  className="bg-zinc-800 border border-zinc-700 text-zinc-300 rounded px-2.5 py-1.5 text-xs font-medium cursor-pointer focus:outline-none focus:border-ring"
                 >
                   <option value="newest">Newest First</option>
                   <option value="oldest">Oldest First</option>
@@ -294,6 +294,8 @@ export function FacilityDetail({
                   createdAt: log.createdAt,
                   nextFollowupAt: log.nextFollowupAt,
                   agentName: log.agentName,
+                  createdByName: log.createdByName,
+                  lastUpdatedByName: log.lastUpdatedByName,
                 })) || []
               }
               isLoading={logsLoading}
@@ -309,7 +311,7 @@ export function FacilityDetail({
                 {Array.from({ length: 3 }).map((_, i) => (
                   <div
                     key={i}
-                    className="h-12 bg-[#1e2022] rounded animate-pulse"
+                    className="h-12 bg-card rounded animate-pulse"
                   />
                 ))}
               </div>
@@ -417,7 +419,7 @@ export function FacilityDetail({
                 {Array.from({ length: 3 }).map((_, i) => (
                   <div
                     key={i}
-                    className="h-12 bg-[#1e2022] rounded animate-pulse"
+                    className="h-12 bg-card rounded animate-pulse"
                   />
                 ))}
               </div>
@@ -525,7 +527,7 @@ export function FacilityDetail({
                 {Array.from({ length: 3 }).map((_, i) => (
                   <div
                     key={i}
-                    className="h-32 bg-[#1e2022] rounded-xl animate-pulse"
+                    className="h-32 bg-card rounded-xl animate-pulse"
                   />
                 ))}
               </div>
