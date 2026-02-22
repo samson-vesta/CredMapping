@@ -53,13 +53,15 @@ export function NewLogModal({
   onLogCreated,
 }: NewLogModalProps) {
   const [formData, setFormData] = useState(defaultFormData);
+  const [activeEditingLog, setActiveEditingLog] = useState<EditableLog | null>(null);
 
-  const isEditMode = Boolean(editingLog);
+  const isEditMode = Boolean(activeEditingLog);
 
   useEffect(() => {
     if (!isOpen) return;
 
     if (editingLog) {
+      setActiveEditingLog(editingLog);
       setFormData({
         commType: editingLog.commType ?? "Email",
         subject: editingLog.subject ?? "",
@@ -70,6 +72,7 @@ export function NewLogModal({
       return;
     }
 
+    setActiveEditingLog(null);
     setFormData(defaultFormData);
   }, [editingLog, isOpen]);
 
@@ -85,9 +88,9 @@ export function NewLogModal({
     e.preventDefault();
 
     try {
-      if (editingLog) {
+      if (activeEditingLog) {
         await updateMutation.mutateAsync({
-          id: editingLog.id,
+          id: activeEditingLog.id,
           ...formData,
         });
       } else {
