@@ -99,7 +99,7 @@ export function GlobalSearch() {
           onChange={(event) => setQuery(event.target.value)}
           onFocus={() => setOpen(true)}
           placeholder="Search providers, facilities, and more"
-          className="bg-muted/50 focus:bg-background focus:border-input focus:ring-ring h-10 w-full rounded-md border border-transparent pr-4 pl-10 text-sm transition-all outline-none focus:ring-1"
+          className="bg-muted/50 focus:bg-background focus:border-input focus:ring-ring h-10 w-full rounded-md border border-transparent pr-4 pl-10 text-sm placeholder:text-center transition-all outline-none focus:ring-1"
         />
       </div>
 
