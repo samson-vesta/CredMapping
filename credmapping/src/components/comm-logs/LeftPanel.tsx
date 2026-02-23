@@ -7,6 +7,7 @@ interface ListItem {
   id: string;
   name: string;
   subText?: string;
+  rightMeta?: string;
   badge?: string;
   nextFollowupAt: Date | string | null;
   status?: string | null;
@@ -53,17 +54,17 @@ export function LeftPanel({
   }, [items, search]);
 
   return (
-    <div className="w-[290px] flex flex-col h-screen bg-[#181a1b] border-r border-zinc-700">
+    <div className="flex h-full min-h-0 w-[290px] flex-col border-r border-border bg-card">
       {/* Header */}
-      <div className="p-4 border-b border-zinc-700">
+      <div className="border-b border-border p-4">
         {/* Toggle buttons */}
         <div className="flex gap-2 mb-4">
           <button
             onClick={() => onModeChange("provider")}
             className={`flex-1 px-3 py-2 rounded font-medium text-sm transition-colors ${
               mode === "provider"
-                ? "bg-[#c8a84b] text-black"
-                : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+                ? "bg-primary text-primary-foreground"
+                : "bg-secondary text-secondary-foreground hover:bg-accent"
             }`}
           >
             Providers
@@ -72,8 +73,8 @@ export function LeftPanel({
             onClick={() => onModeChange("facility")}
             className={`flex-1 px-3 py-2 rounded font-medium text-sm transition-colors ${
               mode === "facility"
-                ? "bg-[#c8a84b] text-black"
-                : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+                ? "bg-primary text-primary-foreground"
+                : "bg-secondary text-secondary-foreground hover:bg-accent"
             }`}
           >
             Facilities
@@ -83,23 +84,23 @@ export function LeftPanel({
         {/* Search */}
         <input
           type="text"
-          placeholder={`Search ${mode}s...`}
+          placeholder={mode === "facility" ? "Search facilities..." : "Search providers..."}
           value={search}
           onChange={(e) => onSearchChange?.(e.target.value)}
-          className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white placeholder-zinc-500 focus:outline-none focus:border-[#c8a84b]"
+          className="w-full rounded border border-input bg-background px-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         />
       </div>
 
       {/* Filters */}
-      <div className="px-4 py-3 border-b border-zinc-700 flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 border-b border-border px-4 py-3">
         {filters.map((f) => (
           <button
             key={f}
             onClick={() => onFilterChange?.(f)}
             className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
               filter === f
-                ? "bg-[#c8a84b] text-black"
-                : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+                ? "bg-primary text-primary-foreground"
+                : "bg-secondary text-secondary-foreground hover:bg-accent"
             }`}
           >
             {f}
@@ -120,7 +121,7 @@ export function LeftPanel({
           </div>
         ) : filteredItems.length === 0 ? (
           <div className="p-4 text-center text-zinc-400 text-sm">
-            No {mode}s found
+            No {mode === "facility" ? "facilities" : "providers"} found
           </div>
         ) : (
           <div className="p-2">
@@ -130,16 +131,28 @@ export function LeftPanel({
                 onClick={() => onSelectItem(item.id)}
                 className={`w-full text-left p-3 rounded-lg mb-2 transition-colors ${
                   selectedItemId === item.id
-                    ? "bg-[#c8a84b]/20 border border-[#c8a84b]"
-                    : "hover:bg-zinc-700 border border-zinc-700"
+                    ? "border border-primary/40 bg-primary/10"
+                    : "border border-border hover:bg-accent/60"
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h4 className="font-medium text-white truncate">
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <h4 className="min-w-0 flex-1 truncate font-medium text-white">
                         {item.name}
                       </h4>
+                      <span className="max-w-[40%] truncate text-xs font-medium text-zinc-400">
+                        {item.rightMeta}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      {item.subText ? (
+                        <p className="text-xs text-zinc-400 truncate">
+                          {item.subText}
+                        </p>
+                      ) : (
+                        <span aria-hidden="true" />
+                      )}
                       {item.status && (
                         <span
                           className={`text-xs font-medium px-2 py-0.5 rounded flex-shrink-0 whitespace-nowrap ${
@@ -156,13 +169,8 @@ export function LeftPanel({
                         </span>
                       )}
                     </div>
-                    {item.subText && (
-                      <p className="text-xs text-zinc-400 truncate">
-                        {item.subText}
-                      </p>
-                    )}
                   </div>
-                  <div className="flex-shrink-0">
+                  <div className="flex-shrink-0 empty:hidden">
                     <FollowUpBadge
                       nextFollowupAt={item.nextFollowupAt}
                       status={item.status}

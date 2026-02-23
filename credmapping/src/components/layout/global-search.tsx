@@ -8,6 +8,7 @@ import {
   Clock,
   LayoutDashboard,
   LoaderCircle,
+  MessageSquareText,
   Search,
 } from "lucide-react";
 
@@ -56,7 +57,10 @@ export function GlobalSearch() {
   }, []);
 
   const navigateTo = (name: string, href: string) => {
-    const newRecent = [{ name, href }, ...recent.filter((i) => i.href !== href)].slice(0, 5);
+    const newRecent = [
+      { name, href },
+      ...recent.filter((i) => i.href !== href),
+    ].slice(0, 5);
     setRecent(newRecent);
     localStorage.setItem("recent-searches", JSON.stringify(newRecent));
 
@@ -67,7 +71,10 @@ export function GlobalSearch() {
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      ) {
         setOpen(false);
       }
     };
@@ -77,31 +84,41 @@ export function GlobalSearch() {
 
   const hasProviderResults = (data?.providers.length ?? 0) > 0;
   const hasFacilityResults = (data?.facilities.length ?? 0) > 0;
+  const hasProviderCommLogResults = (data?.providerCommLogs.length ?? 0) > 0;
+  const hasFacilityCommLogResults = (data?.facilityCommLogs.length ?? 0) > 0;
 
   return (
     <div className="relative w-full" ref={containerRef}>
-      <div className="relative group">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+      <div className="group relative">
+        <Search
+          className="text-muted-foreground absolute top-1/2 left-3 -translate-y-1/2"
+          size={18}
+        />
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           onFocus={() => setOpen(true)}
           placeholder="Search providers, facilities, and more"
-          className="w-full h-10 pl-10 pr-4 rounded-md bg-muted/50 border border-transparent focus:bg-background focus:border-input focus:ring-1 focus:ring-ring outline-none transition-all text-sm"
+          className="bg-muted/50 focus:bg-background focus:border-input focus:ring-ring h-10 w-full rounded-md border border-transparent pr-4 pl-10 text-sm placeholder:text-center transition-all outline-none focus:ring-1"
         />
       </div>
 
       {open && (
-        <div className="absolute top-full left-0 right-0 mt-1 z-50 border bg-popover text-popover-foreground shadow-xl rounded-md overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+        <div className="bg-popover text-popover-foreground animate-in fade-in zoom-in-95 absolute top-full right-0 left-0 z-50 mt-1 overflow-hidden rounded-md border shadow-xl duration-100">
           <Command shouldFilter={false} className="rounded-none border-none">
             <CommandList className="max-h-100">
               {!hasSearchQuery ? (
-                <CommandEmpty>Type at least 2 characters to search the platform.</CommandEmpty>
+                <CommandEmpty>
+                  Type at least 2 characters to search the platform.
+                </CommandEmpty>
               ) : isFetching ? (
-                <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
+                <div className="text-muted-foreground flex items-center justify-center gap-2 py-6 text-sm">
                   <LoaderCircle className="size-4 animate-spin" /> Searching...
                 </div>
-              ) : !hasProviderResults && !hasFacilityResults ? (
+              ) : !hasProviderResults &&
+                !hasFacilityResults &&
+                !hasProviderCommLogResults &&
+                !hasFacilityCommLogResults ? (
                 <CommandEmpty>No matches found.</CommandEmpty>
               ) : null}
 
@@ -117,7 +134,9 @@ export function GlobalSearch() {
                       <div className="min-w-0">
                         <p className="truncate">{provider.name}</p>
                         {provider.subtitle && (
-                          <p className="truncate text-xs text-muted-foreground">{provider.subtitle}</p>
+                          <p className="text-muted-foreground truncate text-xs">
+                            {provider.subtitle}
+                          </p>
                         )}
                       </div>
                     </CommandItem>
@@ -137,7 +156,63 @@ export function GlobalSearch() {
                       <div className="min-w-0">
                         <p className="truncate">{facility.name}</p>
                         {facility.subtitle && (
-                          <p className="truncate text-xs text-muted-foreground">{facility.subtitle}</p>
+                          <p className="text-muted-foreground truncate text-xs">
+                            {facility.subtitle}
+                          </p>
+                        )}
+                      </div>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
+
+              {hasProviderCommLogResults && (
+                <CommandGroup heading="Provider comm logs">
+                  {data?.providerCommLogs.map((providerLog) => (
+                    <CommandItem
+                      key={providerLog.id}
+                      value={`${providerLog.name} ${providerLog.subtitle ?? ""}`}
+                      onSelect={() =>
+                        navigateTo(
+                          `${providerLog.name} (Comm Logs)`,
+                          providerLog.href,
+                        )
+                      }
+                    >
+                      <MessageSquareText className="mr-2 h-4 w-4" />
+                      <div className="min-w-0">
+                        <p className="truncate">{providerLog.name}</p>
+                        {providerLog.subtitle && (
+                          <p className="text-muted-foreground truncate text-xs">
+                            {providerLog.subtitle}
+                          </p>
+                        )}
+                      </div>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
+
+              {hasFacilityCommLogResults && (
+                <CommandGroup heading="Facility comm logs">
+                  {data?.facilityCommLogs.map((facilityLog) => (
+                    <CommandItem
+                      key={facilityLog.id}
+                      value={`${facilityLog.name} ${facilityLog.subtitle ?? ""}`}
+                      onSelect={() =>
+                        navigateTo(
+                          `${facilityLog.name} (Comm Logs)`,
+                          facilityLog.href,
+                        )
+                      }
+                    >
+                      <MessageSquareText className="mr-2 h-4 w-4" />
+                      <div className="min-w-0">
+                        <p className="truncate">{facilityLog.name}</p>
+                        {facilityLog.subtitle && (
+                          <p className="text-muted-foreground truncate text-xs">
+                            {facilityLog.subtitle}
+                          </p>
                         )}
                       </div>
                     </CommandItem>
@@ -150,8 +225,11 @@ export function GlobalSearch() {
               {recent.length > 0 && (
                 <CommandGroup heading="Recent searches">
                   {recent.map((item) => (
-                    <CommandItem key={item.href} onSelect={() => navigateTo(item.name, item.href)}>
-                      <Clock className="mr-2 h-4 w-4 text-muted-foreground" />
+                    <CommandItem
+                      key={item.href}
+                      onSelect={() => navigateTo(item.name, item.href)}
+                    >
+                      <Clock className="text-muted-foreground mr-2 h-4 w-4" />
                       <span>{item.name}</span>
                     </CommandItem>
                   ))}
@@ -163,13 +241,23 @@ export function GlobalSearch() {
                   <LayoutDashboard className="mr-2 h-4 w-4" />
                   <span>Overview</span>
                 </CommandItem>
-                <CommandItem onSelect={() => navigateTo("Providers", "/providers")}>
+                <CommandItem
+                  onSelect={() => navigateTo("Providers", "/providers")}
+                >
                   <BriefcaseMedical className="mr-2 h-4 w-4" />
                   <span>Providers</span>
                 </CommandItem>
-                <CommandItem onSelect={() => navigateTo("Facilities", "/facilities")}>
+                <CommandItem
+                  onSelect={() => navigateTo("Facilities", "/facilities")}
+                >
                   <Building2 className="mr-2 h-4 w-4" />
                   <span>Facilities</span>
+                </CommandItem>
+                <CommandItem
+                  onSelect={() => navigateTo("Comm Logs", "/comm-logs")}
+                >
+                  <MessageSquareText className="mr-2 h-4 w-4" />
+                  <span>Comm Logs</span>
                 </CommandItem>
               </CommandGroup>
             </CommandList>

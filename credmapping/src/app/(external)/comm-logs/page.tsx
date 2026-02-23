@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { LeftPanel } from "~/components/comm-logs/LeftPanel";
 import { ProviderDetail } from "~/components/comm-logs/ProviderDetail";
 import { FacilityDetail } from "~/components/comm-logs/FacilityDetail";
@@ -11,6 +11,7 @@ type ProviderWithStatus = {
   id: string;
   firstName: string | null;
   lastName: string | null;
+  degree: string | null;
   email: string | null;
   nextFollowupAt: Date | null;
   latestStatus: string | null;
@@ -20,6 +21,7 @@ type FacilityWithStatus = {
   id: string;
   name: string | null;
   state: string | null;
+  status: string | null;
   nextFollowupAt: Date | null;
   latestStatus: string | null;
 };
@@ -53,8 +55,57 @@ export default function CommLogsPage() {
       { enabled: mode === "facility" }
     );
 
-  const items = (mode === "provider" ? providers : facilities) ?? [];
+  const items = useMemo(
+    () => (mode === "provider" ? providers : facilities) ?? [],
+    [facilities, mode, providers],
+  );
   const isLoading = mode === "provider" ? providersLoading : facilitiesLoading;
+
+  const mappedItems = useMemo(
+    () =>
+      items.map((item) => {
+        if (mode === "provider") {
+          const provider = item as ProviderWithStatus;
+          return {
+            id: provider.id,
+            name: `${provider.lastName ?? ""}, ${provider.firstName ?? ""}`,
+            subText: provider.email ?? undefined,
+            rightMeta: provider.degree ?? undefined,
+            nextFollowupAt: provider.nextFollowupAt,
+            status: provider.latestStatus,
+          };
+        }
+
+        const facility = item as FacilityWithStatus;
+        return {
+          id: facility.id,
+          name: facility.name ?? "",
+          rightMeta: facility.state ?? undefined,
+          nextFollowupAt: facility.nextFollowupAt,
+          status: facility.latestStatus,
+        };
+      }),
+    [items, mode],
+  );
+
+  useEffect(() => {
+    if (isLoading) return;
+
+    if (mappedItems.length === 0) {
+      if (selectedId) {
+        setSelectedId(undefined);
+      }
+      return;
+    }
+
+    const selectedStillExists = selectedId
+      ? mappedItems.some((item) => item.id === selectedId)
+      : false;
+
+    if (!selectedStillExists) {
+      setSelectedId(mappedItems[0]?.id);
+    }
+  }, [isLoading, mappedItems, selectedId]);
 
   const handleModeChange = (newMode: "provider" | "facility") => {
     setMode(newMode);
@@ -73,32 +124,12 @@ export default function CommLogsPage() {
     : null;
 
   return (
-    <div className="flex h-screen bg-[#111213]">
+    <div className="flex h-full min-h-0 overflow-hidden bg-background">
       {/* Left Panel */}
       <LeftPanel
         mode={mode}
         onModeChange={handleModeChange}
-        items={items.map((item) => {
-          if (mode === "provider") {
-            const provider = item as ProviderWithStatus;
-            return {
-              id: provider.id,
-              name: `${provider.lastName ?? ""}, ${provider.firstName ?? ""}`,
-              subText: provider.email ?? undefined,
-              nextFollowupAt: provider.nextFollowupAt,
-              status: provider.latestStatus,
-            };
-          } else {
-            const facility = item as FacilityWithStatus;
-            return {
-              id: facility.id,
-              name: facility.name ?? "",
-              subText: facility.state ?? undefined,
-              nextFollowupAt: facility.nextFollowupAt,
-              status: facility.latestStatus,
-            };
-          }
-        })}
+        items={mappedItems}
         selectedItemId={selectedId}
         onSelectItem={setSelectedId}
         isLoading={isLoading}
@@ -109,7 +140,7 @@ export default function CommLogsPage() {
       />
 
       {/* Right Panel - Content */}
-      <div className="flex-1 relative">
+      <div className="relative flex min-h-0 flex-1 overflow-hidden">
         {!selectedId ? (
           <div className="h-full flex items-center justify-center">
             <div className="text-center">

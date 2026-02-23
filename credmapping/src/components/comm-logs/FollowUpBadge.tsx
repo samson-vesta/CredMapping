@@ -7,11 +7,7 @@ interface FollowUpBadgeProps {
 
 export function FollowUpBadge({ nextFollowupAt, status }: FollowUpBadgeProps) {
   if (!nextFollowupAt && status !== "fu_completed") {
-    return (
-      <span className="inline-block rounded-full px-2 py-1 text-xs font-medium bg-zinc-700 text-zinc-400">
-        No follow-up
-      </span>
-    );
+    return null;
   }
 
   if (status === "fu_completed") {
@@ -25,11 +21,7 @@ export function FollowUpBadge({ nextFollowupAt, status }: FollowUpBadgeProps) {
   const date = typeof nextFollowupAt === "string" ? new Date(nextFollowupAt) : nextFollowupAt;
 
   if (!date) {
-    return (
-      <span className="inline-block rounded-full px-2 py-1 text-xs font-medium bg-zinc-700 text-zinc-400">
-        No follow-up
-      </span>
-    );
+    return null;
   }
 
   const isOverdue = isPast(date) && !isToday(date);

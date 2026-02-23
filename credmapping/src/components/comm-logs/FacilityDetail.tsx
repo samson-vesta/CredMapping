@@ -2,8 +2,19 @@
 
 import { useState, useMemo } from "react";
 import { format } from "date-fns";
+import { SlidersHorizontal } from "lucide-react";
 import { CommLogFeed } from "./CommLogFeed";
 import { NewLogModal } from "./NewLogModal";
+import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "~/components/ui/sheet";
 import { api } from "~/trpc/react";
 
 interface FacilityDetailProps {
@@ -32,14 +43,28 @@ export function FacilityDetail({
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   facilityContacts = [],
 }: FacilityDetailProps) {
+  const utils = api.useUtils();
   const [activeTab, setActiveTab] = useState<
     "logs" | "cred-docs" | "non-cred-docs" | "contacts"
   >("logs");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingLog, setEditingLog] = useState<{
+    id: string;
+    commType: string | null;
+    subject: string | null;
+    notes: string | null;
+    status: string | null;
+    nextFollowupAt: Date | string | null;
+  } | null>(null);
   const [selectedCommType, setSelectedCommType] = useState<string>("all");
   const [selectedAgent, setSelectedAgent] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const { data: authUser } = api.auth.me.useQuery();
+  const canCreateLog =
+    authUser?.role === "admin" || authUser?.role === "superadmin";
 
   const { data: logs, isLoading: logsLoading } =
     api.commLogs.listByFacility.useQuery({ facilityId });
@@ -60,8 +85,8 @@ export function FacilityDetail({
       new Set(
         logs
           .map((log) => log.agentName)
-          .filter((name): name is string => name != null)
-      )
+          .filter((name): name is string => name != null),
+      ),
     ).sort();
   }, [logs]);
 
@@ -70,52 +95,76 @@ export function FacilityDetail({
 
     const result = logs
       .filter(
-        (log) => selectedCommType === "all" || log.commType === selectedCommType
+        (log) =>
+          selectedCommType === "all" || log.commType === selectedCommType,
       )
       .filter(
-        (log) => selectedAgent === "all" || log.agentName === selectedAgent
+        (log) => selectedAgent === "all" || log.agentName === selectedAgent,
       )
       .filter(
-        (log) => selectedStatus === "all" || log.status === selectedStatus
-      );
+        (log) => selectedStatus === "all" || log.status === selectedStatus,
+      )
+      .filter((log) => {
+        if (!searchQuery.trim()) return true;
+        const query = searchQuery.toLowerCase();
+        return [log.subject, log.notes, log.commType, log.createdByName]
+          .filter((value): value is string => Boolean(value))
+          .some((value) => value.toLowerCase().includes(query));
+      });
 
     if (sortOrder === "newest") {
       result.sort(
         (a, b) =>
           new Date(b.createdAt ?? 0).getTime() -
-          new Date(a.createdAt ?? 0).getTime()
+          new Date(a.createdAt ?? 0).getTime(),
       );
     } else {
       result.sort(
         (a, b) =>
           new Date(a.createdAt ?? 0).getTime() -
-          new Date(b.createdAt ?? 0).getTime()
+          new Date(b.createdAt ?? 0).getTime(),
       );
     }
 
     return result;
-  }, [logs, selectedCommType, selectedAgent, selectedStatus, sortOrder]);
+  }, [
+    logs,
+    searchQuery,
+    selectedCommType,
+    selectedAgent,
+    selectedStatus,
+    sortOrder,
+  ]);
 
   const isCred = facility.status === "Active";
   const credLabel = isCred ? "CRED" : "NON-CRED";
 
-  const handleLogCreated = () => {
-    // Refetch logs
-    window.location.reload();
+  const handleLogCreated = async () => {
+    await Promise.all([
+      utils.commLogs.listByFacility.invalidate({ facilityId }),
+      utils.commLogs.getFacilitySummary.invalidate({ facilityId }),
+      utils.commLogs.getMissingDocsByFacility.invalidate({ facilityId }),
+      utils.commLogs.getContactsByFacility.invalidate({ facilityId }),
+      utils.facilitiesWithCommLogs.listWithCommLogStatus.invalidate(),
+    ]);
   };
 
   return (
-    <div className="flex-1 bg-[#111213] overflow-hidden flex flex-col">
+    <div className="bg-background flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       {/* Header Card */}
-      <div className="bg-[#1e2022] border-b border-zinc-700 p-6">
+      <div className="border-border bg-card border-b p-6">
         <div className="mb-4">
-          <div className="flex items-center gap-3 mb-2">
-            <h2 className="text-2xl font-bold text-white">{facility.name}</h2>
-            <span className="px-2 py-1 text-xs font-medium rounded bg-[#c8a84b]/20 text-[#c8a84b] border border-[#c8a84b]">
-              {facility.state}
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <h2 className="min-w-0 flex-1 truncate text-2xl font-bold text-white">
+              {facility.name}
+            </h2>
+            <span className="border-border bg-secondary text-secondary-foreground rounded border px-2 py-1 text-xs font-medium">
+              {facility.state ?? "—"}
             </span>
+          </div>
+          <div className="flex items-center gap-3">
             <span
-              className={`px-2 py-1 text-xs font-medium rounded ${
+              className={`rounded px-2 py-1 text-xs font-medium ${
                 isCred
                   ? "bg-blue-500/15 text-blue-400"
                   : "bg-orange-500/15 text-orange-400"
@@ -132,48 +181,48 @@ export function FacilityDetail({
         {/* Stats Row */}
         <div className="grid grid-cols-5 gap-4 text-sm">
           <div>
-            <p className="text-zinc-400 mb-1">Next Follow-Up</p>
-            <p className="text-white font-medium">
+            <p className="mb-1 text-zinc-400">Next Follow-Up</p>
+            <p className="font-medium text-white">
               {summary?.nextFollowupAt
                 ? format(new Date(summary.nextFollowupAt), "MMM d, yyyy")
                 : "—"}
             </p>
           </div>
           <div>
-            <p className="text-zinc-400 mb-1">Last Followed Up</p>
-            <p className="text-white font-medium">
+            <p className="mb-1 text-zinc-400">Last Followed Up</p>
+            <p className="font-medium text-white">
               {summary?.latestFollowupAt
                 ? format(new Date(summary.latestFollowupAt), "MMM d, yyyy")
                 : "—"}
             </p>
           </div>
           <div>
-            <p className="text-zinc-400 mb-1">Total Logs</p>
-            <p className="text-white font-medium">{summary?.totalLogs ?? 0}</p>
+            <p className="mb-1 text-zinc-400">Total Logs</p>
+            <p className="font-medium text-white">{summary?.totalLogs ?? 0}</p>
           </div>
           <div>
-            <p className="text-zinc-400 mb-1">Open Tasks</p>
-            <p className="text-white font-medium">
+            <p className="mb-1 text-zinc-400">Open Tasks</p>
+            <p className="font-medium text-white">
               {summary?.openTasksCount ?? 0}
             </p>
           </div>
           <div>
-            <p className="text-zinc-400 mb-1">Status</p>
-            <p className="text-white font-medium">
+            <p className="mb-1 text-zinc-400">Status</p>
+            <p className="font-medium text-white">
               {facility.status ?? "Unknown"}
             </p>
           </div>
         </div>
 
         {(summary?.openTasksCount ?? 0) > 0 && (
-          <div className="mt-4 p-3 bg-red-500/15 border border-red-500/30 rounded text-red-400 text-sm">
+          <div className="mt-4 rounded border border-red-500/30 bg-red-500/15 p-3 text-sm text-red-400">
             ⚠ {summary?.openTasksCount} open task(s) for this facility
           </div>
         )}
       </div>
 
       {/* Tabs */}
-      <div className="bg-[#1e2022] border-b border-zinc-700 px-6 flex gap-4">
+      <div className="border-border bg-card flex gap-4 border-b px-6">
         {[
           { id: "logs", label: "Comm Log" },
           { id: "cred-docs", label: "Missing Docs (CRED)" },
@@ -184,16 +233,12 @@ export function FacilityDetail({
             key={tab.id}
             onClick={() =>
               setActiveTab(
-                tab.id as
-                  | "logs"
-                  | "cred-docs"
-                  | "non-cred-docs"
-                  | "contacts"
+                tab.id as "logs" | "cred-docs" | "non-cred-docs" | "contacts",
               )
             }
-            className={`px-4 py-4 text-sm font-medium border-b-2 transition-colors ${
+            className={`border-b-2 px-4 py-4 text-sm font-medium transition-colors ${
               activeTab === tab.id
-                ? "border-[#c8a84b] text-white"
+                ? "border-primary text-white"
                 : "border-transparent text-zinc-400 hover:text-white"
             }`}
           >
@@ -203,83 +248,133 @@ export function FacilityDetail({
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="min-h-0 flex-1 overflow-y-auto p-6">
         {activeTab === "logs" && (
           <div>
-            <div className="mb-6 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-white">
-                Communication History
-              </h3>
-              <button
-                onClick={() => setIsModalOpen(true)}
-                className="px-4 py-2 bg-[#c8a84b] text-black font-medium rounded hover:bg-[#dab855] transition-colors"
-              >
-                + New Log Entry
-              </button>
-            </div>
+            <div className="border-border bg-background/95 supports-[backdrop-filter]:bg-background/80 sticky top-0 z-10 mb-4 border-b pt-1 pb-4 backdrop-blur">
+              <div className="flex flex-wrap items-center gap-2">
+                <Input
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  className="h-9 min-w-[240px] flex-1"
+                  placeholder="Search communication logs"
+                />
 
-            {/* Filter Bar */}
-            <div className="mb-4 flex items-center gap-2 px-4 py-3 border border-zinc-800 bg-zinc-900/50 rounded-lg">
-              <div className="flex items-center gap-1">
-                <label className="text-xs text-zinc-500 mr-1">Type:</label>
-                <select
-                  value={selectedCommType}
-                  onChange={(e) => setSelectedCommType(e.target.value)}
-                  className="bg-zinc-800 border border-zinc-700 text-zinc-300 rounded px-2.5 py-1.5 text-xs font-medium cursor-pointer focus:outline-none focus:border-yellow-600/50"
-                >
-                  <option value="all">All Types</option>
-                  <option value="Email">Email</option>
-                  <option value="Phone Call">Phone Call</option>
-                  <option value="Dropbox">Dropbox</option>
-                  <option value="Document">Document</option>
-                  <option value="Modio">Modio</option>
-                  <option value="Meeting">Meeting</option>
-                </select>
-              </div>
+                <div className="ml-auto flex items-center gap-2">
+                  <Sheet>
+                    <SheetTrigger asChild>
+                      <Button variant="outline" className="h-9">
+                        <SlidersHorizontal className="size-4" />
+                        Filters
+                      </Button>
+                    </SheetTrigger>
+                    <SheetContent>
+                      <SheetHeader>
+                        <SheetTitle>Comm log filters</SheetTitle>
+                        <SheetDescription>
+                          Filter and sort communication logs.
+                        </SheetDescription>
+                      </SheetHeader>
 
-              <div className="flex items-center gap-1">
-                <label className="text-xs text-zinc-500 mr-1">Agent:</label>
-                <select
-                  value={selectedAgent}
-                  onChange={(e) => setSelectedAgent(e.target.value)}
-                  className="bg-zinc-800 border border-zinc-700 text-zinc-300 rounded px-2.5 py-1.5 text-xs font-medium cursor-pointer focus:outline-none focus:border-yellow-600/50"
-                >
-                  <option value="all">All Agents</option>
-                  {uniqueAgents.map((agent) => (
-                    <option key={agent} value={agent}>
-                      {agent}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                      <div className="space-y-4 px-4">
+                        <div className="space-y-1">
+                          <label className="text-xs text-zinc-500">Type</label>
+                          <select
+                            value={selectedCommType}
+                            onChange={(e) =>
+                              setSelectedCommType(e.target.value)
+                            }
+                            className="w-full rounded border border-zinc-700 bg-zinc-900 px-2.5 py-2 text-sm text-zinc-300"
+                          >
+                            <option value="all">All Types</option>
+                            <option value="Email">Email</option>
+                            <option value="Phone Call">Phone Call</option>
+                            <option value="Dropbox">Dropbox</option>
+                            <option value="Document">Document</option>
+                            <option value="Modio">Modio</option>
+                            <option value="Meeting">Meeting</option>
+                          </select>
+                        </div>
 
-              <div className="flex items-center gap-1">
-                <label className="text-xs text-zinc-500 mr-1">Status:</label>
-                <select
-                  value={selectedStatus}
-                  onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="bg-zinc-800 border border-zinc-700 text-zinc-300 rounded px-2.5 py-1.5 text-xs font-medium cursor-pointer focus:outline-none focus:border-yellow-600/50"
-                >
-                  <option value="all">All Status</option>
-                  <option value="pending_response">Pending Response</option>
-                  <option value="fu_completed">F/U Completed</option>
-                  <option value="received">Received</option>
-                  <option value="closed">Closed</option>
-                </select>
-              </div>
+                        <div className="space-y-1">
+                          <label className="text-xs text-zinc-500">Agent</label>
+                          <select
+                            value={selectedAgent}
+                            onChange={(e) => setSelectedAgent(e.target.value)}
+                            className="w-full rounded border border-zinc-700 bg-zinc-900 px-2.5 py-2 text-sm text-zinc-300"
+                          >
+                            <option value="all">All Agents</option>
+                            {uniqueAgents.map((agent) => (
+                              <option key={agent} value={agent}>
+                                {agent}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
 
-              <div className="flex items-center gap-1">
-                <label className="text-xs text-zinc-500 mr-1">Sort:</label>
-                <select
-                  value={sortOrder}
-                  onChange={(e) =>
-                    setSortOrder(e.target.value as "newest" | "oldest")
-                  }
-                  className="bg-zinc-800 border border-zinc-700 text-zinc-300 rounded px-2.5 py-1.5 text-xs font-medium cursor-pointer focus:outline-none focus:border-yellow-600/50"
-                >
-                  <option value="newest">Newest First</option>
-                  <option value="oldest">Oldest First</option>
-                </select>
+                        <div className="space-y-1">
+                          <label className="text-xs text-zinc-500">
+                            Status
+                          </label>
+                          <select
+                            value={selectedStatus}
+                            onChange={(e) => setSelectedStatus(e.target.value)}
+                            className="w-full rounded border border-zinc-700 bg-zinc-900 px-2.5 py-2 text-sm text-zinc-300"
+                          >
+                            <option value="all">All Status</option>
+                            <option value="pending_response">
+                              Pending Response
+                            </option>
+                            <option value="fu_completed">F/U Completed</option>
+                            <option value="received">Received</option>
+                            <option value="closed">Closed</option>
+                          </select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-xs text-zinc-500">Sort</label>
+                          <select
+                            value={sortOrder}
+                            onChange={(e) =>
+                              setSortOrder(
+                                e.target.value as "newest" | "oldest",
+                              )
+                            }
+                            className="w-full rounded border border-zinc-700 bg-zinc-900 px-2.5 py-2 text-sm text-zinc-300"
+                          >
+                            <option value="newest">Newest First</option>
+                            <option value="oldest">Oldest First</option>
+                          </select>
+                        </div>
+
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          onClick={() => {
+                            setSelectedCommType("all");
+                            setSelectedAgent("all");
+                            setSelectedStatus("all");
+                            setSortOrder("newest");
+                          }}
+                        >
+                          Reset filters
+                        </Button>
+                      </div>
+                    </SheetContent>
+                  </Sheet>
+
+                  {canCreateLog && (
+                    <Button
+                      className="h-9"
+                      onClick={() => {
+                        setEditingLog(null);
+                        setIsModalOpen(true);
+                      }}
+                    >
+                      + Add Comm Log
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -293,11 +388,20 @@ export function FacilityDetail({
                   status: log.status,
                   createdAt: log.createdAt,
                   nextFollowupAt: log.nextFollowupAt,
-                  agentName: log.agentName,
+                  createdByName: log.createdByName,
+                  lastUpdatedByName: log.lastUpdatedByName,
                 })) || []
               }
               isLoading={logsLoading}
-              onNewLog={() => setIsModalOpen(true)}
+              onNewLog={() => {
+                setEditingLog(null);
+                setIsModalOpen(true);
+              }}
+              onSelectLog={(log) => {
+                if (!canCreateLog) return;
+                setEditingLog(log);
+                setIsModalOpen(true);
+              }}
             />
           </div>
         )}
@@ -307,10 +411,7 @@ export function FacilityDetail({
             {docsLoading ? (
               <div className="space-y-2">
                 {Array.from({ length: 3 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="h-12 bg-[#1e2022] rounded animate-pulse"
-                  />
+                  <div key={i} className="bg-card h-12 animate-pulse rounded" />
                 ))}
               </div>
             ) : missingDocs?.cred && missingDocs.cred.length > 0 ? (
@@ -318,15 +419,17 @@ export function FacilityDetail({
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-zinc-700 text-zinc-400">
-                      <th className="text-left px-4 py-3 font-medium">Status</th>
-                      <th className="text-left px-4 py-3 font-medium">
+                      <th className="px-4 py-3 text-left font-medium">
+                        Status
+                      </th>
+                      <th className="px-4 py-3 text-left font-medium">
                         Subject
                       </th>
-                      <th className="text-left px-4 py-3 font-medium">Notes</th>
-                      <th className="text-left px-4 py-3 font-medium">
+                      <th className="px-4 py-3 text-left font-medium">Notes</th>
+                      <th className="px-4 py-3 text-left font-medium">
                         Last F/U
                       </th>
-                      <th className="text-left px-4 py-3 font-medium">
+                      <th className="px-4 py-3 text-left font-medium">
                         Next F/U
                       </th>
                     </tr>
@@ -345,10 +448,25 @@ export function FacilityDetail({
                         .trim();
 
                       return (
-                        <tr key={doc.id} className="hover:bg-zinc-900/50">
+                        <tr
+                          key={doc.id}
+                          className={`hover:bg-zinc-900/50 ${canCreateLog ? "cursor-pointer" : ""}`}
+                          onClick={() => {
+                            if (!canCreateLog) return;
+                            setEditingLog({
+                              id: doc.id,
+                              commType: doc.commType ?? "Document",
+                              subject: doc.subject,
+                              notes: doc.notes,
+                              status: doc.status,
+                              nextFollowupAt: doc.nextFollowupAt,
+                            });
+                            setIsModalOpen(true);
+                          }}
+                        >
                           <td className="px-4 py-3">
                             <span
-                              className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
+                              className={`inline-flex items-center rounded px-2 py-1 text-xs font-medium ${
                                 doc.status === "pending_response"
                                   ? "bg-yellow-500/15 text-yellow-400"
                                   : doc.status === "fu_completed"
@@ -371,26 +489,28 @@ export function FacilityDetail({
                           <td className="px-4 py-3 text-zinc-300">
                             {subjectDisplay}
                           </td>
-                          <td className="px-4 py-3 text-zinc-400 max-w-xs truncate">
+                          <td className="max-w-xs truncate px-4 py-3 text-zinc-400">
                             {doc.notes ?? "—"}
                           </td>
                           <td className="px-4 py-3 text-zinc-400">
                             {doc.lastFollowupAt != null
                               ? format(
                                   new Date(doc.lastFollowupAt),
-                                  "MMM d, yyyy"
+                                  "MMM d, yyyy",
                                 )
                               : "—"}
                           </td>
                           <td
                             className={`px-4 py-3 ${
-                              isPastDue ? "text-red-400 font-medium" : "text-zinc-400"
+                              isPastDue
+                                ? "font-medium text-red-400"
+                                : "text-zinc-400"
                             }`}
                           >
                             {doc.nextFollowupAt != null
                               ? format(
                                   new Date(doc.nextFollowupAt),
-                                  "MMM d, yyyy"
+                                  "MMM d, yyyy",
                                 )
                               : "—"}
                           </td>
@@ -401,7 +521,7 @@ export function FacilityDetail({
                 </table>
               </div>
             ) : (
-              <div className="text-center py-12">
+              <div className="py-12 text-center">
                 <p className="text-zinc-400">
                   No credentialing missing docs for this facility
                 </p>
@@ -415,10 +535,7 @@ export function FacilityDetail({
             {docsLoading ? (
               <div className="space-y-2">
                 {Array.from({ length: 3 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="h-12 bg-[#1e2022] rounded animate-pulse"
-                  />
+                  <div key={i} className="bg-card h-12 animate-pulse rounded" />
                 ))}
               </div>
             ) : missingDocs?.nonCred && missingDocs.nonCred.length > 0 ? (
@@ -426,15 +543,17 @@ export function FacilityDetail({
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-zinc-700 text-zinc-400">
-                      <th className="text-left px-4 py-3 font-medium">Status</th>
-                      <th className="text-left px-4 py-3 font-medium">
+                      <th className="px-4 py-3 text-left font-medium">
+                        Status
+                      </th>
+                      <th className="px-4 py-3 text-left font-medium">
                         Subject
                       </th>
-                      <th className="text-left px-4 py-3 font-medium">Notes</th>
-                      <th className="text-left px-4 py-3 font-medium">
+                      <th className="px-4 py-3 text-left font-medium">Notes</th>
+                      <th className="px-4 py-3 text-left font-medium">
                         Last F/U
                       </th>
-                      <th className="text-left px-4 py-3 font-medium">
+                      <th className="px-4 py-3 text-left font-medium">
                         Next F/U
                       </th>
                     </tr>
@@ -453,10 +572,25 @@ export function FacilityDetail({
                         .trim();
 
                       return (
-                        <tr key={doc.id} className="hover:bg-zinc-900/50">
+                        <tr
+                          key={doc.id}
+                          className={`hover:bg-zinc-900/50 ${canCreateLog ? "cursor-pointer" : ""}`}
+                          onClick={() => {
+                            if (!canCreateLog) return;
+                            setEditingLog({
+                              id: doc.id,
+                              commType: doc.commType ?? "Document",
+                              subject: doc.subject,
+                              notes: doc.notes,
+                              status: doc.status,
+                              nextFollowupAt: doc.nextFollowupAt,
+                            });
+                            setIsModalOpen(true);
+                          }}
+                        >
                           <td className="px-4 py-3">
                             <span
-                              className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
+                              className={`inline-flex items-center rounded px-2 py-1 text-xs font-medium ${
                                 doc.status === "pending_response"
                                   ? "bg-yellow-500/15 text-yellow-400"
                                   : doc.status === "fu_completed"
@@ -479,26 +613,28 @@ export function FacilityDetail({
                           <td className="px-4 py-3 text-zinc-300">
                             {subjectDisplay}
                           </td>
-                          <td className="px-4 py-3 text-zinc-400 max-w-xs truncate">
+                          <td className="max-w-xs truncate px-4 py-3 text-zinc-400">
                             {doc.notes ?? "—"}
                           </td>
                           <td className="px-4 py-3 text-zinc-400">
                             {doc.lastFollowupAt != null
                               ? format(
                                   new Date(doc.lastFollowupAt),
-                                  "MMM d, yyyy"
+                                  "MMM d, yyyy",
                                 )
                               : "—"}
                           </td>
                           <td
                             className={`px-4 py-3 ${
-                              isPastDue ? "text-red-400 font-medium" : "text-zinc-400"
+                              isPastDue
+                                ? "font-medium text-red-400"
+                                : "text-zinc-400"
                             }`}
                           >
                             {doc.nextFollowupAt != null
                               ? format(
                                   new Date(doc.nextFollowupAt),
-                                  "MMM d, yyyy"
+                                  "MMM d, yyyy",
                                 )
                               : "—"}
                           </td>
@@ -509,7 +645,7 @@ export function FacilityDetail({
                 </table>
               </div>
             ) : (
-              <div className="text-center py-12">
+              <div className="py-12 text-center">
                 <p className="text-zinc-400">
                   No non-credentialing missing docs for this facility
                 </p>
@@ -525,98 +661,103 @@ export function FacilityDetail({
                 {Array.from({ length: 3 }).map((_, i) => (
                   <div
                     key={i}
-                    className="h-32 bg-[#1e2022] rounded-xl animate-pulse"
+                    className="bg-card h-32 animate-pulse rounded-xl"
                   />
                 ))}
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3">
                 {/* Primary Contact Card */}
-                {contactData?.contacts?.filter((c) => c.isPrimary).map((contact) => (
-                      <div
-                        key={contact.id}
-                        className="bg-zinc-900 border border-zinc-800 rounded-xl p-4"
-                      >
-                        <p className="text-xs uppercase tracking-widest text-zinc-500 mb-3 font-medium">
-                          Primary Contact
+                {contactData?.contacts
+                  ?.filter((c) => c.isPrimary)
+                  .map((contact) => (
+                    <div
+                      key={contact.id}
+                      className="rounded-xl border border-zinc-800 bg-zinc-900 p-4"
+                    >
+                      <p className="mb-3 text-xs font-medium tracking-widest text-zinc-500 uppercase">
+                        Primary Contact
+                      </p>
+                      <p className="text-sm font-medium text-zinc-200">
+                        {contact.name}
+                      </p>
+                      {contact.title && (
+                        <p className="mt-1 text-sm text-zinc-400">
+                          {contact.title}
                         </p>
-                        <p className="text-sm font-medium text-zinc-200">
-                          {contact.name}
+                      )}
+                      {contact.email && (
+                        <a
+                          href={`mailto:${contact.email}`}
+                          className="mt-2 block text-sm text-blue-400 hover:text-blue-300"
+                        >
+                          {contact.email}
+                        </a>
+                      )}
+                      {contact.phone && (
+                        <p className="mt-1 text-sm text-zinc-400">
+                          {contact.phone}
                         </p>
-                        {contact.title && (
-                          <p className="text-sm text-zinc-400 mt-1">
-                            {contact.title}
-                          </p>
-                        )}
-                        {contact.email && (
-                          <a
-                            href={`mailto:${contact.email}`}
-                            className="text-sm text-blue-400 hover:text-blue-300 mt-2 block"
-                          >
-                            {contact.email}
-                          </a>
-                        )}
-                        {contact.phone && (
-                          <p className="text-sm text-zinc-400 mt-1">
-                            {contact.phone}
-                          </p>
-                        )}
-                      </div>
-                    ))}
+                      )}
+                    </div>
+                  ))}
 
                 {/* Other Contacts Card */}
-                {contactData?.contacts?.filter((c) => !c.isPrimary).slice(0, 1).map((contact) => (
-                      <div
-                        key={contact.id}
-                        className="bg-zinc-900 border border-zinc-800 rounded-xl p-4"
-                      >
-                        <p className="text-xs uppercase tracking-widest text-zinc-500 mb-3 font-medium">
-                          {contact.title ?? "Credentialing Contact"}
+                {contactData?.contacts
+                  ?.filter((c) => !c.isPrimary)
+                  .slice(0, 1)
+                  .map((contact) => (
+                    <div
+                      key={contact.id}
+                      className="rounded-xl border border-zinc-800 bg-zinc-900 p-4"
+                    >
+                      <p className="mb-3 text-xs font-medium tracking-widest text-zinc-500 uppercase">
+                        {contact.title ?? "Credentialing Contact"}
+                      </p>
+                      <p className="text-sm font-medium text-zinc-200">
+                        {contact.name}
+                      </p>
+                      {contact.title && (
+                        <p className="mt-1 text-sm text-zinc-400">
+                          {contact.title}
                         </p>
-                        <p className="text-sm font-medium text-zinc-200">
-                          {contact.name}
+                      )}
+                      {contact.email && (
+                        <a
+                          href={`mailto:${contact.email}`}
+                          className="mt-2 block text-sm text-blue-400 hover:text-blue-300"
+                        >
+                          {contact.email}
+                        </a>
+                      )}
+                      {contact.phone && (
+                        <p className="mt-1 text-sm text-zinc-400">
+                          {contact.phone}
                         </p>
-                        {contact.title && (
-                          <p className="text-sm text-zinc-400 mt-1">
-                            {contact.title}
-                          </p>
-                        )}
-                        {contact.email && (
-                          <a
-                            href={`mailto:${contact.email}`}
-                            className="text-sm text-blue-400 hover:text-blue-300 mt-2 block"
-                          >
-                            {contact.email}
-                          </a>
-                        )}
-                        {contact.phone && (
-                          <p className="text-sm text-zinc-400 mt-1">
-                            {contact.phone}
-                          </p>
-                        )}
-                      </div>
-                    ))}
+                      )}
+                    </div>
+                  ))}
 
                 {/* Facility Info Card - Full Width */}
-                <div className="col-span-2 bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-                  <p className="text-xs uppercase tracking-widest text-zinc-500 mb-3 font-medium">
+                <div className="col-span-2 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+                  <p className="mb-3 text-xs font-medium tracking-widest text-zinc-500 uppercase">
                     Facility Details
                   </p>
                   <div className="grid grid-cols-3 gap-4">
                     <div>
-                      <p className="text-xs text-zinc-500 mb-1">Proxy Info</p>
+                      <p className="mb-1 text-xs text-zinc-500">Proxy Info</p>
                       <p className="text-sm text-zinc-200">
                         {contactData?.facilityInfo?.proxy ?? "—"}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-zinc-500 mb-1">TAT / SLA</p>
+                      <p className="mb-1 text-xs text-zinc-500">TAT / SLA</p>
                       <p className="text-sm text-zinc-200">
                         {contactData?.facilityInfo?.tatSla ?? "—"}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-zinc-500 mb-1">Address</p>
+                      <p className="mb-1 text-xs text-zinc-500">Address</p>
                       <p className="text-sm text-zinc-200">
                         {contactData?.facilityInfo?.address ?? "—"}
                       </p>
@@ -626,7 +767,7 @@ export function FacilityDetail({
 
                 {/* Empty State */}
                 {!contactData?.contacts?.length ? (
-                  <div className="col-span-2 text-center py-8">
+                  <div className="col-span-2 py-8 text-center">
                     <p className="text-sm text-zinc-600 italic">
                       No contacts added yet
                     </p>
@@ -640,7 +781,11 @@ export function FacilityDetail({
 
       <NewLogModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        editingLog={editingLog}
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingLog(null);
+        }}
         relatedId={facilityId}
         relatedType="facility"
         onLogCreated={handleLogCreated}

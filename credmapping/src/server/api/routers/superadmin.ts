@@ -123,12 +123,14 @@ export const superadminRouter = createTRPCRouter({
     }),
 
   /**
-   * Update an existing agent's role.
+   * Update an existing agent's team and role.
    */
-  updateAgentRole: superAdminProcedure
+  updateAgent: superAdminProcedure
     .input(
       z.object({
         agentId: z.string().uuid(),
+        team: z.enum(["IN", "US"]),
+        teamNumber: z.number().int().positive().nullable(),
         role: z.enum(["user", "admin", "superadmin"]),
       }),
     )
@@ -153,6 +155,8 @@ export const superadminRouter = createTRPCRouter({
       const [updated] = await ctx.db
         .update(agents)
         .set({
+          team: input.team,
+          teamNumber: input.teamNumber,
           role: input.role,
           updatedAt: new Date(),
         })

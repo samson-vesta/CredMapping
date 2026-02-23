@@ -1,86 +1,132 @@
 "use client";
 
-import { useState } from "react";
-import { X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Button } from "~/components/ui/button";
+import { Dialog, DialogClose } from "~/components/ui/dialog";
+import {
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  ModalTitle,
+} from "~/components/ui/app-modal";
+import { Input } from "~/components/ui/input";
+import { Textarea } from "~/components/ui/textarea";
 import { api } from "~/trpc/react";
+
+interface EditableLog {
+  id: string;
+  commType: string | null;
+  subject: string | null;
+  notes: string | null;
+  status: string | null;
+  nextFollowupAt: Date | string | null;
+}
 
 interface NewLogModalProps {
   isOpen: boolean;
   onClose: () => void;
   relatedId: string;
   relatedType: "provider" | "facility";
-  onLogCreated?: () => void;
+  editingLog?: EditableLog | null;
+  onLogCreated?: () => void | Promise<void>;
 }
+
+const defaultFormData = {
+  commType: "Email",
+  subject: "",
+  notes: "",
+  status: "pending_response",
+  nextFollowupAt: "",
+};
+
+const formatDateForInput = (value: Date | string | null | undefined) => {
+  if (!value) return "";
+  return new Date(value).toISOString().split("T")[0] ?? "";
+};
 
 export function NewLogModal({
   isOpen,
   onClose,
   relatedId,
   relatedType,
+  editingLog,
   onLogCreated,
 }: NewLogModalProps) {
-  const [formData, setFormData] = useState({
-    commType: "Email",
-    subject: "",
-    notes: "",
-    status: "pending_response",
-    nextFollowupAt: "",
-  });
+  const [formData, setFormData] = useState(defaultFormData);
+  const [activeEditingLog, setActiveEditingLog] = useState<EditableLog | null>(null);
+
+  const isEditMode = Boolean(activeEditingLog);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    if (editingLog) {
+      setActiveEditingLog(editingLog);
+      setFormData({
+        commType: editingLog.commType ?? "Email",
+        subject: editingLog.subject ?? "",
+        notes: editingLog.notes ?? "",
+        status: editingLog.status ?? "pending_response",
+        nextFollowupAt: formatDateForInput(editingLog.nextFollowupAt),
+      });
+      return;
+    }
+
+    setActiveEditingLog(null);
+    setFormData(defaultFormData);
+  }, [editingLog, isOpen]);
 
   const createMutation = api.commLogs.create.useMutation();
+  const updateMutation = api.commLogs.update.useMutation();
+
+  const isSubmitting = useMemo(
+    () => createMutation.isPending || updateMutation.isPending,
+    [createMutation.isPending, updateMutation.isPending],
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     try {
-      await createMutation.mutateAsync({
-        relatedType,
-        relatedId,
-        ...formData,
-      });
-      
-      setFormData({
-        commType: "Email",
-        subject: "",
-        notes: "",
-        status: "pending_response",
-        nextFollowupAt: "",
-      });
-      
-      onLogCreated?.();
+      if (activeEditingLog) {
+        await updateMutation.mutateAsync({
+          id: activeEditingLog.id,
+          ...formData,
+        });
+      } else {
+        await createMutation.mutateAsync({
+          relatedType,
+          relatedId,
+          ...formData,
+        });
+      }
+
+      setFormData(defaultFormData);
+      await onLogCreated?.();
       onClose();
     } catch (error) {
-      console.error("Failed to create log:", error);
+      console.error("Failed to save log:", error);
     }
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-[#181a1b] rounded-lg border border-zinc-700 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-zinc-700">
-          <h2 className="text-lg font-semibold text-white">New Communication Log</h2>
-          <button
-            onClick={onClose}
-            className="text-zinc-400 hover:text-white"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <ModalContent>
+        <ModalHeader>
+          <ModalTitle>
+            {isEditMode ? "Edit Communication Log" : "New Communication Log"}
+          </ModalTitle>
+        </ModalHeader>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form className="space-y-4" onSubmit={handleSubmit}>
           <div>
-            <label className="block text-sm font-medium text-zinc-200 mb-2">
+            <label className="mb-2 block text-sm font-medium text-zinc-200">
               Communication Type
             </label>
             <select
+              className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-2 text-white focus:border-ring focus:outline-none"
+              onChange={(e) => setFormData({ ...formData, commType: e.target.value })}
               value={formData.commType}
-              onChange={(e) =>
-                setFormData({ ...formData, commType: e.target.value })
-              }
-              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white focus:outline-none focus:border-[#c8a84b]"
             >
               <option>Email</option>
               <option>Phone Call</option>
@@ -92,45 +138,32 @@ export function NewLogModal({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-zinc-200 mb-2">
-              Subject
-            </label>
-            <input
-              type="text"
-              value={formData.subject}
-              onChange={(e) =>
-                setFormData({ ...formData, subject: e.target.value })
-              }
+            <label className="mb-2 block text-sm font-medium text-zinc-200">Subject</label>
+            <Input
+              onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
               placeholder="Email subject or brief description"
-              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white placeholder-zinc-500 focus:outline-none focus:border-[#c8a84b]"
+              value={formData.subject}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-zinc-200 mb-2">
+            <label className="mb-2 block text-sm font-medium text-zinc-200">
               Notes / Description
             </label>
-            <textarea
-              value={formData.notes}
-              onChange={(e) =>
-                setFormData({ ...formData, notes: e.target.value })
-              }
+            <Textarea
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               placeholder="Details about the communication"
               rows={4}
-              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white placeholder-zinc-500 focus:outline-none focus:border-[#c8a84b]"
+              value={formData.notes}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-zinc-200 mb-2">
-              Status
-            </label>
+            <label className="mb-2 block text-sm font-medium text-zinc-200">Status</label>
             <select
+              className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-2 text-white focus:border-ring focus:outline-none"
+              onChange={(e) => setFormData({ ...formData, status: e.target.value })}
               value={formData.status}
-              onChange={(e) =>
-                setFormData({ ...formData, status: e.target.value })
-              }
-              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white focus:outline-none focus:border-[#c8a84b]"
             >
               <option value="pending_response">Pending Response</option>
               <option value="fu_completed">Follow-up Completed</option>
@@ -140,38 +173,36 @@ export function NewLogModal({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-zinc-200 mb-2">
+            <label className="mb-2 block text-sm font-medium text-zinc-200">
               Next Follow-up Date
             </label>
-            <input
-              type="date"
-              value={formData.nextFollowupAt}
+            <Input
               onChange={(e) =>
                 setFormData({ ...formData, nextFollowupAt: e.target.value })
               }
-              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white focus:outline-none focus:border-[#c8a84b]"
+              type="date"
+              value={formData.nextFollowupAt}
             />
           </div>
 
-          {/* Buttons */}
-          <div className="flex gap-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2 bg-zinc-800 text-white rounded hover:bg-zinc-700 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={createMutation.isPending}
-              className="flex-1 px-4 py-2 bg-[#c8a84b] text-black font-medium rounded hover:bg-[#dab855] transition-colors disabled:opacity-50"
-            >
-              {createMutation.isPending ? "Creating..." : "Create Log"}
-            </button>
-          </div>
+          <ModalFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button disabled={isSubmitting} type="submit">
+              {isSubmitting
+                ? isEditMode
+                  ? "Saving..."
+                  : "Creating..."
+                : isEditMode
+                  ? "Save Changes"
+                  : "Create Log"}
+            </Button>
+          </ModalFooter>
         </form>
-      </div>
-    </div>
+      </ModalContent>
+    </Dialog>
   );
 }

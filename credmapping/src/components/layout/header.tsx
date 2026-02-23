@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
-import { LogOut, Moon, Sun, User, Monitor } from "lucide-react";
+import { LogOut, Moon, Star, Sun, User, Monitor } from "lucide-react";
 import { createClient } from "~/utils/supabase/client";
 
 import {
@@ -35,7 +35,9 @@ function formatSegmentLabel(segment: string) {
 const isLikelyUuid = (value: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 
-export function Header({ user }: { user: UserType }) {
+type AppRole = "user" | "admin" | "superadmin";
+
+export function Header({ user, userRole }: { user: UserType; userRole: AppRole }) {
   const [isPending, startTransition] = useTransition();
   const [providerBreadcrumbLabel, setProviderBreadcrumbLabel] = useState<string | null>(null);
 
@@ -150,12 +152,27 @@ export function Header({ user }: { user: UserType }) {
         <div className="flex items-center justify-end">
           <DropdownMenu>
             <DropdownMenuTrigger className="focus:outline-none">
-              <Avatar className="h-9 w-9 border transition-opacity hover:opacity-80">
-                <AvatarImage src={avatarUrl} />
-                <AvatarFallback className="bg-primary text-primary-foreground">
-                  {fullName.charAt(0).toUpperCase() ?? <User size={18} />}
-                </AvatarFallback>
-              </Avatar>
+              <div className="relative">
+                <Avatar className="h-9 w-9 rounded-lg border transition-opacity hover:opacity-80">
+                  <AvatarImage src={avatarUrl} />
+                  <AvatarFallback className="rounded-lg bg-primary text-primary-foreground">
+                    {fullName.charAt(0).toUpperCase() ?? <User size={18} />}
+                  </AvatarFallback>
+                </Avatar>
+
+                {userRole === "superadmin" && (
+                  <span className="absolute -right -bottom-1 inline-flex items-center text-primary">
+                    <Star size={10} fill="currentColor" strokeWidth={1.8} />
+                    <Star className="-ml-1" size={10} fill="currentColor" strokeWidth={1.8} />
+                  </span>
+                )}
+
+                {userRole === "admin" && (
+                  <span className="absolute -right-1 -bottom-1 inline-flex items-center text-primary">
+                    <Star size={10} fill="currentColor" strokeWidth={1.8} />
+                  </span>
+                )}
+              </div>
             </DropdownMenuTrigger>
 
             <DropdownMenuContent align="end" className="w-28 min-w-0">

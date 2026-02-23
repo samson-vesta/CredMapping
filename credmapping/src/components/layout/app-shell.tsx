@@ -44,7 +44,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background">
-      <Header user={user} />
+      <Header user={user} userRole={userRole} />
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <Sidebar userRole={userRole} initialSidebarMode={initialSidebarMode} />

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, desc, count, and, sql, or } from "drizzle-orm";
+import { eq, desc, count, and, sql, or, inArray } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import {
   commLogs,
@@ -34,12 +34,8 @@ export const commLogsRouter = createTRPCRouter({
           lastUpdatedBy: commLogs.lastUpdatedBy,
           createdAt: commLogs.createdAt,
           updatedAt: commLogs.updatedAt,
-          agentFirstName: agents.firstName,
-          agentLastName: agents.lastName,
-          agentEmail: agents.email,
         })
         .from(commLogs)
-        .leftJoin(agents, eq(commLogs.createdBy, agents.id))
         .where(
           and(
             eq(commLogs.relatedType, "provider"),
@@ -48,11 +44,31 @@ export const commLogsRouter = createTRPCRouter({
         )
         .orderBy(desc(commLogs.createdAt));
 
+      const agentIds = Array.from(
+        new Set(
+          rows.flatMap((row) => [row.createdBy, row.lastUpdatedBy]).filter((id): id is string => id != null),
+        ),
+      );
+
+      const agentRows = agentIds.length
+        ? await ctx.db
+            .select({ id: agents.id, firstName: agents.firstName, lastName: agents.lastName })
+            .from(agents)
+            .where(inArray(agents.id, agentIds))
+        : [];
+
+      const agentNameById = new Map(
+        agentRows.map((agent) => [
+          agent.id,
+          [agent.firstName, agent.lastName].filter(Boolean).join(" ").trim(),
+        ]),
+      );
+
       return rows.map((row) => ({
         ...row,
-        agentName: row.agentFirstName
-          ? `${row.agentFirstName} ${row.agentLastName ?? ""}`
-          : null,
+        agentName: row.createdBy ? (agentNameById.get(row.createdBy) ?? null) : null,
+        createdByName: row.createdBy ? (agentNameById.get(row.createdBy) ?? null) : null,
+        lastUpdatedByName: row.lastUpdatedBy ? (agentNameById.get(row.lastUpdatedBy) ?? null) : null,
       }));
     }),
 
@@ -79,12 +95,8 @@ export const commLogsRouter = createTRPCRouter({
           lastUpdatedBy: commLogs.lastUpdatedBy,
           createdAt: commLogs.createdAt,
           updatedAt: commLogs.updatedAt,
-          agentFirstName: agents.firstName,
-          agentLastName: agents.lastName,
-          agentEmail: agents.email,
         })
         .from(commLogs)
-        .leftJoin(agents, eq(commLogs.createdBy, agents.id))
         .where(
           and(
             eq(commLogs.relatedType, "facility"),
@@ -95,11 +107,31 @@ export const commLogsRouter = createTRPCRouter({
         )
         .orderBy(desc(commLogs.createdAt));
 
+      const agentIds = Array.from(
+        new Set(
+          rows.flatMap((row) => [row.createdBy, row.lastUpdatedBy]).filter((id): id is string => id != null),
+        ),
+      );
+
+      const agentRows = agentIds.length
+        ? await ctx.db
+            .select({ id: agents.id, firstName: agents.firstName, lastName: agents.lastName })
+            .from(agents)
+            .where(inArray(agents.id, agentIds))
+        : [];
+
+      const agentNameById = new Map(
+        agentRows.map((agent) => [
+          agent.id,
+          [agent.firstName, agent.lastName].filter(Boolean).join(" ").trim(),
+        ]),
+      );
+
       return rows.map((row) => ({
         ...row,
-        agentName: row.agentFirstName
-          ? `${row.agentFirstName} ${row.agentLastName ?? ""}`
-          : null,
+        agentName: row.createdBy ? (agentNameById.get(row.createdBy) ?? null) : null,
+        createdByName: row.createdBy ? (agentNameById.get(row.createdBy) ?? null) : null,
+        lastUpdatedByName: row.lastUpdatedBy ? (agentNameById.get(row.lastUpdatedBy) ?? null) : null,
       }));
     }),
 
@@ -122,6 +154,15 @@ export const commLogsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      const parsedUserId = z.string().uuid().safeParse(ctx.user.id);
+      const [currentAgent] = parsedUserId.success
+        ? await ctx.db
+            .select({ id: agents.id })
+            .from(agents)
+            .where(eq(agents.userId, parsedUserId.data))
+            .limit(1)
+        : [];
+
       const result = await ctx.db
         .insert(commLogs)
         .values([
@@ -142,10 +183,61 @@ export const commLogsRouter = createTRPCRouter({
               ? new Date(input.nextFollowupAt)
               : null,
             receivedAt: input.receivedAt ? new Date(input.receivedAt) : null,
-            createdBy: String(ctx.user.id),
+            createdBy: currentAgent?.id ?? null,
             createdAt: new Date(),
           } as never,
         ])
+        .returning();
+
+      return result[0];
+    }),
+
+  /**
+   * Update an existing comm log entry
+   */
+  update: protectedProcedure
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        commType: z.string(),
+        subject: z.string().optional(),
+        notes: z.string().optional(),
+        status: z.string().optional(),
+        requestedAt: z.string().optional(),
+        lastFollowupAt: z.string().optional(),
+        nextFollowupAt: z.string().optional(),
+        receivedAt: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const parsedUserId = z.string().uuid().safeParse(ctx.user.id);
+      const [currentAgent] = parsedUserId.success
+        ? await ctx.db
+            .select({ id: agents.id })
+            .from(agents)
+            .where(eq(agents.userId, parsedUserId.data))
+            .limit(1)
+        : [];
+
+      const result = await ctx.db
+        .update(commLogs)
+        .set({
+          commType: input.commType,
+          subject: input.subject ?? null,
+          notes: input.notes ?? null,
+          status: input.status ?? null,
+          requestedAt: input.requestedAt ? new Date(input.requestedAt) : null,
+          lastFollowupAt: input.lastFollowupAt
+            ? new Date(input.lastFollowupAt)
+            : null,
+          nextFollowupAt: input.nextFollowupAt
+            ? new Date(input.nextFollowupAt)
+            : null,
+          receivedAt: input.receivedAt ? new Date(input.receivedAt) : null,
+          lastUpdatedBy: currentAgent?.id ?? null,
+          updatedAt: new Date(),
+        } as never)
+        .where(eq(commLogs.id, input.id))
         .returning();
 
       return result[0];
@@ -249,6 +341,7 @@ export const commLogsRouter = createTRPCRouter({
       const allLogs = await ctx.db
         .select({
           id: commLogs.id,
+          commType: commLogs.commType,
           subject: commLogs.subject,
           status: commLogs.status,
           notes: commLogs.notes,
