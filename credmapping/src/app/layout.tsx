@@ -1,6 +1,7 @@
 import "~/styles/globals.css";
 
 import { type Metadata } from "next";
+import { NavigationProgress } from "~/components/layout/navigation-progress";
 import { TooltipProvider } from "~/components/ui/tooltip";
 import { Toaster } from "~/components/ui/sonner";
 import { ThemeProvider } from "~/components/theme-provider";
@@ -25,7 +26,10 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <TooltipProvider>
-            <TRPCReactProvider>{children}</TRPCReactProvider>
+            <TRPCReactProvider>
+              <NavigationProgress />
+              {children}
+            </TRPCReactProvider>
             <Toaster />
           </TooltipProvider>
         </ThemeProvider>
