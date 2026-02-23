@@ -3,6 +3,7 @@ import { facilitiesRouter } from "~/server/api/routers/facilities";
 import { searchRouter } from "~/server/api/routers/search";
 import { superadminRouter } from "~/server/api/routers/superadmin";
 import { commLogsRouter, providersWithCommLogsRouter, facilitiesWithCommLogsRouter } from "~/server/api/routers/commLogs";
+import { auditLogRouter } from "~/server/api/routers/auditLog";
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 
 /**
@@ -18,6 +19,7 @@ export const appRouter = createTRPCRouter({
   commLogs: commLogsRouter,
   providersWithCommLogs: providersWithCommLogsRouter,
   facilitiesWithCommLogs: facilitiesWithCommLogsRouter,
+  auditLog: auditLogRouter,
 });
 
 // export type definition of API

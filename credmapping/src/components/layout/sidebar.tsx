@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   BriefcaseMedical,
   Building2,
+  FileText,
   LayoutDashboard,
   Mail,
   Settings2,
@@ -66,6 +67,12 @@ const sidebarItems = [
     href: "/agent-management",
     icon: ShieldCheck,
     roles: ["superadmin"],
+  },
+  {
+    name: "Audit Log",
+    href: "/audit-log",
+    icon: FileText,
+    roles: ["admin", "superadmin"],
   },
 ];
 
