@@ -11,6 +11,16 @@ import {
   Stethoscope,
 } from "lucide-react";
 import { WorkflowPhaseDrawer } from "~/components/providers/workflow-phase-drawer";
+import {
+  EditProviderDialog,
+  DeleteProviderDialog,
+  AddLicenseDialog,
+  EditLicenseDialog,
+  DeleteLicenseButton,
+  AddPrivilegeDialog,
+  EditPrivilegeDialog,
+  DeletePrivilegeButton,
+} from "~/components/providers/provider-actions";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { db } from "~/server/db";
@@ -56,17 +66,21 @@ const getLicenseStatusTone = (value: Date | string | null) => {
   const expiry = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(expiry.getTime())) return "text-muted-foreground";
   const days = (expiry.getTime() - Date.now()) / (1000 * 60 * 60 * 24);
-  if (days < 0) return "text-red-300";
-  if (days <= 90) return "text-amber-300";
-  return "text-emerald-300";
+  if (days < 0) return "text-red-600 dark:text-red-400";
+  if (days <= 90) return "text-amber-600 dark:text-amber-400";
+  return "text-emerald-600 dark:text-emerald-400";
 };
 
 const getPrivilegeTone = (tier: string | null) => {
   const normalized = tier?.toLowerCase() ?? "";
-  if (normalized.includes("inactive")) return "text-zinc-300 border-zinc-400/60";
-  if (normalized.includes("progress")) return "text-blue-300 border-blue-400/60";
-  if (normalized.includes("temp")) return "text-amber-300 border-amber-400/60";
-  if (normalized.includes("full")) return "text-emerald-300 border-emerald-400/60";
+  if (normalized.includes("inactive"))
+    return "border-zinc-500/60 bg-zinc-500/10 text-zinc-700 dark:text-zinc-300";
+  if (normalized.includes("progress"))
+    return "border-blue-500/60 bg-blue-500/10 text-blue-700 dark:text-blue-300";
+  if (normalized.includes("temp"))
+    return "border-amber-500/60 bg-amber-500/10 text-amber-700 dark:text-amber-300";
+  if (normalized.includes("full"))
+    return "border-emerald-500/60 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
   return "text-muted-foreground border-border";
 };
 
@@ -231,22 +245,26 @@ export default async function ProviderProfilePage({
             <h1 className="text-2xl font-semibold tracking-tight">{formatName(provider)}</h1>
             <p className="text-muted-foreground text-sm">{provider.email ?? "No email"} · {provider.phone ?? "No phone"}</p>
           </div>
-          <Button asChild variant="outline">
-            <Link href="/providers">Back to providers</Link>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <EditProviderDialog provider={provider} />
+            <DeleteProviderDialog providerId={provider.id} providerName={formatName(provider)} />
+            <Button asChild variant="outline">
+              <Link href="/providers">Back to providers</Link>
+            </Button>
+          </div>
         </div>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
           <div className="rounded-md border border-blue-500/40 bg-blue-500/10 p-3">
-            <p className="text-xs text-blue-200">State licenses</p>
+            <p className="text-xs text-blue-700 dark:text-blue-300">State licenses</p>
             <p className="text-xl font-semibold">{licenseRows.length}</p>
           </div>
           <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 p-3">
-            <p className="text-xs text-emerald-200">Privilege records</p>
+            <p className="text-xs text-emerald-700 dark:text-emerald-300">Privilege records</p>
             <p className="text-xl font-semibold">{privilegeRows.length}</p>
           </div>
           <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3">
-            <p className="text-xs text-amber-200">Facility workflows</p>
+            <p className="text-xs text-amber-700 dark:text-amber-300">Facility workflows</p>
             <p className="text-xl font-semibold">{credentials.length}</p>
           </div>
         </div>
@@ -254,9 +272,12 @@ export default async function ProviderProfilePage({
 
       <section className="grid gap-4 lg:grid-cols-3">
         <article className="rounded-lg border p-4 lg:col-span-2">
-          <p className="text-muted-foreground mb-2 flex items-center gap-2 text-xs uppercase">
-            <ShieldCheck className="size-4" /> State licenses
-          </p>
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-muted-foreground flex items-center gap-2 text-xs uppercase">
+              <ShieldCheck className="size-4" /> State licenses
+            </p>
+            <AddLicenseDialog providerId={providerId} />
+          </div>
           {licenseRows.length === 0 ? (
             <p className="text-muted-foreground text-sm">No state licenses found.</p>
           ) : (
@@ -268,7 +289,8 @@ export default async function ProviderProfilePage({
                     <th className="py-1 pr-3">Status</th>
                     <th className="py-1 pr-3">Number</th>
                     <th className="py-1 pr-3">Starts</th>
-                    <th className="py-1">Expires</th>
+                    <th className="py-1 pr-3">Expires</th>
+                    <th className="py-1">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -278,8 +300,26 @@ export default async function ProviderProfilePage({
                       <td className="py-1 pr-3">{license.status ?? "—"}</td>
                       <td className="py-1 pr-3">{license.number ?? "—"}</td>
                       <td className="py-1 pr-3">{formatDate(license.startsAt)}</td>
-                      <td className={`py-1 ${getLicenseStatusTone(license.expiresAt)}`}>
+                      <td className={`py-1 pr-3 ${getLicenseStatusTone(license.expiresAt)}`}>
                         {formatDate(license.expiresAt)}
+                      </td>
+                      <td className="py-1">
+                        <div className="flex items-center gap-1">
+                          <EditLicenseDialog
+                            license={{
+                              id: license.id,
+                              state: license.state,
+                              status: license.status,
+                              path: license.path,
+                              priority: license.priority,
+                              initialOrRenewal: license.initialOrRenewal,
+                              expiresAt: asDateInput(license.expiresAt),
+                              startsAt: asDateInput(license.startsAt),
+                              number: license.number,
+                            }}
+                          />
+                          <DeleteLicenseButton licenseId={license.id} state={license.state} />
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -311,9 +351,12 @@ export default async function ProviderProfilePage({
       </section>
 
       <section className="rounded-lg border p-4">
-        <p className="text-muted-foreground mb-2 flex items-center gap-2 text-xs uppercase">
-          <Activity className="size-4" /> Vesta privileges history
-        </p>
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-muted-foreground flex items-center gap-2 text-xs uppercase">
+            <Activity className="size-4" /> Vesta privileges history
+          </p>
+          <AddPrivilegeDialog providerId={providerId} />
+        </div>
         {privilegeRows.length === 0 ? (
           <p className="text-muted-foreground text-sm">No Vesta privilege records found.</p>
         ) : (
@@ -325,14 +368,15 @@ export default async function ProviderProfilePage({
                   <th className="py-1 pr-3">Init date</th>
                   <th className="py-1 pr-3">Exp date</th>
                   <th className="py-1 pr-3">Term date</th>
-                  <th className="py-1">Term reason</th>
+                  <th className="py-1 pr-3">Term reason</th>
+                  <th className="py-1">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {privilegeRows.map((privilege) => (
                   <tr key={privilege.id} className="border-t">
                     <td className="py-1 pr-3">
-                      <Badge className={`bg-transparent ${getPrivilegeTone(privilege.privilegeTier)}`} variant="outline">
+                      <Badge className={`${getPrivilegeTone(privilege.privilegeTier)}`} variant="outline">
                         {privilege.privilegeTier ?? "Unspecified"}
                       </Badge>
                     </td>
@@ -341,7 +385,22 @@ export default async function ProviderProfilePage({
                       {formatDate(privilege.currentPrivEndDate)}
                     </td>
                     <td className="py-1 pr-3">{formatDate(privilege.termDate)}</td>
-                    <td className="py-1">{privilege.termReason ?? "—"}</td>
+                    <td className="py-1 pr-3">{privilege.termReason ?? "—"}</td>
+                    <td className="py-1">
+                      <div className="flex items-center gap-1">
+                        <EditPrivilegeDialog
+                          privilege={{
+                            id: privilege.id,
+                            privilegeTier: privilege.privilegeTier,
+                            currentPrivInitDate: asDateInput(privilege.currentPrivInitDate),
+                            currentPrivEndDate: asDateInput(privilege.currentPrivEndDate),
+                            termDate: asDateInput(privilege.termDate),
+                            termReason: privilege.termReason,
+                          }}
+                        />
+                        <DeletePrivilegeButton privilegeId={privilege.id} tier={privilege.privilegeTier} />
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -379,7 +438,7 @@ export default async function ProviderProfilePage({
                   </div>
                   <div className="text-right text-sm">
                     {isHighPriority ? (
-                      <p className="flex items-center gap-1 text-amber-300">
+                      <p className="flex items-center gap-1 text-amber-600 dark:text-amber-300">
                         <AlertTriangle className="size-4" /> High priority
                       </p>
                     ) : null}

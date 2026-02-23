@@ -132,7 +132,8 @@ export function Sidebar({ userRole, initialSidebarMode }: SidebarProps) {
           </div>
         ) : (
           filteredNav.map((item) => {
-            const isActive = pathname === item.href;
+            const isActive =
+              pathname === item.href || pathname.startsWith(item.href + "/");
 
             return (
               <Tooltip key={`${item.href}-${isCollapsed}`} delayDuration={0}>

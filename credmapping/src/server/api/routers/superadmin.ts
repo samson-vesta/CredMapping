@@ -7,6 +7,7 @@ import {
   superAdminProcedure,
 } from "~/server/api/trpc";
 import { agents, authUsers, facilities, providers } from "~/server/db/schema";
+import { resolveAgentId, writeAuditLog } from "~/server/api/audit";
 
 export const superadminRouter = createTRPCRouter({
   /**
@@ -233,6 +234,19 @@ export const superadminRouter = createTRPCRouter({
         })
         .returning();
 
+      // Audit
+      if (newFacility) {
+        const actor = await resolveAgentId(ctx.db, ctx.user.id);
+        await writeAuditLog(ctx.db, {
+          tableName: "facilities",
+          recordId: newFacility.id,
+          action: "create",
+          actorId: actor?.id ?? null,
+          actorEmail: actor?.email ?? ctx.user.email ?? null,
+          newData: newFacility as unknown as Record<string, unknown>,
+        });
+      }
+
       return newFacility;
     }),
 
@@ -264,6 +278,19 @@ export const superadminRouter = createTRPCRouter({
           notes: input.notes ?? null,
         })
         .returning();
+
+      // Audit
+      if (newProvider) {
+        const actor = await resolveAgentId(ctx.db, ctx.user.id);
+        await writeAuditLog(ctx.db, {
+          tableName: "providers",
+          recordId: newProvider.id,
+          action: "create",
+          actorId: actor?.id ?? null,
+          actorEmail: actor?.email ?? ctx.user.email ?? null,
+          newData: newProvider as unknown as Record<string, unknown>,
+        });
+      }
 
       return newProvider;
     }),
