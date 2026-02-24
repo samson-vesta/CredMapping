@@ -21,12 +21,22 @@ interface FormattedAuditLog {
   newData: Record<string, unknown> | null;
 }
 
+const ACTION_VALUES = ["insert", "update", "delete"] as const;
+
+function toAuditAction(
+  action: string | null | undefined
+): "insert" | "update" | "delete" {
+  return ACTION_VALUES.includes(action as (typeof ACTION_VALUES)[number])
+    ? (action as "insert" | "update" | "delete")
+    : "update";
+}
+
 function formatAuditLogRecord(record: AuditLogRecord): FormattedAuditLog {
   return {
     id: record.id,
     timestamp: record.createdAt,
     user: record.actorEmail,
-    action: (record.action as "insert" | "update" | "delete") || "update",
+    action: toAuditAction(record.action),
     tableName: record.tableName,
     recordId: record.recordId ? String(record.recordId) : null,
     oldData: (record.oldData as Record<string, unknown>) || null,
@@ -80,7 +90,7 @@ export function AuditLogClient() {
   // Auto-load on mount
   useEffect(() => {
     void refetch();
-  }, []);
+  }, [refetch]);
 
   const handleToggleExpand = (id: string) => {
     setExpandedRows((prev) => {

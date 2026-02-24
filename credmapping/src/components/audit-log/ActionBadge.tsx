@@ -3,7 +3,7 @@
 import { cn } from "~/lib/utils";
 
 interface ActionBadgeProps {
-  action: "insert" | "update" | "delete";
+  action: "insert" | "update" | "delete" | string;
   className?: string;
 }
 
@@ -26,7 +26,8 @@ export function ActionBadge({ action, className }: ActionBadgeProps) {
     },
   };
 
-  const config = badgeConfig[action];
+  const config =
+    badgeConfig[action as keyof typeof badgeConfig] ?? badgeConfig.update;
 
   return (
     <span
