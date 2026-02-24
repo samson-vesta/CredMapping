@@ -437,7 +437,7 @@ export function DashboardClient({ providerFacilityRows, facilityPreliveRows, pro
       });
     }
     return rows;
-  }, [detailSortDirection, detailSortField, rightSearch, selectedGroup, view]);
+  }, [detailSortDirection, detailSortField, rightSearch, selectedGroup, view, filteredVestaPrivileges]);
 
   const onHeaderSort = (field: DetailSortField) => {
     if (detailSortField === field) {
@@ -815,7 +815,7 @@ export function DashboardClient({ providerFacilityRows, facilityPreliveRows, pro
                           <td className="border-r border-border p-2 text-center">{formatDate(row.currentPrivInitDate)}</td>
                           <td className="border-r border-border p-2 text-center">{formatDate(row.currentPrivEndDate)}</td>
                           <td className="border-r border-border p-2 text-center">{formatDate(row.termDate)}</td>
-                          <td className="border-r border-border p-2 text-left text-muted-foreground italic">{row.termReason || "—"}</td>
+                          <td className="border-r border-border p-2 text-left text-muted-foreground italic">{row.termReason ?? "—"}</td>
                           <td className="p-2 text-center">
                             {row.pastPrivileges && row.pastPrivileges.length > 0 ? (
                               <Sheet>
