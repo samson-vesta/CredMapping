@@ -26,6 +26,22 @@ import {
   providers,
   workflowPhases,
 } from "~/server/db/schema";
+import {
+  EditFacilityDialog,
+  DeleteFacilityDialog,
+  AddContactDialog,
+  EditContactDialog,
+  DeleteContactButton,
+  TogglePrimaryButton,
+  AddPreliveDialog,
+  EditPreliveDialog,
+  DeletePreliveButton,
+  AddPfcDialog,
+  EditPfcDialog,
+  DeletePfcButton,
+  AddWorkflowPhaseDialog,
+  DeleteWorkflowPhaseButton,
+} from "~/components/facilities/facility-actions";
 
 /* ─── Helpers ──────────────────────────────────────────────────── */
 
@@ -60,9 +76,11 @@ const sanitizePhoneForHref = (value: string) => value.replace(/[^\d+]/g, "");
 
 const getStatusTone = (status: string | null) => {
   const normalized = status?.toLowerCase() ?? "";
-  if (normalized === "inactive") return "border-zinc-400/60 text-zinc-300";
-  if (normalized === "in progress") return "border-blue-400/60 text-blue-300";
-  return "border-emerald-400/60 text-emerald-300";
+  if (normalized === "inactive")
+    return "border-zinc-500/60 bg-zinc-500/10 text-zinc-700 dark:text-zinc-300";
+  if (normalized === "in progress")
+    return "border-blue-500/60 bg-blue-500/10 text-blue-700 dark:text-blue-300";
+  return "border-emerald-500/60 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
 };
 
 const getDueDateTone = (value: Date | string | null) => {
@@ -70,9 +88,9 @@ const getDueDateTone = (value: Date | string | null) => {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return "text-muted-foreground";
   const days = (date.getTime() - Date.now()) / (1000 * 60 * 60 * 24);
-  if (days < 0) return "text-red-300";
-  if (days <= 30) return "text-amber-300";
-  return "text-emerald-300";
+  if (days < 0) return "text-red-600 dark:text-red-400";
+  if (days <= 30) return "text-amber-600 dark:text-amber-400";
+  return "text-emerald-600 dark:text-emerald-400";
 };
 
 const parseRoles = (value: unknown): string[] => {
@@ -108,7 +126,7 @@ export default async function FacilityProfilePage({
 
   /* ── Parallel data loads ──────────────────────────────────── */
 
-  const [contactRows, preliveRows, credentialRows] = await Promise.all([
+  const [contactRows, preliveRows, credentialRows, allProviders] = await Promise.all([
     db
       .select()
       .from(facilityContacts)
@@ -132,6 +150,7 @@ export default async function FacilityProfilePage({
         decision: providerFacilityCredentials.decision,
         privileges: providerFacilityCredentials.privileges,
         notes: providerFacilityCredentials.notes,
+        formSize: providerFacilityCredentials.formSize,
         applicationRequired: providerFacilityCredentials.applicationRequired,
         updatedAt: providerFacilityCredentials.updatedAt,
       })
@@ -139,7 +158,23 @@ export default async function FacilityProfilePage({
       .leftJoin(providers, eq(providerFacilityCredentials.providerId, providers.id))
       .where(eq(providerFacilityCredentials.facilityId, facilityId))
       .orderBy(desc(providerFacilityCredentials.updatedAt)),
+    db
+      .select({
+        id: providers.id,
+        firstName: providers.firstName,
+        lastName: providers.lastName,
+        degree: providers.degree,
+      })
+      .from(providers)
+      .orderBy(asc(providers.lastName), asc(providers.firstName)),
   ]);
+
+  /* Provider options for AddPfc selector */
+  const providerOptions = allProviders.map((p) => {
+    const name = [p.firstName, p.lastName].filter(Boolean).join(" ") || "Unnamed";
+    const label = p.degree ? `${name}, ${p.degree}` : name;
+    return { id: p.id, label };
+  });
 
   /* ── Workflow phases for credentials ──────────────────────── */
 
@@ -278,30 +313,34 @@ export default async function FacilityProfilePage({
                 </span>
               )}
             </div>
-            <Badge className={`bg-transparent ${getStatusTone(facility.status)}`} variant="outline">
+            <Badge className={`${getStatusTone(facility.status)}`} variant="outline">
               {facility.status ?? "Unknown"}
             </Badge>
           </div>
-          <Button asChild variant="outline">
-            <Link href="/facilities">Back to facilities</Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <EditFacilityDialog facility={facility} />
+            <DeleteFacilityDialog facilityId={facility.id} facilityName={facility.name ?? "Unnamed"} />
+            <Button asChild variant="outline">
+              <Link href="/facilities">Back to facilities</Link>
+            </Button>
+          </div>
         </div>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-4">
           <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 p-3">
-            <p className="text-xs text-emerald-200">Contacts</p>
+            <p className="text-xs text-emerald-700 dark:text-emerald-300">Contacts</p>
             <p className="text-xl font-semibold">{contactRows.length}</p>
           </div>
           <div className="rounded-md border border-blue-500/40 bg-blue-500/10 p-3">
-            <p className="text-xs text-blue-200">Credentialed providers</p>
+            <p className="text-xs text-blue-700 dark:text-blue-300">Credentialed providers</p>
             <p className="text-xl font-semibold">{credentialRows.length}</p>
           </div>
           <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3">
-            <p className="text-xs text-amber-200">Workflow phases</p>
+            <p className="text-xs text-amber-700 dark:text-amber-300">Workflow phases</p>
             <p className="text-xl font-semibold">{totalWorkflowPhases}</p>
           </div>
           <div className="rounded-md border border-violet-500/40 bg-violet-500/10 p-3">
-            <p className="text-xs text-violet-200">Pre-live records</p>
+            <p className="text-xs text-violet-700 dark:text-violet-300">Pre-live records</p>
             <p className="text-xl font-semibold">{preliveRows.length}</p>
           </div>
         </div>
@@ -313,6 +352,9 @@ export default async function FacilityProfilePage({
           <p className="text-muted-foreground mb-2 flex items-center gap-2 text-xs uppercase">
             <User className="size-4" /> Facility contacts
           </p>
+          <div className="mb-3">
+            <AddContactDialog facilityId={facilityId} />
+          </div>
           {contactRows.length === 0 ? (
             <p className="text-muted-foreground text-sm">No contacts found for this facility.</p>
           ) : (
@@ -324,7 +366,8 @@ export default async function FacilityProfilePage({
                     <th className="py-1 pr-3">Title</th>
                     <th className="py-1 pr-3">Email</th>
                     <th className="py-1 pr-3">Phone</th>
-                    <th className="py-1">Primary</th>
+                    <th className="py-1 pr-3">Primary</th>
+                    <th className="py-1">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -350,14 +393,21 @@ export default async function FacilityProfilePage({
                           "—"
                         )}
                       </td>
-                      <td className="py-1">
+                      <td className="py-1 pr-3">
                         {contact.isPrimary ? (
-                          <Badge className="border-emerald-400/60 bg-transparent text-emerald-300" variant="outline">
+                          <Badge className="border-emerald-500/60 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" variant="outline">
                             Primary
                           </Badge>
                         ) : (
                           "—"
                         )}
+                      </td>
+                      <td className="py-1">
+                        <div className="flex items-center gap-1">
+                          <EditContactDialog contact={contact} />
+                          <TogglePrimaryButton contactId={contact.id} isPrimary={!!contact.isPrimary} />
+                          <DeleteContactButton contactId={contact.id} contactName={contact.name} />
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -408,9 +458,12 @@ export default async function FacilityProfilePage({
 
       {/* ── Pre-live info ─────────────────────────────────────── */}
       <section className="rounded-lg border p-4">
-        <p className="text-muted-foreground mb-2 flex items-center gap-2 text-xs uppercase">
-          <Rocket className="size-4" /> Pre-live pipeline
-        </p>
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-muted-foreground flex items-center gap-2 text-xs uppercase">
+            <Rocket className="size-4" /> Pre-live pipeline
+          </p>
+          <AddPreliveDialog facilityId={facilityId} />
+        </div>
         {preliveRows.length === 0 ? (
           <p className="text-muted-foreground text-sm">No pre-live records found for this facility.</p>
         ) : (
@@ -419,6 +472,21 @@ export default async function FacilityProfilePage({
               const roles = parseRoles(prelive.rolesNeeded);
               return (
                 <div key={prelive.id} className="rounded-md border p-3">
+                  <div className="mb-2 flex items-center justify-end gap-1">
+                    <EditPreliveDialog
+                      prelive={{
+                        id: prelive.id,
+                        priority: prelive.priority,
+                        goLiveDate: prelive.goLiveDate,
+                        boardMeetingDate: prelive.boardMeetingDate,
+                        credentialingDueDate: prelive.credentialingDueDate,
+                        tempsPossible: prelive.tempsPossible,
+                        rolesNeeded: prelive.rolesNeeded,
+                        payorEnrollmentRequired: prelive.payorEnrollmentRequired,
+                      }}
+                    />
+                    <DeletePreliveButton preliveId={prelive.id} />
+                  </div>
                   <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
                     <div>
                       <p className="text-muted-foreground text-xs">Priority</p>
@@ -478,9 +546,12 @@ export default async function FacilityProfilePage({
 
       {/* ── Provider credential sub-workflows ─────────────────── */}
       <section className="space-y-3">
-        <p className="text-muted-foreground flex items-center gap-2 text-xs uppercase">
-          <Stethoscope className="size-4" /> Provider credential sub-workflows
-        </p>
+        <div className="flex items-center justify-between">
+          <p className="text-muted-foreground flex items-center gap-2 text-xs uppercase">
+            <Stethoscope className="size-4" /> Provider credential sub-workflows
+          </p>
+          <AddPfcDialog facilityId={facilityId} providers={providerOptions} />
+        </div>
         {credentialRows.length === 0 ? (
           <div className="text-muted-foreground rounded-lg border border-dashed p-4 text-sm">
             No provider credentials exist for this facility.
@@ -519,13 +590,28 @@ export default async function FacilityProfilePage({
                       {credential.decision ?? "—"} · Privileges: {credential.privileges ?? "—"}
                     </p>
                   </div>
-                  <div className="text-right text-sm">
-                    {isHighPriority ? (
-                      <p className="flex items-center gap-1 text-amber-300">
-                        <AlertTriangle className="size-4" /> High priority
-                      </p>
-                    ) : null}
-                    <p className="text-muted-foreground">Updated {formatDate(credential.updatedAt)}</p>
+                  <div className="flex items-center gap-2">
+                    <EditPfcDialog
+                      pfc={{
+                        id: credential.id,
+                        facilityType: credential.facilityType,
+                        privileges: credential.privileges,
+                        decision: credential.decision,
+                        notes: credential.notes,
+                        priority: credential.priority,
+                        formSize: credential.formSize,
+                        applicationRequired: credential.applicationRequired,
+                      }}
+                    />
+                    <DeletePfcButton pfcId={credential.id} providerName={providerName} />
+                    <div className="text-right text-sm">
+                      {isHighPriority ? (
+                        <p className="flex items-center gap-1 text-amber-600 dark:text-amber-300">
+                          <AlertTriangle className="size-4" /> High priority
+                        </p>
+                      ) : null}
+                      <p className="text-muted-foreground">Updated {formatDate(credential.updatedAt)}</p>
+                    </div>
                   </div>
                 </div>
 
@@ -539,9 +625,16 @@ export default async function FacilityProfilePage({
                 <p className="text-muted-foreground mt-2 text-sm">{credential.notes ?? "No notes"}</p>
 
                 {workflowList.length === 0 ? (
-                  <p className="text-muted-foreground mt-3 text-sm">No workflow phases linked.</p>
+                  <div className="mt-3 flex items-center justify-between">
+                    <p className="text-muted-foreground text-sm">No workflow phases linked.</p>
+                    <AddWorkflowPhaseDialog relatedId={credential.id} />
+                  </div>
                 ) : (
-                  <div className="mt-3 overflow-x-auto">
+                  <div className="mt-3">
+                    <div className="mb-2 flex justify-end">
+                      <AddWorkflowPhaseDialog relatedId={credential.id} />
+                    </div>
+                    <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm">
                       <thead className="text-muted-foreground text-xs uppercase">
                         <tr>
@@ -564,20 +657,24 @@ export default async function FacilityProfilePage({
                             </td>
                             <td className="py-1 pr-3">{workflow.completedAt ?? "—"}</td>
                             <td className="py-1">
-                              <WorkflowPhaseDrawer
-                                timeline={workflowList}
-                                updateAction={updateWorkflowPhaseAction}
-                                workflow={{
-                                  ...workflow,
-                                  facilityName: facility.name ?? "Unknown facility",
-                                  providerCredentialId: credential.id,
-                                }}
-                              />
+                              <div className="flex items-center gap-1">
+                                <WorkflowPhaseDrawer
+                                  timeline={workflowList}
+                                  updateAction={updateWorkflowPhaseAction}
+                                  workflow={{
+                                    ...workflow,
+                                    facilityName: facility.name ?? "Unknown facility",
+                                    providerCredentialId: credential.id,
+                                  }}
+                                />
+                                <DeleteWorkflowPhaseButton phaseId={workflow.id} phaseName={workflow.phaseName} />
+                              </div>
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
+                    </div>
                   </div>
                 )}
               </article>

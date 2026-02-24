@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   BriefcaseMedical,
   Building2,
+  FileText,
   LayoutDashboard,
   Mail,
   Settings2,
@@ -66,6 +67,12 @@ const sidebarItems = [
     href: "/agent-management",
     icon: ShieldCheck,
     roles: ["superadmin"],
+  },
+  {
+    name: "Audit Log",
+    href: "/audit-log",
+    icon: FileText,
+    roles: ["admin", "superadmin"],
   },
 ];
 
@@ -132,7 +139,8 @@ export function Sidebar({ userRole, initialSidebarMode }: SidebarProps) {
           </div>
         ) : (
           filteredNav.map((item) => {
-            const isActive = pathname === item.href;
+            const isActive =
+              pathname === item.href || pathname.startsWith(item.href + "/");
 
             return (
               <Tooltip key={`${item.href}-${isCollapsed}`} delayDuration={0}>
