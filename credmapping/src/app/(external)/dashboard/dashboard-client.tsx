@@ -10,7 +10,7 @@ import { Separator } from "~/components/ui/separator";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "~/components/ui/sheet";
 import { cn } from "~/lib/utils";
 
-type ViewKey = "providerFacility" | "facilityProvider" | "facilityPrelive" | "providerLicense";
+type ViewKey = "providerFacility" | "facilityProvider" | "facilityPrelive" | "providerLicense" | "providerVestaPrivileges";
 type SortDirection = "asc" | "desc";
 type GroupSortField = "name" | "updated";
 type BooleanFilter = "all" | "yes" | "no";
@@ -74,10 +74,29 @@ type ProviderLicenseRow = {
   updatedAt: string | null;
 };
 
+type ProviderVestaPrivilegesRow = {
+  id: string;
+  providerId: string | null;
+  providerName: string | null;
+  providerDegree: string | null;
+  privilegeTier: "Inactive" | "Full" | "Temp" | "In Progress" | null;
+  currentPrivInitDate: string | null;
+  currentPrivEndDate: string | null;
+  termDate: string | null;
+  termReason: string | null;
+  pastPrivileges: Array<{
+    approved_at: string;
+    expires_at: string;
+    tier?: string;
+  }> | null;
+  updatedAt: string | null;
+};
+
 type DashboardClientProps = {
   providerFacilityRows: ProviderFacilityRow[];
   facilityPreliveRows: FacilityPreliveRow[];
   providerLicenseRows: ProviderLicenseRow[];
+  providerVestaPrivilegesRows: ProviderVestaPrivilegesRow[];
 };
 
 type GroupedRows<T> = {
@@ -92,6 +111,7 @@ const viewButtons: Array<{ key: ViewKey; label: string }> = [
   { key: "facilityProvider", label: "Facility-Level Provider Credentials" },
   { key: "facilityPrelive", label: "Facility Pre-Live Details" },
   { key: "providerLicense", label: "Provider-Level State License Overview" },
+  { key: "providerVestaPrivileges", label: "Provider-Level Vesta Privileges" },
 ];
 
 const normalize = (value: string | null | undefined) => (value ?? "").trim().toLowerCase();
@@ -126,9 +146,9 @@ const formatDate = (value: string | null) => {
 
 const statusTone = (value: string | null) => {
   const normalized = normalize(value);
-  if (normalized.includes("approved")) return "border-emerald-600/50 bg-emerald-50 text-emerald-800 dark:border-emerald-500/50 dark:bg-emerald-500/15 dark:text-emerald-200";
-  if (normalized.includes("awaiting") || normalized.includes("pending")) return "border-blue-600/50 bg-blue-50 text-blue-800 dark:border-blue-500/50 dark:bg-blue-500/15 dark:text-blue-200";
-  if (normalized.includes("missing") || normalized.includes("hold") || normalized.includes("ineligible")) return "border-violet-600/50 bg-violet-50 text-violet-800 dark:border-violet-500/50 dark:bg-violet-500/15 dark:text-violet-200";
+  if (normalized.includes("full") || normalized.includes("approved")) return "border-emerald-600/50 bg-emerald-50 text-emerald-800 dark:border-emerald-500/50 dark:bg-emerald-500/15 dark:text-emerald-200";
+  if (normalized.includes("progress") || normalized.includes("awaiting") || normalized.includes("pending")) return "border-blue-600/50 bg-blue-50 text-blue-800 dark:border-blue-500/50 dark:bg-blue-500/15 dark:text-blue-200";
+  if (normalized.includes("inactive") || normalized.includes("missing") || normalized.includes("hold") || normalized.includes("ineligible")) return "border-violet-600/50 bg-violet-50 text-violet-800 dark:border-violet-500/50 dark:bg-violet-500/15 dark:text-violet-200";
   return "border-border bg-muted text-foreground";
 };
 
@@ -165,7 +185,7 @@ function sortByDirection<T>(rows: T[], direction: SortDirection, getter: (row: T
   });
 }
 
-function rowsMatchSearch(rows: ProviderFacilityRow[] | FacilityPreliveRow[] | ProviderLicenseRow[], query: string) {
+function rowsMatchSearch(rows: ProviderFacilityRow[] | FacilityPreliveRow[] | ProviderLicenseRow[] | ProviderVestaPrivilegesRow[], query: string) {
   const q = normalize(query);
   if (!q) return rows;
   return rows.filter((row) => {
@@ -174,6 +194,9 @@ function rowsMatchSearch(rows: ProviderFacilityRow[] | FacilityPreliveRow[] | Pr
     }
     if ("facilityName" in row && "rolesNeeded" in row) {
       return [row.facilityName, row.facilityState ?? "", row.priority ?? "", row.rolesNeeded.join(" ")].join(" ").toLowerCase().includes(q);
+    }
+    if ("providerName" in row && "privilegeTier" in row) {
+      return [row.providerName, row.privilegeTier ?? "", row.currentPrivInitDate ?? "", row.currentPrivEndDate ?? "", row.termDate ?? "", row.termReason ?? ""].join(" ").toLowerCase().includes(q);
     }
     return [row.providerName, row.state ?? "", row.priority ?? "", row.path ?? "", row.status ?? "", row.initialOrRenewal ?? ""].join(" ").toLowerCase().includes(q);
   });
@@ -191,7 +214,7 @@ function SortableHeader({ label, field, activeField, direction, onSort, centered
   );
 }
 
-export function DashboardClient({ providerFacilityRows, facilityPreliveRows, providerLicenseRows }: DashboardClientProps) {
+export function DashboardClient({ providerFacilityRows, facilityPreliveRows, providerLicenseRows, providerVestaPrivilegesRows }: DashboardClientProps) {
   const [view, setView] = useState<ViewKey>("providerFacility");
   const [leftSearch, setLeftSearch] = useState("");
   const [rightSearch, setRightSearch] = useState("");
@@ -204,6 +227,7 @@ export function DashboardClient({ providerFacilityRows, facilityPreliveRows, pro
   const [payorEnrollmentFilter, setPayorEnrollmentFilter] = useState<BooleanFilter>("all");
   const [licensePathFilter, setLicensePathFilter] = useState("all");
   const [licenseCycleFilter, setLicenseCycleFilter] = useState("all");
+  const [privilegeTierFilter, setPrivilegeTierFilter] = useState("all");
   const [groupSortField, setGroupSortField] = useState<GroupSortField>("updated");
   const [groupSortDirection, setGroupSortDirection] = useState<SortDirection>("desc");
   const [detailSortField, setDetailSortField] = useState<DetailSortField | null>(null);
@@ -224,6 +248,7 @@ export function DashboardClient({ providerFacilityRows, facilityPreliveRows, pro
   const allFacilityStates = useMemo(() => Array.from(new Set([...providerFacilityRows.map((row) => row.facilityState), ...facilityPreliveRows.map((row) => row.facilityState)].filter(Boolean) as string[])).sort((a, b) => a.localeCompare(b)), [facilityPreliveRows, providerFacilityRows]);
   const allLicensePaths = useMemo(() => Array.from(new Set(providerLicenseRows.map((row) => row.path).filter(Boolean) as string[])).sort((a, b) => a.localeCompare(b)), [providerLicenseRows]);
   const allLicenseCycles = useMemo(() => Array.from(new Set(providerLicenseRows.map((row) => row.initialOrRenewal).filter(Boolean) as string[])).sort((a, b) => a.localeCompare(b)), [providerLicenseRows]);
+  const allPrivilegeTiers = useMemo(() => Array.from(new Set(providerVestaPrivilegesRows.map((row) => row.privilegeTier).filter(Boolean) as string[])).sort((a, b) => a.localeCompare(b)), [providerVestaPrivilegesRows]);
 
   const filteredProviderFacility = useMemo(
     () =>
@@ -258,6 +283,14 @@ export function DashboardClient({ providerFacilityRows, facilityPreliveRows, pro
           && (licenseCycleFilter === "all" || normalize(row.initialOrRenewal) === normalize(licenseCycleFilter)),
       ),
     [licenseCycleFilter, licensePathFilter, priorityFilter, providerLicenseRows, statusFilter],
+  );
+  const filteredVestaPrivileges = useMemo(
+    () =>
+      providerVestaPrivilegesRows.filter(
+        (row) =>
+          privilegeTierFilter === "all" || normalize(row.privilegeTier) === normalize(privilegeTierFilter),
+      ),
+    [providerVestaPrivilegesRows, privilegeTierFilter],
   );
 
   const providerGroups = useMemo(() => {
@@ -324,12 +357,32 @@ export function DashboardClient({ providerFacilityRows, facilityPreliveRows, pro
     });
   }, [filteredLicenses, groupSortDirection, groupSortField]);
 
+  const vestaPrivilegeGroups = useMemo(() => {
+    const grouped = groupBy(
+      filteredVestaPrivileges,
+      (row) => row.providerId ?? row.providerName ?? "unknown",
+      (row) => row.providerName ?? "Unnamed Provider",
+      (row) => row.providerDegree ?? undefined,
+    );
+
+    if (groupSortField === "name") {
+      return sortByDirection(grouped, groupSortDirection, (row) => row.label.toLowerCase());
+    }
+
+    return sortByDirection(grouped, groupSortDirection, (row) => {
+      const first = row.rows[0] as { updatedAt?: string | null } | undefined;
+      return first?.updatedAt ? new Date(first.updatedAt).getTime() : 0;
+    });
+  }, [filteredVestaPrivileges, groupSortDirection, groupSortField]);
+
   const groupsForView = useMemo(() => {
     if (view === "providerFacility") return providerGroups;
     if (view === "facilityProvider") return facilityGroups;
     if (view === "facilityPrelive") return preliveGroups;
-    return licenseGroups;
-  }, [facilityGroups, licenseGroups, preliveGroups, providerGroups, view]);
+    if (view === "providerLicense") return licenseGroups;
+    if (view === "providerVestaPrivileges") return vestaPrivilegeGroups;
+    return [];
+  }, [facilityGroups, licenseGroups, preliveGroups, providerGroups, vestaPrivilegeGroups, view]);
 
   const activeGroups = useMemo(() => {
     const q = normalize(leftSearch);
@@ -345,6 +398,17 @@ export function DashboardClient({ providerFacilityRows, facilityPreliveRows, pro
   const selectedGroup = useMemo(() => activeGroups.find((group) => group.key === selectedKey) ?? null, [activeGroups, selectedKey]);
 
   const selectedRows = useMemo(() => {
+    if (view === "providerVestaPrivileges") {
+      const rows = rowsMatchSearch(filteredVestaPrivileges, rightSearch);
+      return sortByDirection(rows as ProviderVestaPrivilegesRow[], detailSortDirection, (row) => {
+        if (detailSortField === "status") return row.privilegeTier ?? "";
+        if (detailSortField === "requested") return row.currentPrivInitDate ? new Date(row.currentPrivInitDate).getTime() : 0;
+        if (detailSortField === "finalDate") return row.currentPrivEndDate ? new Date(row.currentPrivEndDate).getTime() : 0;
+        if (detailSortField === "provider") return row.providerName ?? "";
+        return 0;
+      });
+    }
+
     if (!selectedGroup) return [];
     const rows = rowsMatchSearch(selectedGroup.rows, rightSearch);
     if (!detailSortField) return rows;
@@ -373,7 +437,7 @@ export function DashboardClient({ providerFacilityRows, facilityPreliveRows, pro
       });
     }
     return rows;
-  }, [detailSortDirection, detailSortField, rightSearch, selectedGroup, view]);
+  }, [detailSortDirection, detailSortField, rightSearch, selectedGroup, view, filteredVestaPrivileges]);
 
   const onHeaderSort = (field: DetailSortField) => {
     if (detailSortField === field) {
@@ -394,6 +458,7 @@ export function DashboardClient({ providerFacilityRows, facilityPreliveRows, pro
     setPayorEnrollmentFilter("all");
     setLicensePathFilter("all");
     setLicenseCycleFilter("all");
+    setPrivilegeTierFilter("all");
     setGroupSortField("updated");
     setGroupSortDirection("desc");
     setDetailSortField(null);
@@ -440,16 +505,20 @@ export function DashboardClient({ providerFacilityRows, facilityPreliveRows, pro
               <div className="hide-scrollbar flex flex-1 flex-col gap-4 overflow-auto px-4 pb-4">
                 <section className="space-y-3">
                   <h3 className="text-sm font-semibold">Filtering</h3>
-                  <div className="grid grid-cols-[130px_1fr] items-center gap-3">
-                    <label className="text-sm text-muted-foreground">Priority</label>
-                    <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                      <SelectTrigger><SelectValue placeholder="Priority" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Priorities</SelectItem>
-                        {allPriorities.map((priority) => <SelectItem key={priority} value={priority}>{priority}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  {view !== "providerVestaPrivileges" && (
+                    <div className="grid grid-cols-[130px_1fr] items-center gap-3">
+                      <label className="text-sm text-muted-foreground">Priority</label>
+                      <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                        <SelectTrigger><SelectValue placeholder="Priority" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Priorities</SelectItem>
+                          {allPriorities.map((priority) => (
+                            <SelectItem key={priority} value={priority}>{priority}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   {(view === "providerFacility" || view === "facilityProvider" || view === "providerLicense") && (
                     <div className="grid grid-cols-[130px_1fr] items-center gap-3">
                       <label className="text-sm text-muted-foreground">Status</label>
@@ -553,6 +622,21 @@ export function DashboardClient({ providerFacilityRows, facilityPreliveRows, pro
                       </div>
                     </>
                   )}
+
+                  {view === "providerVestaPrivileges" && (
+                    <>
+                      <div className="grid grid-cols-[130px_1fr] items-center gap-3">
+                        <label className="text-sm text-muted-foreground">Privilege Tier</label>
+                        <Select value={privilegeTierFilter} onValueChange={setPrivilegeTierFilter}>
+                          <SelectTrigger><SelectValue placeholder="Privilege Tier" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Tiers</SelectItem>
+                            {allPrivilegeTiers.map((tier) => <SelectItem key={tier} value={tier}>{tier}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </>
+                  )}
                 </section>
 
                 <Separator />
@@ -591,29 +675,34 @@ export function DashboardClient({ providerFacilityRows, facilityPreliveRows, pro
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[330px_1fr]">
-        <div className="flex min-h-0 flex-col border-r border-border p-3">
-          <Input placeholder={view === "providerFacility" || view === "providerLicense" ? "Search providers" : "Search facilities"} value={leftSearch} onChange={(event) => setLeftSearch(event.target.value)} className="mb-3" />
-          <div className="hide-scrollbar min-h-0 flex-1 overflow-auto">
-            {activeGroups.length === 0 ? <div className="rounded-md border border-border p-4 text-sm text-muted-foreground">No records match the current filters.</div> : (
-              <div className="space-y-1">
-                {activeGroups.map((group) => (
-                  <button key={group.key} type="button" onClick={() => setSelectedKey(group.key)} className={cn("w-full rounded-md border px-3 py-2 text-left transition", selectedGroup?.key === group.key ? "border-primary/60 bg-primary/10" : "border-border hover:bg-muted/40")}>
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="truncate font-medium">{group.label}</div>
-                      {group.subtitle ? <div className="text-xs text-muted-foreground">{group.subtitle}</div> : null}
-                    </div>
-                  </button>
-                ))}
-                <div className="flex items-center justify-center gap-2 py-4 text-xs text-muted-foreground">
-                  <span className="h-px w-6 bg-border" />
-                  {activeGroups.length} of {groupsForView.length} shown
-                  <span className="h-px w-6 bg-border" />
+      <div className={cn(
+        "grid min-h-0 flex-1 grid-cols-1",
+        view !== "providerVestaPrivileges" && "md:grid-cols-[330px_1fr]"
+      )}>
+        {view !== "providerVestaPrivileges" && (
+          <div className="flex min-h-0 flex-col border-r border-border p-3">
+            <Input placeholder={view === "providerFacility" || view === "providerLicense" ? "Search providers" : "Search facilities"} value={leftSearch} onChange={(event) => setLeftSearch(event.target.value)} className="mb-3" />
+            <div className="hide-scrollbar min-h-0 flex-1 overflow-auto">
+              {activeGroups.length === 0 ? <div className="rounded-md border border-border p-4 text-sm text-muted-foreground">No records match the current filters.</div> : (
+                <div className="space-y-1">
+                  {activeGroups.map((group) => (
+                    <button key={group.key} type="button" onClick={() => setSelectedKey(group.key)} className={cn("w-full rounded-md border px-3 py-2 text-left transition", selectedGroup?.key === group.key ? "border-primary/60 bg-primary/10" : "border-border hover:bg-muted/40")}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="truncate font-medium">{group.label}</div>
+                        {group.subtitle ? <div className="text-xs text-muted-foreground">{group.subtitle}</div> : null}
+                      </div>
+                    </button>
+                  ))}
+                  <div className="flex items-center justify-center gap-2 py-4 text-xs text-muted-foreground">
+                    <span className="h-px w-6 bg-border" />
+                    {activeGroups.length} of {groupsForView.length} shown
+                    <span className="h-px w-6 bg-border" />
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="flex min-h-0 flex-col p-3">
           <Input placeholder="Search selected details" value={rightSearch} onChange={(event) => setRightSearch(event.target.value)} className="mb-3" />
@@ -695,6 +784,119 @@ export function DashboardClient({ providerFacilityRows, facilityPreliveRows, pro
                           <td className="border-r border-border p-2 text-center">{row.initialOrRenewal ?? "—"}</td>
                           <td className="border-r border-border p-2 text-center">{formatDate(row.startsAt)}</td>
                           <td className="p-2 text-center">{formatDate(row.expiresAt)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                {view === "providerVestaPrivileges" && selectedRows.length > 0 && (
+                  <table className="w-full border-collapse text-sm">
+                    <thead className="bg-muted/40 text-muted-foreground">
+                      <tr>
+                        <SortableHeader label="Provider" field="provider" activeField={detailSortField} direction={detailSortDirection} onSort={onHeaderSort} />
+                        <SortableHeader label="Privilege Tier" field="status" activeField={detailSortField} direction={detailSortDirection} onSort={onHeaderSort} centered />
+                        <SortableHeader label="Initial Date" field="requested" activeField={detailSortField} direction={detailSortDirection} onSort={onHeaderSort} centered />
+                        <SortableHeader label="Expiration Date" field="finalDate" activeField={detailSortField} direction={detailSortDirection} onSort={onHeaderSort} centered />
+                        <th className="sticky top-0 z-10 border-b border-r border-border bg-muted/95 p-2 font-medium backdrop-blur-sm text-center">Term Date</th>
+                        <th className="sticky top-0 z-10 border-b border-r border-border bg-muted/95 p-2 font-medium backdrop-blur-sm text-left">Term Reason</th>
+                        <th className="sticky top-0 z-10 border-b border-border bg-muted/95 p-2 font-medium backdrop-blur-sm text-center">Past Privileges</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(selectedRows as ProviderVestaPrivilegesRow[]).map((row) => (
+                        <tr key={row.id} className="border-t border-border transition-colors hover:bg-muted/30">
+                          <td className="border-r border-border p-2 font-medium">{row.providerName ?? "Unnamed Provider"}</td>
+                          <td className="border-r border-border p-2 text-center">
+                            <Badge variant="outline" className={cn("rounded-sm", statusTone(row.privilegeTier))}>
+                              {row.privilegeTier ?? "—"}
+                            </Badge>
+                          </td>
+                          <td className="border-r border-border p-2 text-center">{formatDate(row.currentPrivInitDate)}</td>
+                          <td className="border-r border-border p-2 text-center">{formatDate(row.currentPrivEndDate)}</td>
+                          <td className="border-r border-border p-2 text-center">{formatDate(row.termDate)}</td>
+                          <td className="border-r border-border p-2 text-left text-muted-foreground italic">{row.termReason ?? "—"}</td>
+                          <td className="p-2 text-center">
+                            {row.pastPrivileges && row.pastPrivileges.length > 0 ? (
+                              <Sheet>
+                                <SheetTrigger asChild>
+                                  <Button variant="outline" size="sm" className="h-7 text-xs">
+                                    History ({row.pastPrivileges.length})
+                                  </Button>
+                                </SheetTrigger>
+                                <SheetContent side="right" className="sm:max-w-md border-l border-border shadow-2xl">
+                                  <SheetHeader className="pb-6 border-b border-border">
+                                    <SheetTitle className="text-xl font-bold tracking-tight text-foreground">
+                                      Privilege History
+                                    </SheetTitle>
+                                    <SheetDescription className="text-sm">
+                                      Verified historical records for <br></br><span className="font-semibold text-primary">{row.providerName}</span>
+                                    </SheetDescription>
+                                  </SheetHeader>
+
+                                  <div className="mt-8 h-[calc(100vh-180px)] overflow-y-auto px-4 hide-scrollbar">
+                                    <div className="space-y-4">
+                                      {row.pastPrivileges?.map((item, i) => (
+                                        <div 
+                                          key={i} 
+                                          className="rounded-xl border border-border bg-muted/20 p-5 transition-colors"
+                                        >
+                                          <div className="flex items-center justify-between mb-4">
+                                            <div className="flex items-center gap-2">
+                                              <div className="h-1.5 w-1.5 rounded-full bg-primary/60" />
+                                              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                                                Archived Record
+                                              </span>
+                                            </div>
+                                            <span className="text-[10px] font-mono tabular-nums text-muted-foreground bg-background px-2 py-0.5 rounded border border-border/50">
+                                              {new Date(item.approved_at).getFullYear()}
+                                            </span>
+                                          </div>
+
+                                          <div className="grid grid-cols-2 gap-8">
+                                            <div className="space-y-1">
+                                              <p className="text-[9px] uppercase text-muted-foreground font-bold tracking-widest">
+                                                Effective
+                                              </p>
+                                              <p className="text-sm font-medium text-foreground">
+                                                {formatDate(item.approved_at)}
+                                              </p>
+                                            </div>
+                                            <div className="space-y-1">
+                                              <p className="text-[9px] uppercase text-muted-foreground font-bold tracking-widest">
+                                                Expired
+                                              </p>
+                                              <p className="text-sm font-medium text-foreground">
+                                                {formatDate(item.expires_at)}
+                                              </p>
+                                            </div>
+                                          </div>
+
+                                          {item.tier && (
+                                            <div className="mt-4 pt-4 border-t border-border/30">
+                                              <div className="flex justify-between items-center text-[10px] uppercase font-bold tracking-widest text-muted-foreground">
+                                                <span>Tier Held</span>
+                                                <span className="text-foreground">{item.tier}</span>
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      ))}
+
+                                      {(!row.pastPrivileges || row.pastPrivileges.length === 0) && (
+                                        <div className="flex flex-col items-center justify-center py-12 text-center">
+                                          <p className="text-sm font-medium text-muted-foreground">No historical records found</p>
+                                          <p className="text-xs text-muted-foreground/60">This provider has no prior Vesta history.</p>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </SheetContent>
+                              </Sheet>
+                            ) : (
+                              "—"
+                            )}
+                          </td>
                         </tr>
                       ))}
                     </tbody>

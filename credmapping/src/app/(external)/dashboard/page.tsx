@@ -7,6 +7,7 @@ import {
   providerFacilityCredentials,
   providerStateLicenses,
   providers,
+  providerVestaPrivileges
 } from "~/server/db/schema";
 
 const formatProviderName = (provider: {
@@ -45,7 +46,7 @@ const parseRoles = (value: unknown): string[] => {
 };
 
 export default async function DashboardPage() {
-  const [providerFacilityRowsRaw, facilityPreliveRowsRaw, providerLicenseRowsRaw] =
+  const [providerFacilityRowsRaw, facilityPreliveRowsRaw, providerLicenseRowsRaw, providerVestaPrivilegesRowsRaw] =
     await Promise.all([
       db
         .select({
@@ -107,6 +108,25 @@ export default async function DashboardPage() {
         .from(providerStateLicenses)
         .leftJoin(providers, eq(providerStateLicenses.providerId, providers.id))
         .orderBy(desc(providerStateLicenses.updatedAt)),
+      db
+        .select({
+          id: providerVestaPrivileges.id,
+          providerId: providerVestaPrivileges.providerId,
+          providerFirstName: providers.firstName,
+          providerMiddleName: providers.middleName,
+          providerLastName: providers.lastName,
+          providerDegree: providers.degree,
+          privilegeTier: providerVestaPrivileges.privilegeTier,
+          currentPrivInitDate: providerVestaPrivileges.currentPrivInitDate,
+          currentPrivEndDate: providerVestaPrivileges.currentPrivEndDate,
+          termDate: providerVestaPrivileges.termDate,
+          termReason: providerVestaPrivileges.termReason,
+          pastPrivileges: providerVestaPrivileges.pastPrivileges,
+          updatedAt: providerVestaPrivileges.updatedAt,
+        })
+        .from(providerVestaPrivileges)
+        .leftJoin(providers, eq(providerVestaPrivileges.providerId, providers.id))
+        .orderBy(desc(providerVestaPrivileges.updatedAt)),
     ]);
 
   const providerFacilityRows = providerFacilityRowsRaw.map((row) => ({
@@ -165,12 +185,32 @@ export default async function DashboardPage() {
     updatedAt: row.updatedAt ? row.updatedAt.toISOString() : null,
   }));
 
+  const providerVestaPrivilegesRows = providerVestaPrivilegesRowsRaw.map((row) => ({
+    id: row.id,
+    providerId: row.providerId,
+    providerName: formatProviderName({
+      firstName: row.providerFirstName,
+      middleName: row.providerMiddleName,
+      lastName: row.providerLastName,
+      degree: row.providerDegree,
+    }),
+    providerDegree: row.providerDegree,
+    privilegeTier: row.privilegeTier,
+    currentPrivInitDate: row.currentPrivInitDate,
+    currentPrivEndDate: row.currentPrivEndDate,
+    termDate: row.termDate,
+    termReason: row.termReason,
+    pastPrivileges: row.pastPrivileges as { approved_at: string; expires_at: string; tier?: string }[] | null,
+    updatedAt: row.updatedAt ? row.updatedAt.toISOString() : null,
+  }));
+
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <DashboardClient
         providerFacilityRows={providerFacilityRows}
         facilityPreliveRows={facilityPreliveRows}
         providerLicenseRows={providerLicenseRows}
+        providerVestaPrivilegesRows={providerVestaPrivilegesRows}
       />
     </div>
   );
