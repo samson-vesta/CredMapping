@@ -13,13 +13,16 @@ const globalForDb = globalThis as unknown as {
   conn: postgres.Sql | undefined;
 };
 
-const databaseUrl = process.env.DATABASE_URL;
+const databaseUrl = process.env.DATABASE_POOLER_URL;
+
 if (!databaseUrl) {
-  throw new Error("DATABASE_URL is not set");
+  throw new Error("Missing DATABASE_POOLER_URL");
 }
 
-const conn = globalForDb.conn ?? postgres(databaseUrl);
-if (env.NODE_ENV !== "production") globalForDb.conn = conn;
+const conn = globalForDb.conn ?? postgres(databaseUrl, {
+  max: 5,
+  prepare: false,
+});
 
 export const db = drizzle({ client: conn, schema });
 
