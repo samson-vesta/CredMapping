@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { TruncatedTooltip } from "~/components/ui/truncated-tooltip";
 import { FollowUpBadge } from "./FollowUpBadge";
 
 interface ListItem {
@@ -149,18 +150,25 @@ export function LeftPanel({
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="mb-1 flex items-center justify-between gap-2">
-                      <h4 className="min-w-0 flex-1 truncate font-medium text-white">
-                        {item.name}
-                      </h4>
-                      <span className="max-w-[40%] truncate text-xs font-medium text-zinc-400">
-                        {item.rightMeta}
-                      </span>
+                      <TruncatedTooltip
+                        as="h4"
+                        text={item.name}
+                        className="min-w-0 flex-1 font-medium text-white"
+                      />
+                      {item.rightMeta ? (
+                        <TruncatedTooltip
+                          text={item.rightMeta}
+                          className="max-w-[40%] text-xs font-medium text-zinc-400"
+                        />
+                      ) : null}
                     </div>
                     <div className="flex items-center justify-between gap-2">
                       {item.subText ? (
-                        <p className="text-xs text-zinc-400 truncate">
-                          {item.subText}
-                        </p>
+                        <TruncatedTooltip
+                          as="p"
+                          text={item.subText}
+                          className="text-xs text-zinc-400"
+                        />
                       ) : (
                         <span aria-hidden="true" />
                       )}

@@ -8,6 +8,7 @@ import { Input } from "~/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select";
 import { Separator } from "~/components/ui/separator";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "~/components/ui/sheet";
+import { TruncatedTooltip } from "~/components/ui/truncated-tooltip";
 import { cn } from "~/lib/utils";
 
 type ViewKey = "providerFacility" | "facilityProvider" | "facilityPrelive" | "providerLicense" | "providerVestaPrivileges";
@@ -688,7 +689,7 @@ export function DashboardClient({ providerFacilityRows, facilityPreliveRows, pro
                   {activeGroups.map((group) => (
                     <button key={group.key} type="button" onClick={() => setSelectedKey(group.key)} className={cn("w-full rounded-md border px-3 py-2 text-left transition", selectedGroup?.key === group.key ? "border-primary/60 bg-primary/10" : "border-border hover:bg-muted/40")}>
                       <div className="flex items-center justify-between gap-2">
-                        <div className="truncate font-medium">{group.label}</div>
+                        <TruncatedTooltip text={group.label} className="font-medium" />
                         {group.subtitle ? <div className="text-xs text-muted-foreground">{group.subtitle}</div> : null}
                       </div>
                     </button>
