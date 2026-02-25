@@ -7,9 +7,7 @@ interface CommLog {
   commType: string | null;
   subject: string | null;
   notes: string | null;
-  status: string | null;
   createdAt: Date | string | null;
-  nextFollowupAt: Date | string | null;
   createdByName: string | null;
   lastUpdatedByName: string | null;
 }
@@ -31,7 +29,7 @@ export function CommLogFeed({
     return (
       <div className="space-y-3">
         {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="h-32 bg-card rounded-lg animate-pulse" />
+          <div key={i} className="h-32 bg-muted/40 rounded-lg animate-pulse" />
         ))}
       </div>
     );
@@ -39,14 +37,14 @@ export function CommLogFeed({
 
   if (logs.length === 0) {
     return (
-      <div className="text-center py-12">
-        <p className="text-zinc-400 mb-4">No communication logs yet</p>
+      <div className="text-center py-12 border-2 border-dashed border-border rounded-xl">
+        <p className="text-muted-foreground mb-4 font-medium italic">No activity logs recorded yet</p>
         {onNewLog && (
           <button
             onClick={onNewLog}
-            className="inline-block px-4 py-2 bg-primary text-primary-foreground font-medium rounded hover:bg-primary/90 transition-colors"
+            className="inline-flex items-center px-4 py-2 bg-primary text-primary-foreground text-sm font-semibold rounded-md hover:bg-primary/90 transition-all shadow-sm"
           >
-            + Create First Log
+            + Log Interaction
           </button>
         )}
       </div>
@@ -54,7 +52,7 @@ export function CommLogFeed({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {logs.map((log) => (
         <CommLogCard
           key={log.id}
@@ -62,9 +60,7 @@ export function CommLogFeed({
           commType={log.commType}
           subject={log.subject}
           notes={log.notes}
-          status={log.status}
           createdAt={log.createdAt}
-          nextFollowupAt={log.nextFollowupAt}
           createdByName={log.createdByName}
           lastUpdatedByName={log.lastUpdatedByName}
           onClick={() => onSelectLog?.(log)}

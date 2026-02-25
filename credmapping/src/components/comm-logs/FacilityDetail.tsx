@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { format } from "date-fns";
-import { SlidersHorizontal } from "lucide-react";
+import { SlidersHorizontal, Info } from "lucide-react";
 import { CommLogFeed } from "./CommLogFeed";
 import { NewLogModal } from "./NewLogModal";
 import { Button } from "~/components/ui/button";
@@ -15,6 +15,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "~/components/ui/sheet";
+import { Badge } from "~/components/ui/badge";
 import { api } from "~/trpc/react";
 
 interface FacilityDetailProps {
@@ -27,173 +28,89 @@ interface FacilityDetailProps {
     address: string | null;
     email: string | null;
   };
-  facilityContacts?: Array<{
-    id: string;
-    name: string;
-    title: string | null;
-    email: string | null;
-    phone: string | null;
-    isPrimary: boolean;
-  }>;
 }
 
-export function FacilityDetail({
-  facilityId,
-  facility,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  facilityContacts = [],
-}: FacilityDetailProps) {
+export function FacilityDetail({ facilityId, facility }: FacilityDetailProps) {
   const utils = api.useUtils();
-  const [activeTab, setActiveTab] = useState<
-    "logs" | "cred-docs" | "non-cred-docs" | "contacts"
-  >("logs");
+  const [activeTab, setActiveTab] = useState<"logs" | "missing-docs" | "contacts">("logs");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingLog, setEditingLog] = useState<{
     id: string;
     commType: string | null;
     subject: string | null;
     notes: string | null;
-    status: string | null;
-    nextFollowupAt: Date | string | null;
   } | null>(null);
+
   const [selectedCommType, setSelectedCommType] = useState<string>("all");
   const [selectedAgent, setSelectedAgent] = useState<string>("all");
-  const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
   const [searchQuery, setSearchQuery] = useState("");
 
   const { data: authUser } = api.auth.me.useQuery();
-  const canCreateLog =
-    authUser?.role === "admin" || authUser?.role === "superadmin";
+  const canCreateLog = authUser?.role === "admin" || authUser?.role === "superadmin";
 
-  const { data: logs, isLoading: logsLoading } =
-    api.commLogs.listByFacility.useQuery({ facilityId });
-
-  const { data: summary } = api.commLogs.getFacilitySummary.useQuery({
-    facilityId,
-  });
-
-  const { data: missingDocs, isLoading: docsLoading } =
-    api.commLogs.getMissingDocsByFacility.useQuery({ facilityId });
-
-  const { data: contactData, isLoading: contactsLoading } =
-    api.commLogs.getContactsByFacility.useQuery({ facilityId });
+  const { data: logs, isLoading: logsLoading } = api.commLogs.listByFacility.useQuery({ facilityId });
+  const { data: summary } = api.commLogs.getSummary.useQuery({ relatedId: facilityId, relatedType: "facility" });
+  const { data: missingDocs, isLoading: docsLoading } = api.commLogs.getMissingDocs.useQuery({ relatedId: facilityId, relatedType: "facility" });
+  const { data: contactData } = api.commLogs.getContactsAndFacilityInfo.useQuery({ facilityId });
 
   const uniqueAgents = useMemo(() => {
     if (!logs) return [];
-    return Array.from(
-      new Set(
-        logs
-          .map((log) => log.agentName)
-          .filter((name): name is string => name != null),
-      ),
-    ).sort();
+    return Array.from(new Set(logs.map((l) => l.agentName).filter((n): n is string => n != null))).sort();
   }, [logs]);
 
   const filteredLogs = useMemo(() => {
     if (!logs) return [];
-
     const result = logs
-      .filter(
-        (log) =>
-          selectedCommType === "all" || log.commType === selectedCommType,
-      )
-      .filter(
-        (log) => selectedAgent === "all" || log.agentName === selectedAgent,
-      )
-      .filter(
-        (log) => selectedStatus === "all" || log.status === selectedStatus,
-      )
-      .filter((log) => {
+      .filter((l) => selectedCommType === "all" || l.commType === selectedCommType)
+      .filter((l) => selectedAgent === "all" || l.agentName === selectedAgent)
+      .filter((l) => {
         if (!searchQuery.trim()) return true;
-        const query = searchQuery.toLowerCase();
-        return [log.subject, log.notes, log.commType, log.createdByName]
-          .filter((value): value is string => Boolean(value))
-          .some((value) => value.toLowerCase().includes(query));
+        const q = searchQuery.toLowerCase();
+        return [l.subject, l.notes, l.commType, l.agentName].some(v => v?.toLowerCase().includes(q));
       });
 
-    if (sortOrder === "newest") {
-      result.sort(
-        (a, b) =>
-          new Date(b.createdAt ?? 0).getTime() -
-          new Date(a.createdAt ?? 0).getTime(),
-      );
-    } else {
-      result.sort(
-        (a, b) =>
-          new Date(a.createdAt ?? 0).getTime() -
-          new Date(b.createdAt ?? 0).getTime(),
-      );
-    }
-
+    result.sort((a, b) => {
+      const timeA = new Date(a.createdAt ?? 0).getTime();
+      const timeB = new Date(b.createdAt ?? 0).getTime();
+      return sortOrder === "newest" ? timeB - timeA : timeA - timeB;
+    });
     return result;
-  }, [
-    logs,
-    searchQuery,
-    selectedCommType,
-    selectedAgent,
-    selectedStatus,
-    sortOrder,
-  ]);
-
-  const isCred = facility.status === "Active";
-  const credLabel = isCred ? "CRED" : "NON-CRED";
+  }, [logs, searchQuery, selectedCommType, selectedAgent, sortOrder]);
 
   const handleLogCreated = async () => {
     await Promise.all([
       utils.commLogs.listByFacility.invalidate({ facilityId }),
-      utils.commLogs.getFacilitySummary.invalidate({ facilityId }),
-      utils.commLogs.getMissingDocsByFacility.invalidate({ facilityId }),
-      utils.commLogs.getContactsByFacility.invalidate({ facilityId }),
+      utils.commLogs.getSummary.invalidate({ relatedId: facilityId }),
+      utils.commLogs.getMissingDocs.invalidate({ relatedId: facilityId }),
+      utils.commLogs.getContactsAndFacilityInfo.invalidate({ facilityId }),
       utils.facilitiesWithCommLogs.listWithCommLogStatus.invalidate(),
     ]);
   };
 
   return (
     <div className="bg-background flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-      {/* Header Card */}
-      <div className="border-border bg-card border-b p-6">
-        <div className="mb-4">
-          <div className="mb-2 flex items-center justify-between gap-3">
-            <h2 className="min-w-0 flex-1 truncate text-2xl font-bold text-white">
-              {facility.name}
-            </h2>
-            <span className="border-border bg-secondary text-secondary-foreground rounded border px-2 py-1 text-xs font-medium">
-              {facility.state ?? "—"}
-            </span>
+      <div className="border-border bg-card border-b p-6 shadow-sm">
+        <div className="mb-4 flex items-start justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-3 mb-1">
+              <h2 className="truncate text-2xl font-bold text-white">{facility.name}</h2>
+              <Badge variant="outline" className="bg-secondary/50 text-secondary-foreground uppercase font-mono">
+                {facility.state ?? "N/A"}
+              </Badge>
+            </div>
+            <p className="text-sm text-zinc-400">{facility.email ?? "No facility email listed"}</p>
           </div>
-          <div className="flex items-center gap-3">
-            <span
-              className={`rounded px-2 py-1 text-xs font-medium ${
-                isCred
-                  ? "bg-blue-500/15 text-blue-400"
-                  : "bg-orange-500/15 text-orange-400"
-              }`}
-            >
-              {credLabel}
-            </span>
-          </div>
-          {facility.email && (
-            <p className="text-sm text-zinc-400">{facility.email}</p>
-          )}
+          <Badge className={facility.status === "Active" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-amber-500/10 text-amber-400 border-amber-500/20"}>
+            {facility.status ?? "Unknown"}
+          </Badge>
         </div>
 
-        {/* Stats Row */}
-        <div className="grid grid-cols-5 gap-4 text-sm">
+        <div className="grid grid-cols-4 gap-4 text-sm">
           <div>
-            <p className="mb-1 text-zinc-400">Next Follow-Up</p>
-            <p className="font-medium text-white">
-              {summary?.nextFollowupAt
-                ? format(new Date(summary.nextFollowupAt), "MMM d, yyyy")
-                : "—"}
-            </p>
-          </div>
-          <div>
-            <p className="mb-1 text-zinc-400">Last Followed Up</p>
-            <p className="font-medium text-white">
-              {summary?.latestFollowupAt
-                ? format(new Date(summary.latestFollowupAt), "MMM d, yyyy")
-                : "—"}
+            <p className="mb-1 text-zinc-400">Missing Docs</p>
+            <p className={`font-medium ${summary?.activeRoadblocks ? 'text-rose-400' : 'text-white'}`}>
+              {summary?.activeRoadblocks ?? 0}
             </p>
           </div>
           <div>
@@ -201,45 +118,27 @@ export function FacilityDetail({
             <p className="font-medium text-white">{summary?.totalLogs ?? 0}</p>
           </div>
           <div>
-            <p className="mb-1 text-zinc-400">Open Tasks</p>
-            <p className="font-medium text-white">
-              {summary?.openTasksCount ?? 0}
-            </p>
+            <p className="mb-1 text-zinc-400">Proxy Entity</p>
+            <p className="font-medium text-white truncate">{contactData?.facilityInfo?.proxy ?? "—"}</p>
           </div>
           <div>
-            <p className="mb-1 text-zinc-400">Status</p>
-            <p className="font-medium text-white">
-              {facility.status ?? "Unknown"}
-            </p>
+            <p className="mb-1 text-zinc-400">TAT / SLA</p>
+            <p className="font-medium text-white">{contactData?.facilityInfo?.tatSla ?? "Standard"}</p>
           </div>
         </div>
-
-        {(summary?.openTasksCount ?? 0) > 0 && (
-          <div className="mt-4 rounded border border-red-500/30 bg-red-500/15 p-3 text-sm text-red-400">
-            ⚠ {summary?.openTasksCount} open task(s) for this facility
-          </div>
-        )}
       </div>
 
-      {/* Tabs */}
       <div className="border-border bg-card flex gap-4 border-b px-6">
         {[
           { id: "logs", label: "Comm Log" },
-          { id: "cred-docs", label: "Missing Docs (CRED)" },
-          { id: "non-cred-docs", label: "Missing Docs (NON-CRED)" },
+          { id: "missing-docs", label: "Missing Docs" },
           { id: "contacts", label: "Contact Info & Notes" },
         ].map((tab) => (
           <button
             key={tab.id}
-            onClick={() =>
-              setActiveTab(
-                tab.id as "logs" | "cred-docs" | "non-cred-docs" | "contacts",
-              )
-            }
+            onClick={() => setActiveTab(tab.id as "logs" | "missing-docs" | "contacts")}
             className={`border-b-2 px-4 py-4 text-sm font-medium transition-colors ${
-              activeTab === tab.id
-                ? "border-primary text-white"
-                : "border-transparent text-zinc-400 hover:text-white"
+              activeTab === tab.id ? "border-primary text-white" : "border-transparent text-zinc-400 hover:text-white"
             }`}
           >
             {tab.label}
@@ -247,534 +146,122 @@ export function FacilityDetail({
         ))}
       </div>
 
-      {/* Content */}
       <div className="min-h-0 flex-1 overflow-y-auto p-6">
         {activeTab === "logs" && (
           <div>
-            <div className="border-border bg-background/95 supports-[backdrop-filter]:bg-background/80 sticky top-0 z-10 mb-4 border-b pt-1 pb-4 backdrop-blur">
-              <div className="flex flex-wrap items-center gap-2">
-                <Input
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  className="h-9 min-w-[240px] flex-1"
-                  placeholder="Search communication logs"
-                />
+            <div className="flex items-center gap-2 mb-4 sticky top-0 bg-background pt-1 pb-4 border-b border-border">
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-9 flex-1"
+                placeholder="Search communication logs"
+              />
+              
+              {/* Sheet Filter Menu */}
+              <Sheet>
+                <SheetTrigger asChild>
+                  <Button variant="outline" className="h-9 gap-2">
+                    <SlidersHorizontal className="h-4 w-4" /> Filters
+                  </Button>
+                </SheetTrigger>
+                <SheetContent>
+                  <SheetHeader>
+                    <SheetTitle>Filter Logs</SheetTitle>
+                    <SheetDescription>Narrow down the activity history.</SheetDescription>
+                  </SheetHeader>
+                  <div className="space-y-4 py-4 px-2">
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Log Type</label>
+                      <select value={selectedCommType} onChange={(e) => setSelectedCommType(e.target.value)} className="w-full rounded border bg-background p-2 text-sm">
+                        <option value="all">All Types</option>
+                        <option value="Email">Email</option>
+                        <option value="Phone Call">Phone Call</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Team Member</label>
+                      <select value={selectedAgent} onChange={(e) => setSelectedAgent(e.target.value)} className="w-full rounded border bg-background p-2 text-sm">
+                        <option value="all">All Members</option>
+                        {uniqueAgents.map(a => <option key={a} value={a}>{a}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Sort Order</label>
+                      <select 
+                        value={sortOrder} 
+                        onChange={(e) => setSortOrder(e.target.value as "newest" | "oldest")} 
+                        className="w-full rounded border bg-background p-2 text-sm"
+                      >
+                        <option value="newest">Newest First</option>
+                        <option value="oldest">Oldest First</option>
+                      </select>
+                    </div>
+                    <Button variant="ghost" className="w-full text-xs" onClick={() => { setSelectedCommType("all"); setSelectedAgent("all"); setSearchQuery(""); }}>Reset</Button>
+                  </div>
+                </SheetContent>
+              </Sheet>
 
-                <div className="ml-auto flex items-center gap-2">
-                  <Sheet>
-                    <SheetTrigger asChild>
-                      <Button variant="outline" className="h-9">
-                        <SlidersHorizontal className="size-4" />
-                        Filters
-                      </Button>
-                    </SheetTrigger>
-                    <SheetContent>
-                      <SheetHeader>
-                        <SheetTitle>Comm log filters</SheetTitle>
-                        <SheetDescription>
-                          Filter and sort communication logs.
-                        </SheetDescription>
-                      </SheetHeader>
-
-                      <div className="space-y-4 px-4">
-                        <div className="space-y-1">
-                          <label className="text-xs text-zinc-500">Type</label>
-                          <select
-                            value={selectedCommType}
-                            onChange={(e) =>
-                              setSelectedCommType(e.target.value)
-                            }
-                            className="w-full rounded border border-zinc-700 bg-zinc-900 px-2.5 py-2 text-sm text-zinc-300"
-                          >
-                            <option value="all">All Types</option>
-                            <option value="Email">Email</option>
-                            <option value="Phone Call">Phone Call</option>
-                            <option value="Dropbox">Dropbox</option>
-                            <option value="Document">Document</option>
-                            <option value="Modio">Modio</option>
-                            <option value="Meeting">Meeting</option>
-                          </select>
-                        </div>
-
-                        <div className="space-y-1">
-                          <label className="text-xs text-zinc-500">Agent</label>
-                          <select
-                            value={selectedAgent}
-                            onChange={(e) => setSelectedAgent(e.target.value)}
-                            className="w-full rounded border border-zinc-700 bg-zinc-900 px-2.5 py-2 text-sm text-zinc-300"
-                          >
-                            <option value="all">All Agents</option>
-                            {uniqueAgents.map((agent) => (
-                              <option key={agent} value={agent}>
-                                {agent}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div className="space-y-1">
-                          <label className="text-xs text-zinc-500">
-                            Status
-                          </label>
-                          <select
-                            value={selectedStatus}
-                            onChange={(e) => setSelectedStatus(e.target.value)}
-                            className="w-full rounded border border-zinc-700 bg-zinc-900 px-2.5 py-2 text-sm text-zinc-300"
-                          >
-                            <option value="all">All Status</option>
-                            <option value="pending_response">
-                              Pending Response
-                            </option>
-                            <option value="fu_completed">F/U Completed</option>
-                            <option value="received">Received</option>
-                            <option value="closed">Closed</option>
-                          </select>
-                        </div>
-
-                        <div className="space-y-1">
-                          <label className="text-xs text-zinc-500">Sort</label>
-                          <select
-                            value={sortOrder}
-                            onChange={(e) =>
-                              setSortOrder(
-                                e.target.value as "newest" | "oldest",
-                              )
-                            }
-                            className="w-full rounded border border-zinc-700 bg-zinc-900 px-2.5 py-2 text-sm text-zinc-300"
-                          >
-                            <option value="newest">Newest First</option>
-                            <option value="oldest">Oldest First</option>
-                          </select>
-                        </div>
-
-                        <Button
-                          variant="outline"
-                          className="w-full"
-                          onClick={() => {
-                            setSelectedCommType("all");
-                            setSelectedAgent("all");
-                            setSelectedStatus("all");
-                            setSortOrder("newest");
-                          }}
-                        >
-                          Reset filters
-                        </Button>
-                      </div>
-                    </SheetContent>
-                  </Sheet>
-
-                  {canCreateLog && (
-                    <Button
-                      className="h-9"
-                      onClick={() => {
-                        setEditingLog(null);
-                        setIsModalOpen(true);
-                      }}
-                    >
-                      + Add Comm Log
-                    </Button>
-                  )}
-                </div>
-              </div>
+              {canCreateLog && <Button onClick={() => { setEditingLog(null); setIsModalOpen(true); }} className="h-9">+ Add Comm Log</Button>}
             </div>
-
-            <CommLogFeed
-              logs={
-                filteredLogs?.map((log) => ({
-                  id: log.id,
-                  commType: log.commType,
-                  subject: log.subject,
-                  notes: log.notes,
-                  status: log.status,
-                  createdAt: log.createdAt,
-                  nextFollowupAt: log.nextFollowupAt,
-                  createdByName: log.createdByName,
-                  lastUpdatedByName: log.lastUpdatedByName,
-                })) || []
-              }
-              isLoading={logsLoading}
-              onNewLog={() => {
-                setEditingLog(null);
-                setIsModalOpen(true);
-              }}
-              onSelectLog={(log) => {
-                if (!canCreateLog) return;
-                setEditingLog(log);
-                setIsModalOpen(true);
-              }}
+            <CommLogFeed 
+              logs={filteredLogs} 
+              isLoading={logsLoading} 
+              onNewLog={() => setIsModalOpen(true)} 
+              onSelectLog={(log) => { setEditingLog(log); setIsModalOpen(true); }} 
             />
           </div>
         )}
 
-        {activeTab === "cred-docs" && (
-          <div>
+        {activeTab === "missing-docs" && (
+          <div className="space-y-4">
+            <h3 className="text-sm font-bold uppercase tracking-widest text-rose-400">Active Missing Documentation</h3>
             {docsLoading ? (
-              <div className="space-y-2">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="bg-card h-12 animate-pulse rounded" />
-                ))}
-              </div>
-            ) : missingDocs?.cred && missingDocs.cred.length > 0 ? (
-              <div className="overflow-x-auto">
+              <div className="h-12 w-full animate-pulse rounded bg-zinc-800" />
+            ) : missingDocs && missingDocs.length > 0 ? (
+              <div className="overflow-hidden rounded-lg border border-zinc-700">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-zinc-700 text-zinc-400">
-                      <th className="px-4 py-3 text-left font-medium">
-                        Status
-                      </th>
-                      <th className="px-4 py-3 text-left font-medium">
-                        Subject
-                      </th>
-                      <th className="px-4 py-3 text-left font-medium">Notes</th>
-                      <th className="px-4 py-3 text-left font-medium">
-                        Last F/U
-                      </th>
-                      <th className="px-4 py-3 text-left font-medium">
-                        Next F/U
-                      </th>
+                    <tr className="border-b border-zinc-700 bg-muted/50 text-zinc-400">
+                      <th className="px-4 py-3 text-left font-medium">Information</th>
+                      <th className="px-4 py-3 text-left font-medium">Issue</th>
+                      <th className="px-4 py-3 text-left font-medium">Next Follow-up</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-800">
-                    {missingDocs.cred.map((doc) => {
-                      const nextFollowup = doc.nextFollowupAt
-                        ? new Date(doc.nextFollowupAt)
-                        : null;
-                      const today = new Date();
-                      today.setHours(0, 0, 0, 0);
-                      const isPastDue = nextFollowup && nextFollowup < today;
-
-                      const subjectDisplay = (doc.subject ?? "")
-                        .replace(/^CRED\s*[–-]\s*/i, "")
-                        .trim();
-
-                      return (
-                        <tr
-                          key={doc.id}
-                          className={`hover:bg-zinc-900/50 ${canCreateLog ? "cursor-pointer" : ""}`}
-                          onClick={() => {
-                            if (!canCreateLog) return;
-                            setEditingLog({
-                              id: doc.id,
-                              commType: doc.commType ?? "Document",
-                              subject: doc.subject,
-                              notes: doc.notes,
-                              status: doc.status,
-                              nextFollowupAt: doc.nextFollowupAt,
-                            });
-                            setIsModalOpen(true);
-                          }}
-                        >
-                          <td className="px-4 py-3">
-                            <span
-                              className={`inline-flex items-center rounded px-2 py-1 text-xs font-medium ${
-                                doc.status === "pending_response"
-                                  ? "bg-yellow-500/15 text-yellow-400"
-                                  : doc.status === "fu_completed"
-                                    ? "bg-green-500/15 text-green-400"
-                                    : doc.status === "received"
-                                      ? "bg-blue-500/15 text-blue-400"
-                                      : "bg-zinc-700 text-zinc-400"
-                              }`}
-                            >
-                              ●{" "}
-                              {doc.status === "pending_response"
-                                ? "Pending"
-                                : doc.status === "fu_completed"
-                                  ? "Completed"
-                                  : doc.status === "received"
-                                    ? "Received"
-                                    : "Closed"}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-zinc-300">
-                            {subjectDisplay}
-                          </td>
-                          <td className="max-w-xs truncate px-4 py-3 text-zinc-400">
-                            {doc.notes ?? "—"}
-                          </td>
-                          <td className="px-4 py-3 text-zinc-400">
-                            {doc.lastFollowupAt != null
-                              ? format(
-                                  new Date(doc.lastFollowupAt),
-                                  "MMM d, yyyy",
-                                )
-                              : "—"}
-                          </td>
-                          <td
-                            className={`px-4 py-3 ${
-                              isPastDue
-                                ? "font-medium text-red-400"
-                                : "text-zinc-400"
-                            }`}
-                          >
-                            {doc.nextFollowupAt != null
-                              ? format(
-                                  new Date(doc.nextFollowupAt),
-                                  "MMM d, yyyy",
-                                )
-                              : "—"}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {missingDocs.map((doc) => (
+                      <tr key={doc.id} className="hover:bg-zinc-900/50">
+                        <td className="px-4 py-3 text-zinc-200 font-medium">{doc.information}</td>
+                        <td className="px-4 py-3 text-zinc-400 italic">&quot;{doc.roadblocks}&quot;</td>
+                        <td className="px-4 py-3 text-zinc-400">
+                          {doc.nextFollowUp ? format(new Date(doc.nextFollowUp), "MMM d, yyyy") : "—"}
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
             ) : (
-              <div className="py-12 text-center">
-                <p className="text-zinc-400">
-                  No credentialing missing docs for this facility
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === "non-cred-docs" && (
-          <div>
-            {docsLoading ? (
-              <div className="space-y-2">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="bg-card h-12 animate-pulse rounded" />
-                ))}
-              </div>
-            ) : missingDocs?.nonCred && missingDocs.nonCred.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-zinc-700 text-zinc-400">
-                      <th className="px-4 py-3 text-left font-medium">
-                        Status
-                      </th>
-                      <th className="px-4 py-3 text-left font-medium">
-                        Subject
-                      </th>
-                      <th className="px-4 py-3 text-left font-medium">Notes</th>
-                      <th className="px-4 py-3 text-left font-medium">
-                        Last F/U
-                      </th>
-                      <th className="px-4 py-3 text-left font-medium">
-                        Next F/U
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-800">
-                    {missingDocs.nonCred.map((doc) => {
-                      const nextFollowup = doc.nextFollowupAt
-                        ? new Date(doc.nextFollowupAt)
-                        : null;
-                      const today = new Date();
-                      today.setHours(0, 0, 0, 0);
-                      const isPastDue = nextFollowup && nextFollowup < today;
-
-                      const subjectDisplay = (doc.subject ?? "")
-                        .replace(/^NON-CRED\s*[–-]\s*/i, "")
-                        .trim();
-
-                      return (
-                        <tr
-                          key={doc.id}
-                          className={`hover:bg-zinc-900/50 ${canCreateLog ? "cursor-pointer" : ""}`}
-                          onClick={() => {
-                            if (!canCreateLog) return;
-                            setEditingLog({
-                              id: doc.id,
-                              commType: doc.commType ?? "Document",
-                              subject: doc.subject,
-                              notes: doc.notes,
-                              status: doc.status,
-                              nextFollowupAt: doc.nextFollowupAt,
-                            });
-                            setIsModalOpen(true);
-                          }}
-                        >
-                          <td className="px-4 py-3">
-                            <span
-                              className={`inline-flex items-center rounded px-2 py-1 text-xs font-medium ${
-                                doc.status === "pending_response"
-                                  ? "bg-yellow-500/15 text-yellow-400"
-                                  : doc.status === "fu_completed"
-                                    ? "bg-green-500/15 text-green-400"
-                                    : doc.status === "received"
-                                      ? "bg-blue-500/15 text-blue-400"
-                                      : "bg-zinc-700 text-zinc-400"
-                              }`}
-                            >
-                              ●{" "}
-                              {doc.status === "pending_response"
-                                ? "Pending"
-                                : doc.status === "fu_completed"
-                                  ? "Completed"
-                                  : doc.status === "received"
-                                    ? "Received"
-                                    : "Closed"}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-zinc-300">
-                            {subjectDisplay}
-                          </td>
-                          <td className="max-w-xs truncate px-4 py-3 text-zinc-400">
-                            {doc.notes ?? "—"}
-                          </td>
-                          <td className="px-4 py-3 text-zinc-400">
-                            {doc.lastFollowupAt != null
-                              ? format(
-                                  new Date(doc.lastFollowupAt),
-                                  "MMM d, yyyy",
-                                )
-                              : "—"}
-                          </td>
-                          <td
-                            className={`px-4 py-3 ${
-                              isPastDue
-                                ? "font-medium text-red-400"
-                                : "text-zinc-400"
-                            }`}
-                          >
-                            {doc.nextFollowupAt != null
-                              ? format(
-                                  new Date(doc.nextFollowupAt),
-                                  "MMM d, yyyy",
-                                )
-                              : "—"}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="py-12 text-center">
-                <p className="text-zinc-400">
-                  No non-credentialing missing docs for this facility
-                </p>
-              </div>
+              <p className="text-sm text-zinc-500 italic py-8 text-center border border-dashed border-zinc-700 rounded-lg">No active missing documentation found.</p>
             )}
           </div>
         )}
 
         {activeTab === "contacts" && (
-          <div>
-            {contactsLoading ? (
-              <div className="grid grid-cols-2 gap-3">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="bg-card h-32 animate-pulse rounded-xl"
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3">
-                {/* Primary Contact Card */}
-                {contactData?.contacts
-                  ?.filter((c) => c.isPrimary)
-                  .map((contact) => (
-                    <div
-                      key={contact.id}
-                      className="rounded-xl border border-zinc-800 bg-zinc-900 p-4"
-                    >
-                      <p className="mb-3 text-xs font-medium tracking-widest text-zinc-500 uppercase">
-                        Primary Contact
-                      </p>
-                      <p className="text-sm font-medium text-zinc-200">
-                        {contact.name}
-                      </p>
-                      {contact.title && (
-                        <p className="mt-1 text-sm text-zinc-400">
-                          {contact.title}
-                        </p>
-                      )}
-                      {contact.email && (
-                        <a
-                          href={`mailto:${contact.email}`}
-                          className="mt-2 block text-sm text-blue-400 hover:text-blue-300"
-                        >
-                          {contact.email}
-                        </a>
-                      )}
-                      {contact.phone && (
-                        <p className="mt-1 text-sm text-zinc-400">
-                          {contact.phone}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-
-                {/* Other Contacts Card */}
-                {contactData?.contacts
-                  ?.filter((c) => !c.isPrimary)
-                  .slice(0, 1)
-                  .map((contact) => (
-                    <div
-                      key={contact.id}
-                      className="rounded-xl border border-zinc-800 bg-zinc-900 p-4"
-                    >
-                      <p className="mb-3 text-xs font-medium tracking-widest text-zinc-500 uppercase">
-                        {contact.title ?? "Credentialing Contact"}
-                      </p>
-                      <p className="text-sm font-medium text-zinc-200">
-                        {contact.name}
-                      </p>
-                      {contact.title && (
-                        <p className="mt-1 text-sm text-zinc-400">
-                          {contact.title}
-                        </p>
-                      )}
-                      {contact.email && (
-                        <a
-                          href={`mailto:${contact.email}`}
-                          className="mt-2 block text-sm text-blue-400 hover:text-blue-300"
-                        >
-                          {contact.email}
-                        </a>
-                      )}
-                      {contact.phone && (
-                        <p className="mt-1 text-sm text-zinc-400">
-                          {contact.phone}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-
-                {/* Facility Info Card - Full Width */}
-                <div className="col-span-2 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
-                  <p className="mb-3 text-xs font-medium tracking-widest text-zinc-500 uppercase">
-                    Facility Details
-                  </p>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div>
-                      <p className="mb-1 text-xs text-zinc-500">Proxy Info</p>
-                      <p className="text-sm text-zinc-200">
-                        {contactData?.facilityInfo?.proxy ?? "—"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="mb-1 text-xs text-zinc-500">TAT / SLA</p>
-                      <p className="text-sm text-zinc-200">
-                        {contactData?.facilityInfo?.tatSla ?? "—"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="mb-1 text-xs text-zinc-500">Address</p>
-                      <p className="text-sm text-zinc-200">
-                        {contactData?.facilityInfo?.address ?? "—"}
-                      </p>
-                    </div>
-                  </div>
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+              {contactData?.contacts?.map((contact) => (
+                <div key={contact.id} className="rounded-lg border border-zinc-700 p-4 bg-zinc-900/50">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">{contact.isPrimary ? "Primary Contact" : contact.title ?? "Facility Contact"}</p>
+                  <p className="text-white font-medium text-lg">{contact.name}</p>
+                  {contact.email && <p className="text-sm text-primary">{contact.email}</p>}
+                  {contact.phone && <p className="text-sm text-zinc-400 mt-1">{contact.phone}</p>}
                 </div>
-
-                {/* Empty State */}
-                {!contactData?.contacts?.length ? (
-                  <div className="col-span-2 py-8 text-center">
-                    <p className="text-sm text-zinc-600 italic">
-                      No contacts added yet
-                    </p>
-                  </div>
-                ) : null}
-              </div>
-            )}
+              ))}
+            </div>
+            <div className="rounded-lg border border-zinc-700 p-6 bg-muted/10">
+              <h4 className="text-xs font-bold uppercase tracking-widest text-zinc-500 mb-3 flex items-center gap-2"><Info className="h-4 w-4"/> Physical Address</h4>
+              <p className="text-zinc-200 leading-relaxed">{contactData?.facilityInfo?.address ?? "No address recorded"}</p>
+            </div>
           </div>
         )}
       </div>
@@ -782,10 +269,7 @@ export function FacilityDetail({
       <NewLogModal
         isOpen={isModalOpen}
         editingLog={editingLog}
-        onClose={() => {
-          setIsModalOpen(false);
-          setEditingLog(null);
-        }}
+        onClose={() => { setIsModalOpen(false); setEditingLog(null); }}
         relatedId={facilityId}
         relatedType="facility"
         onLogCreated={handleLogCreated}

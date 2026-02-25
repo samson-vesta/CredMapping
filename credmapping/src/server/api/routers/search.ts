@@ -98,7 +98,6 @@ export const searchRouter = createTRPCRouter({
               providerLastName: providers.lastName,
               providerDegree: providers.degree,
               subject: commLogs.subject,
-              status: commLogs.status,
               commType: commLogs.commType,
             })
             .from(commLogs)
@@ -109,7 +108,6 @@ export const searchRouter = createTRPCRouter({
                 or(
                   ilike(commLogs.subject, likeQuery),
                   ilike(commLogs.notes, likeQuery),
-                  ilike(commLogs.status, likeQuery),
                   ilike(commLogs.commType, likeQuery),
                   ilike(providers.firstName, likeQuery),
                   ilike(providers.middleName, likeQuery),
@@ -125,7 +123,6 @@ export const searchRouter = createTRPCRouter({
               relatedId: commLogs.relatedId,
               facilityName: facilities.name,
               subject: commLogs.subject,
-              status: commLogs.status,
               commType: commLogs.commType,
             })
             .from(commLogs)
@@ -136,7 +133,6 @@ export const searchRouter = createTRPCRouter({
                 or(
                   ilike(commLogs.subject, likeQuery),
                   ilike(commLogs.notes, likeQuery),
-                  ilike(commLogs.status, likeQuery),
                   ilike(commLogs.commType, likeQuery),
                   ilike(facilities.name, likeQuery),
                   ilike(facilities.state, likeQuery),
@@ -181,7 +177,7 @@ export const searchRouter = createTRPCRouter({
               degree: log.providerDegree,
             }),
             subtitle:
-              [log.subject, log.commType, log.status]
+              [log.subject, log.commType]
                 .filter(Boolean)
                 .join(" • ") || "View communication logs",
             href: `/comm-logs?mode=provider&id=${log.relatedId}`,
@@ -192,7 +188,7 @@ export const searchRouter = createTRPCRouter({
             id: log.id,
             name: log.facilityName?.trim() ?? "Unnamed Facility",
             subtitle:
-              [log.subject, log.commType, log.status]
+              [log.subject, log.commType]
                 .filter(Boolean)
                 .join(" • ") || "View communication logs",
             href: `/comm-logs?mode=facility&id=${log.relatedId}`,

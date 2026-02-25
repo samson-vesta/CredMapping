@@ -13,8 +13,9 @@ type ProviderWithStatus = {
   lastName: string | null;
   degree: string | null;
   email: string | null;
-  nextFollowupAt: Date | null;
   latestStatus: string | null;
+  nextFollowupAt: Date | null;
+  hasMissingDocs?: boolean;
 };
 
 type FacilityWithStatus = {
@@ -22,8 +23,9 @@ type FacilityWithStatus = {
   name: string | null;
   state: string | null;
   status: string | null;
-  nextFollowupAt: Date | null;
   latestStatus: string | null;
+  nextFollowupAt: Date | null;
+  hasMissingDocs: boolean;
 };
 
 export default function CommLogsPage() {
@@ -36,21 +38,22 @@ export default function CommLogsPage() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("All");
 
-  // Fetch providers or facilities based on mode
+  // Fetch providers with PSV/Docs awareness
   const { data: providers, isLoading: providersLoading } =
     api.providersWithCommLogs.listWithCommLogStatus.useQuery(
       {
         search,
-        filter: filter.toLowerCase().replace(" ", "-") as "all" | "past-due" | "due-today" | "pending" | "completed",
+        filter: filter.toLowerCase().replace(" ", "-"), 
       },
       { enabled: mode === "provider" }
     );
 
+  // Fetch facilities with Roadblock awareness
   const { data: facilities, isLoading: facilitiesLoading } =
     api.facilitiesWithCommLogs.listWithCommLogStatus.useQuery(
       {
         search,
-        filter: filter.toLowerCase().replace(" ", "-") as "all" | "cred" | "non-cred" | "past-due" | "pending",
+        filter: filter.toLowerCase().replace(" ", "-"),
       },
       { enabled: mode === "facility" }
     );
@@ -72,7 +75,7 @@ export default function CommLogsPage() {
             subText: provider.email ?? undefined,
             rightMeta: provider.degree ?? undefined,
             nextFollowupAt: provider.nextFollowupAt,
-            status: provider.latestStatus,
+            status: provider.latestStatus, // Shows "Missing Docs" or "PSV: Status"
           };
         }
 
@@ -88,13 +91,11 @@ export default function CommLogsPage() {
     [items, mode],
   );
 
+  // Auto-selection logic
   useEffect(() => {
     if (isLoading) return;
-
     if (mappedItems.length === 0) {
-      if (selectedId) {
-        setSelectedId(undefined);
-      }
+      if (selectedId) setSelectedId(undefined);
       return;
     }
 
@@ -114,7 +115,6 @@ export default function CommLogsPage() {
     setSearch("");
   };
 
-  // Get selected provider or facility data
   const selectedProvider = selectedId && mode === "provider"
     ? (providers ?? []).find((p) => p.id === selectedId)
     : null;
@@ -125,7 +125,6 @@ export default function CommLogsPage() {
 
   return (
     <div className="flex h-full min-h-0 overflow-hidden bg-background">
-      {/* Left Panel */}
       <LeftPanel
         mode={mode}
         onModeChange={handleModeChange}
@@ -139,13 +138,12 @@ export default function CommLogsPage() {
         onSearchChange={setSearch}
       />
 
-      {/* Right Panel - Content */}
       <div className="relative flex min-h-0 flex-1 overflow-hidden">
         {!selectedId ? (
-          <div className="h-full flex items-center justify-center">
+          <div className="h-full w-full flex items-center justify-center">
             <div className="text-center">
-              <p className="text-zinc-400 text-lg">
-                Select a {mode} from the left to view details
+              <p className="text-muted-foreground text-lg italic">
+                Select a {mode} from the left to view active roadblocks and history
               </p>
             </div>
           </div>

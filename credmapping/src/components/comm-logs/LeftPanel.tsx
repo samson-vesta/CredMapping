@@ -26,8 +26,8 @@ interface LeftPanelProps {
   onSearchChange?: (search: string) => void;
 }
 
-const providerFilters = ["All", "Past Due", "Due Today", "Pending", "Completed"];
-const facilityFilters = ["All", "CRED", "NON-CRED", "Past Due", "Pending"];
+const providerFilters = ["All", "PSV", "Missing Docs", "Completed"];
+const facilityFilters = ["All", "Missing Docs", "General"];
 
 export function LeftPanel({
   mode,
@@ -53,11 +53,22 @@ export function LeftPanel({
     });
   }, [items, search]);
 
+  const getStatusStyles = (status: string | null | undefined) => {
+    if (!status) return "bg-zinc-700 text-zinc-400";
+    const s = status.toLowerCase();
+    
+    if (s.includes("missing")) return "bg-rose-500/15 text-rose-400";
+    if (s.includes("psv")) return "bg-blue-500/15 text-blue-400";
+    if (s.includes("completed") || s.includes("active")) return "bg-green-500/15 text-green-400";
+    if (s.includes("pending")) return "bg-yellow-500/15 text-yellow-400";
+    
+    return "bg-zinc-700 text-zinc-400";
+  };
+
   return (
     <div className="flex h-full min-h-0 w-[290px] flex-col border-r border-border bg-card">
       {/* Header */}
       <div className="border-b border-border p-4">
-        {/* Toggle buttons */}
         <div className="flex gap-2 mb-4">
           <button
             onClick={() => onModeChange("provider")}
@@ -155,22 +166,14 @@ export function LeftPanel({
                       )}
                       {item.status && (
                         <span
-                          className={`text-xs font-medium px-2 py-0.5 rounded flex-shrink-0 whitespace-nowrap ${
-                            item.status === "Active"
-                              ? "bg-green-500/15 text-green-400"
-                              : item.status === "Inactive"
-                                ? "bg-zinc-700 text-zinc-400"
-                                : item.status === "Pending"
-                                  ? "bg-yellow-500/15 text-yellow-400"
-                                  : ""
-                          }`}
+                          className={`text-xs font-medium px-2 py-0.5 rounded shrink-0 whitespace-nowrap ${getStatusStyles(item.status)}`}
                         >
                           {item.status}
                         </span>
                       )}
                     </div>
                   </div>
-                  <div className="flex-shrink-0 empty:hidden">
+                  <div className="shrink-0 empty:hidden">
                     <FollowUpBadge
                       nextFollowupAt={item.nextFollowupAt}
                       status={item.status}
