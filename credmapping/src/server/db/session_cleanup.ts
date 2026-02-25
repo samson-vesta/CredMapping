@@ -29,4 +29,7 @@ async function cleanup() {
   }
 }
 
-cleanup();
+cleanup().catch((error) => {
+    console.error("Unexpected Error", error); 
+    process.exit(1); 
+});  
