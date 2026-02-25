@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Dialog, DialogClose } from "~/components/ui/dialog";
 import {
@@ -18,8 +18,6 @@ interface EditableLog {
   commType: string | null;
   subject: string | null;
   notes: string | null;
-  status: string | null;
-  nextFollowupAt: Date | string | null;
 }
 
 interface NewLogModalProps {
@@ -35,13 +33,6 @@ const defaultFormData = {
   commType: "Email",
   subject: "",
   notes: "",
-  status: "pending_response",
-  nextFollowupAt: "",
-};
-
-const formatDateForInput = (value: Date | string | null | undefined) => {
-  if (!value) return "";
-  return new Date(value).toISOString().split("T")[0] ?? "";
 };
 
 export function NewLogModal({
@@ -66,8 +57,6 @@ export function NewLogModal({
         commType: editingLog.commType ?? "Email",
         subject: editingLog.subject ?? "",
         notes: editingLog.notes ?? "",
-        status: editingLog.status ?? "pending_response",
-        nextFollowupAt: formatDateForInput(editingLog.nextFollowupAt),
       });
       return;
     }
@@ -79,10 +68,7 @@ export function NewLogModal({
   const createMutation = api.commLogs.create.useMutation();
   const updateMutation = api.commLogs.update.useMutation();
 
-  const isSubmitting = useMemo(
-    () => createMutation.isPending || updateMutation.isPending,
-    [createMutation.isPending, updateMutation.isPending],
-  );
+  const isSubmitting = createMutation.isPending || updateMutation.isPending;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -113,92 +99,72 @@ export function NewLogModal({
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <ModalContent>
         <ModalHeader>
-          <ModalTitle>
-            {isEditMode ? "Edit Communication Log" : "New Communication Log"}
+          <ModalTitle className="text-xl font-bold">
+            {isEditMode ? "Edit Interaction Entry" : "Log New Interaction"}
           </ModalTitle>
         </ModalHeader>
 
-        <form className="space-y-4" onSubmit={handleSubmit}>
-          <div>
-            <label className="mb-2 block text-sm font-medium text-zinc-200">
-              Communication Type
-            </label>
-            <select
-              className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-2 text-white focus:border-ring focus:outline-none"
-              onChange={(e) => setFormData({ ...formData, commType: e.target.value })}
-              value={formData.commType}
-            >
-              <option>Email</option>
-              <option>Phone Call</option>
-              <option>Dropbox</option>
-              <option>Document</option>
-              <option>Modio</option>
-              {relatedType === "facility" && <option>Meeting</option>}
-            </select>
+        <form className="space-y-6 py-4" onSubmit={handleSubmit}>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Method
+              </label>
+              <select
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                onChange={(e) => setFormData({ ...formData, commType: e.target.value })}
+                value={formData.commType}
+              >
+                <option>Email</option>
+                <option>Phone Call</option>
+                <option>Dropbox</option>
+                <option>Document</option>
+                <option>Modio</option>
+                {relatedType === "facility" && <option>Meeting</option>}
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Subject
+              </label>
+              <Input
+                onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                placeholder="e.g., PSV Follow-up"
+                value={formData.subject}
+                required
+              />
+            </div>
           </div>
 
-          <div>
-            <label className="mb-2 block text-sm font-medium text-zinc-200">Subject</label>
-            <Input
-              onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-              placeholder="Email subject or brief description"
-              value={formData.subject}
-            />
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-medium text-zinc-200">
-              Notes / Description
+          <div className="space-y-2">
+            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              Conversation Notes
             </label>
             <Textarea
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              placeholder="Details about the communication"
-              rows={4}
+              placeholder="What was discussed or what happened?"
+              rows={6}
               value={formData.notes}
+              className="resize-none"
+              required
             />
           </div>
 
-          <div>
-            <label className="mb-2 block text-sm font-medium text-zinc-200">Status</label>
-            <select
-              className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-2 text-white focus:border-ring focus:outline-none"
-              onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-              value={formData.status}
-            >
-              <option value="pending_response">Pending Response</option>
-              <option value="fu_completed">Follow-up Completed</option>
-              <option value="received">Received</option>
-              <option value="closed">Closed</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-medium text-zinc-200">
-              Next Follow-up Date
-            </label>
-            <Input
-              onChange={(e) =>
-                setFormData({ ...formData, nextFollowupAt: e.target.value })
-              }
-              type="date"
-              value={formData.nextFollowupAt}
-            />
-          </div>
-
-          <ModalFooter>
+          <ModalFooter className="pt-4">
             <DialogClose asChild>
               <Button type="button" variant="outline">
                 Cancel
               </Button>
             </DialogClose>
-            <Button disabled={isSubmitting} type="submit">
-              {isSubmitting
-                ? isEditMode
-                  ? "Saving..."
-                  : "Creating..."
-                : isEditMode
-                  ? "Save Changes"
-                  : "Create Log"}
+            <Button disabled={isSubmitting} type="submit" className="min-w-25">
+              {isSubmitting ? (
+                 "Saving..."
+              ) : isEditMode ? (
+                "Save Changes"
+              ) : (
+                "Post Entry"
+              )}
             </Button>
           </ModalFooter>
         </form>

@@ -19,10 +19,12 @@ export const initialOrRenewalEnum = pgEnum("initial_or_renewal", ["initial", "re
 export const agentRoleEnum = pgEnum("agent_role", ["user", "admin", "superadmin"]);
 export const teamEnum = pgEnum("team_location", ["IN", "US"]);
 export const privilegeTierEnum = pgEnum("privilege_tier", ["Inactive", "Full", "Temp", "In Progress"]);
-export const facilityStatusEnum = pgEnum("facility_status", ["Inactive", "Active", "In Progress"]);
-export const formSizes = pgEnum("form_size", ["small", "medium", "large", 'x-large', 'online'])
-export const workflowType = pgEnum("workflow_type", ["pfc", "state_licenses", "prelive_pipeline", "provider_vesta_privileges"])
-export const facilityStatus = pgEnum("status", ["Active", "Inactive", "In Progress"])
+export const formSizes = pgEnum("form_size", ["small", "medium", "large", 'x-large', 'online']);
+export const workflowType = pgEnum("workflow_type", ["pfc", "state_licenses", "prelive_pipeline", "provider_vesta_privileges"]);
+export const facilityStatusEnum = pgEnum("status", ["Active", "Inactive", "In Progress"]);
+export const followUpStatus = pgEnum("follow_up_status", ["Completed, Pending Response", "Not Completed"]);
+export const psvStatus = pgEnum("psv_status", ["Not Started", "Requested", "Received", "Inactive Rad", "Closed", "Not Affiliated", "Old Request", "Hold"]);
+export const psvType = pgEnum("psv_type", ["Education", "Work", "Hospital", "Peer", "COI/Loss Run", "Claims Document", "Board Actions", "Locums/Work", "Vesta Practice Location", "Vesta Hospital", "Work COI", "OPPE"]);
 
 const isAdminOrSuperAdmin = sql`exists (
   select 1
@@ -62,7 +64,7 @@ export const agents = pgTable("agents", {
   teamNumber: bigint("team_num", { mode: "number" }),
   role: agentRoleEnum("role").default("user").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }),
 });
 
 export const auditLog = pgTable("audit_log", {
@@ -87,7 +89,7 @@ export const facilities = pgTable("facilities", {
   modalities: text("modalities").array(),
   tatSla: text("tat_sla"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }),
   email: text("email"),
   address: text("address"),
 });
@@ -101,7 +103,7 @@ export const providers = pgTable("providers", {
   email: text("email"),
   phone: text("phone"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }),
   notes: text("notes"),
 });
 
@@ -109,15 +111,45 @@ export const workflowPhases = pgTable("workflow_phases", {
   id: uuid("id").defaultRandom().primaryKey(),
   agentAssigned: uuid("agent_assigned").references(() => agents.id),
   supportingAgents: jsonb("supporting_agents"), 
-  workflowType: workflowType("workflow_type").notNull(),
+  workflowType: workflowType("workflow_type").notNull(), 
   relatedId: uuid("related_id").notNull(),  
   status: text("status").default("Pending"),
   phaseName: text("phase_name").notNull(), 
   startDate: date("start_date").notNull(), 
-  dueDate: date("due_date").notNull(),
+  dueDate: date("due_date"),
   completedAt: date("completed_at"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }),
+});
+
+export const missingDocs = pgTable("missing_docs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  relatedType: relatedTypeEnum("related_type"),
+  relatedId: uuid("related_id"),
+  information: text("information"),
+  roadblocks: text("roadblocks"), 
+  nextFollowUp: date("next_follow_up"),
+  lastFollowUp: date("last_follow_up"), 
+  followUpStatus: followUpStatus("follow_up_status"),  
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }),
+});
+
+export const pendingPSV = pgTable("pending_psv", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  providerId: uuid("provider_id").notNull().references(() => providers.id), 
+  agentAssigned: uuid("agent_assigned").notNull().references(() => agents.id),
+  supportingAgents: jsonb("supporting_agents"),
+  status: psvStatus("psv_status").notNull(), 
+  type: psvType("psv_type").notNull(),
+  name: text("name").notNull(),
+  dateRequested: date("date_requested").notNull(),
+  lastFollowUp: date("last_follow_up"),
+  nextFollowUp: date("next_follow_up"), 
+  dateReceived: date("date_received"), 
+  notes: text("notes"), 
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }),
 });
 
 export const commLogs = pgTable("comm_logs", {
@@ -125,12 +157,7 @@ export const commLogs = pgTable("comm_logs", {
   relatedType: relatedTypeEnum("related_type"),
   relatedId: uuid("related_id"),
   subject: text("subject"),
-  status: text("status"),
   commType: text("comm_type"), 
-  requestedAt: date("requested_at"),
-  lastFollowupAt: date("last_followup_at"),
-  nextFollowupAt: date("next_followup_at"),
-  receivedAt: date("received_at"),
   notes: text("notes"),
   createdBy: uuid("created_by").references(() => agents.id),
   lastUpdatedBy: uuid("last_updated_by").references(() => agents.id),
@@ -155,7 +182,7 @@ export const facilityContacts = pgTable("facility_contacts", {
   phone: text("phone"),
   isPrimary: boolean("is_primary").default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }),
 });
 
 export const incidentLogs = pgTable("incident_logs", {
@@ -177,7 +204,7 @@ export const incidentLogs = pgTable("incident_logs", {
   finalNotes: text("final_notes"), 
   discussed: boolean("discussed").default(false).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow()
+  updatedAt: timestamp("updated_at", { withTimezone: true }),
 });
 
 export const providerFacilityCredentials = pgTable("provider_facility_credentials", {
@@ -192,7 +219,7 @@ export const providerFacilityCredentials = pgTable("provider_facility_credential
   formSize: formSizes("form_size"),  
   applicationRequired: boolean("application_required"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }),
 });
 
 export const facilityPreliveInfo = pgTable("facility_prelive_info", {
@@ -206,7 +233,7 @@ export const facilityPreliveInfo = pgTable("facility_prelive_info", {
   rolesNeeded: jsonb("roles_needed"),
   payorEnrollmentRequired: boolean("payor_enrollment_required"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }),
 });
 
 export const providerVestaPrivileges = pgTable("provider_vesta_privileges", {
@@ -219,7 +246,7 @@ export const providerVestaPrivileges = pgTable("provider_vesta_privileges", {
   termReason: text("term_reason"),
   pastPrivileges: jsonb("past_privileges"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }),
 });
 
 export const providerStateLicenses = pgTable("provider_state_licenses", {
@@ -229,10 +256,13 @@ export const providerStateLicenses = pgTable("provider_state_licenses", {
   status: text("status"),
   path: text("path"),
   priority: text("priority"),
+  notes: text("notes"), 
   initialOrRenewal: initialOrRenewalEnum("initial_or_renewal"),
   expiresAt: date("expires_at"),
   startsAt: date("starts_at"),
+  emailSubjectOrTicketNum: text("email_subject_or_ticket_num"),
   number: text("number"),
+  requestedAt: timestamp("requested_at", { withTimezone: true}), 
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }),
 });
@@ -262,6 +292,10 @@ export const prelivePipelineAuthenticatedAll = createAuthenticatedAllPolicy("fac
 export const providerVestaPrivilegesAuthenticatedAll = createAuthenticatedAllPolicy("provider_vesta_privileges_authenticated_all").link(providerVestaPrivileges);
 
 export const stateLicenseWorkflowsAuthenticatedAll = createAuthenticatedAllPolicy("provider_state_licenses_authenticated_all").link(providerStateLicenses);
+
+export const psvAuthenticatedAll = createAuthenticatedAllPolicy("pendingPSV_authenticated_all").link(pendingPSV);
+
+export const missingDocsAuthenticated = createAuthenticatedAllPolicy("missing_docs_authenticated_all").link(missingDocs); 
 
 export const commLogsSelectAdmin = pgPolicy("comm_logs_admin_all", {
   for: "all",
