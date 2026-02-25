@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, ilike, inArray, isNotNull, or } from "drizzle-orm";
 import { Mail, Phone } from "lucide-react";
 import Link from "next/link";
 import { AddProviderDialog } from "~/components/providers/add-provider-dialog";
@@ -137,15 +137,14 @@ export default async function ProvidersPage(props: {
         ilike(providers.middleName, `%${search}%`),
         ilike(providers.lastName, `%${search}%`),
         ilike(providers.email, `%${search}%`),
-        ilike(providers.notes, `%${search}%`),
-        sql`concat_ws(' ', ${providers.firstName}, ${providers.middleName}, ${providers.lastName}) ilike ${`%${search}%`}`,
+        ilike(providers.notes, `%${search}%`)
       )
     : undefined;
 
   const statusRows = await db
     .selectDistinct({ privilegeTier: providerVestaPrivileges.privilegeTier })
     .from(providerVestaPrivileges)
-    .where(sql`${providerVestaPrivileges.privilegeTier} is not null`);
+    .where(isNotNull(providerVestaPrivileges.privilegeTier));
 
   const statusOptions = statusRows
     .map((row) => row.privilegeTier)
@@ -171,43 +170,46 @@ export default async function ProvidersPage(props: {
     .map((row) => row.providerId)
     .filter((id): id is string => Boolean(id));
 
+  const hasProviderMatches =
+    doctorStatusFilter === "all" || filteredProviderIds.length > 0;
+
   const providerFilterWhere =
     doctorStatusFilter === "all"
       ? providerSearchWhere
       : filteredProviderIds.length > 0
-        ? providerSearchWhere
-          ? sql`${providerSearchWhere} and ${inArray(providers.id, filteredProviderIds)}`
-          : inArray(providers.id, filteredProviderIds)
-        : sql`false`;
+        ? and(providerSearchWhere, inArray(providers.id, filteredProviderIds))
+        : undefined;
 
   const [totalProvidersRow, providerCreatedRows, credentialCreatedRows, workflowIncidentRows] =
-    await Promise.all([
-      db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(providers)
-        .where(providerFilterWhere),
-    db
-      .select({ createdAt: providers.createdAt })
-      .from(providers)
-      .where(providerFilterWhere),
-    db
-      .select({ createdAt: providerFacilityCredentials.createdAt })
-      .from(providerFacilityCredentials)
-      .innerJoin(providers, eq(providerFacilityCredentials.providerId, providers.id))
-      .where(providerFilterWhere),
-    db
-      .select({ createdAt: workflowPhases.createdAt })
-      .from(workflowPhases)
-      .innerJoin(
-        providerFacilityCredentials,
-        and(
-          eq(workflowPhases.relatedId, providerFacilityCredentials.id),
-          eq(workflowPhases.workflowType, "pfc"),
-        ),
-      )
-      .innerJoin(providers, eq(providerFacilityCredentials.providerId, providers.id))
-      .where(providerFilterWhere),
-  ]);
+    hasProviderMatches
+      ? await Promise.all([
+          db
+            .select({ count: count() })
+            .from(providers)
+            .where(providerFilterWhere),
+          db
+            .select({ createdAt: providers.createdAt })
+            .from(providers)
+            .where(providerFilterWhere),
+          db
+            .select({ createdAt: providerFacilityCredentials.createdAt })
+            .from(providerFacilityCredentials)
+            .innerJoin(providers, eq(providerFacilityCredentials.providerId, providers.id))
+            .where(providerFilterWhere),
+          db
+            .select({ createdAt: workflowPhases.createdAt })
+            .from(workflowPhases)
+            .innerJoin(
+              providerFacilityCredentials,
+              and(
+                eq(workflowPhases.relatedId, providerFacilityCredentials.id),
+                eq(workflowPhases.workflowType, "pfc"),
+              ),
+            )
+            .innerJoin(providers, eq(providerFacilityCredentials.providerId, providers.id))
+            .where(providerFilterWhere),
+        ])
+      : [[{ count: 0 }], [], [], []];
 
   const providerTimeline = new Map<string, { primary: number; secondary: number; tertiary: number }>();
 

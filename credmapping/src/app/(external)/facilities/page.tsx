@@ -1,4 +1,4 @@
-import { and, count, desc, eq, ilike, inArray, not, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, ilike, inArray, not, or } from "drizzle-orm";
 import { Mail, Phone } from "lucide-react";
 import Link from "next/link";
 import { AddFacilityDialog } from "~/components/facilities/add-facility-dialog";
@@ -148,20 +148,24 @@ export default async function FacilitiesPage(props: {
               : "In Progress",
         );
 
+  const hasContactMatches = contactsFilter !== "with" || facilitiesWithContacts.length > 0;
+
   const contactsWhere =
     contactsFilter === "all"
       ? undefined
       : contactsFilter === "with"
         ? facilitiesWithContacts.length > 0
           ? inArray(facilities.id, facilitiesWithContacts)
-          : sql`1 = 0`
+          : undefined
         : facilitiesWithContacts.length > 0
           ? not(inArray(facilities.id, facilitiesWithContacts))
           : undefined;
 
   const whereClause = and(searchWhere, activityWhere, contactsWhere);
 
-  const totalVisibleRow = await db.select({ count: count() }).from(facilities).where(whereClause);
+  const totalVisibleRow = hasContactMatches
+    ? await db.select({ count: count() }).from(facilities).where(whereClause)
+    : [{ count: 0 }];
 
   const orderByClause =
     sort === "name_desc"
@@ -174,12 +178,14 @@ export default async function FacilitiesPage(props: {
 
   const visibleLimit = Math.min(requestedLimit, totalVisibleRow[0]?.count ?? 0);
 
-  const facilityRows = await db
-    .select()
-    .from(facilities)
-    .where(whereClause)
-    .orderBy(...orderByClause)
-    .limit(visibleLimit);
+  const facilityRows = hasContactMatches
+    ? await db
+        .select()
+        .from(facilities)
+        .where(whereClause)
+        .orderBy(...orderByClause)
+        .limit(visibleLimit)
+    : [];
 
   const facilityIds = facilityRows.map((row) => row.id);
 
