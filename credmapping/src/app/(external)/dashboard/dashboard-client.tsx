@@ -110,8 +110,8 @@ const viewButtons: Array<{ key: ViewKey; label: string }> = [
   { key: "providerFacility", label: "Provider-Level Facility Credentials" },
   { key: "facilityProvider", label: "Facility-Level Provider Credentials" },
   { key: "facilityPrelive", label: "Facility Pre-Live Details" },
-  { key: "providerLicense", label: "Provider-Level State License Overview" },
-  { key: "providerVestaPrivileges", label: "Provider-Level Vesta Privileges" },
+  { key: "providerLicense", label: "Provider-Level State Licenses" },
+  { key: "providerVestaPrivileges", label: "Provider Vesta Privileges" },
 ];
 
 const normalize = (value: string | null | undefined) => (value ?? "").trim().toLowerCase();

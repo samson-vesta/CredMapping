@@ -1,6 +1,5 @@
-import { create } from "domain";
 import { sql } from "drizzle-orm";
-import { 
+import {  
   bigint,
   boolean,
   date,
@@ -70,7 +69,7 @@ export const agents = pgTable("agents", {
 
 export const auditLog = pgTable("audit_log", {
   id: uuid("id").defaultRandom().primaryKey(),
-  tableName: text("table_name").notNull(),
+  tableName: text("table_name").notNull(), 
   recordId: uuid("record_id"),
   action: text("action").notNull(),
   actorId: uuid("actor_id").references(() => agents.id, { onDelete: "set null" }),
