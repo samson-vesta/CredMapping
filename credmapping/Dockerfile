@@ -21,6 +21,7 @@ ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
 ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
 ENV SKIP_ENV_VALIDATION=1
 ENV DATABASE_URL="postgresql://postgres:password@localhost:5432/dummy"
+ENV DATABASE_POOLER_URL="postgresql://postgres:password@localhost:5432/dummy"
 RUN pnpm build
 
 FROM base AS runner

@@ -1,5 +1,6 @@
+import { create } from "domain";
 import { sql } from "drizzle-orm";
-import {
+import { 
   bigint,
   boolean,
   date,
@@ -115,7 +116,8 @@ export const workflowPhases = pgTable("workflow_phases", {
   relatedId: uuid("related_id").notNull(),  
   status: text("status").default("Pending"),
   phaseName: text("phase_name").notNull(), 
-  startDate: date("start_date").notNull(), 
+  startDate: date("start_date").notNull(),
+  notes: text("notes"),
   dueDate: date("due_date"),
   completedAt: date("completed_at"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),

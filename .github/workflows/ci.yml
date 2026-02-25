@@ -53,6 +53,7 @@ jobs:
     env:
       SKIP_ENV_VALIDATION: 1
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DATABASE_POOLER_URL: ${{ secrets.DATABASE_POOLER_URL }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
