@@ -17,7 +17,7 @@ import {
 } from "~/components/ui/sheet";
 import { api } from "~/trpc/react";
 
-type MissingDocStatus = "Completed, Pending Response" | "Not Completed";
+type MissingDocStatus = "Completed" | "Pending Response" | "Not Completed";
 
 type MissingDoc = {
   id: string;
@@ -70,8 +70,7 @@ export function MissingDocsManager({
     const rows = [...(docs ?? [])]
       .filter((doc) => {
         if (statusFilter === "all") return true;
-        const isCompleted =
-          doc.followUpStatus === "Completed, Pending Response";
+        const isCompleted = doc.followUpStatus === "Completed";
         return statusFilter === "completed" ? isCompleted : !isCompleted;
       })
       .filter((doc) => {
@@ -336,7 +335,8 @@ export function MissingDocsManager({
                           className="w-full rounded border border-zinc-700 bg-zinc-900 px-2.5 py-2 text-sm text-zinc-300"
                         >
                           <option value="Not Completed">Not Completed</option>
-                          <option value="Completed, Pending Response">Completed, Pending Response</option>
+                          <option value="Pending Response">Pending Response</option>
+                          <option value="Completed">Completed</option>
                         </select>
                       </td>
                       <td className="px-4 py-3 align-top">
