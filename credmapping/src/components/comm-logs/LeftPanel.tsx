@@ -1,7 +1,12 @@
 "use client";
 
 import { useMemo } from "react";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "~/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "~/components/ui/tooltip";
 
 type StatusDotTone = "red" | "blue" | "amber" | "green";
 
@@ -95,27 +100,34 @@ export function LeftPanel({
 
         <input
           type="text"
-          placeholder={mode === "facility" ? "Search facilities..." : "Search providers..."}
+          placeholder={
+            mode === "facility" ? "Search facilities..." : "Search providers..."
+          }
           value={search}
           onChange={(e) => onSearchChange?.(e.target.value)}
           className="w-full rounded border border-input bg-background px-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         />
       </div>
 
-      <div className="flex flex-wrap gap-2 border-b border-border px-4 py-3">
-        {filters.map((f) => (
-          <button
-            key={f}
-            onClick={() => onFilterChange?.(f)}
-            className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
-              filter === f
-                ? "bg-primary text-primary-foreground"
-                : "bg-secondary text-secondary-foreground hover:bg-accent"
-            }`}
-          >
-            {f}
-          </button>
-        ))}
+      <div className="border-b border-border px-4 py-3">
+        <div
+          className="grid w-full overflow-hidden rounded-md border border-border bg-secondary/40"
+          style={{ gridTemplateColumns: `repeat(${filters.length}, minmax(0, 1fr))` }}
+        >
+          {filters.map((f, index) => (
+            <button
+              key={f}
+              onClick={() => onFilterChange?.(f)}
+              className={`px-3 py-2 text-center text-xs font-medium transition-colors ${
+                filter === f
+                  ? "bg-primary text-primary-foreground"
+                  : "text-secondary-foreground hover:bg-accent"
+              } ${index > 0 ? "border-l border-border" : ""}`}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -144,13 +156,11 @@ export function LeftPanel({
                 <div className="flex min-h-11 items-center justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <h4 className="truncate font-medium text-white">{item.name}</h4>
-                    {item.subText && <p className="truncate text-xs text-zinc-400">{item.subText}</p>}
+                    {item.subText && (
+                      <p className="truncate text-xs text-zinc-400">{item.subText}</p>
+                    )}
                   </div>
-                  <div
-                    className={`flex shrink-0 flex-col items-center gap-1 ${
-                      (item.statusDots?.length ?? 0) <= 1 ? "justify-center" : "justify-center"
-                    }`}
-                  >
+                  <div className="flex shrink-0 flex-col items-center justify-center gap-1">
                     <TooltipProvider>
                       {item.statusDots?.map((dot, index) => (
                         <Tooltip key={`${item.id}-${dot}-${index}`}>

@@ -26,15 +26,12 @@ interface ProviderDetailProps {
     lastName: string | null;
     degree: string | null;
     email: string | null;
-    notes: string | null;
   };
 }
 
 export function ProviderDetail({ providerId, provider }: ProviderDetailProps) {
   const utils = api.useUtils();
-  const [activeTab, setActiveTab] = useState<
-    "logs" | "missing-docs" | "psv" | "notes"
-  >("logs");
+  const [activeTab, setActiveTab] = useState<"logs" | "missing-docs" | "psv">("logs");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingLog, setEditingLog] = useState<{
     id: string;
@@ -120,7 +117,7 @@ export function ProviderDetail({ providerId, provider }: ProviderDetailProps) {
   return (
     <div className="bg-background flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       {/* Header Card */}
-      <div className="border-border bg-card min-h-[168px] border-b p-6">
+      <div className="border-border bg-card border-b p-6">
         <div className="mb-4">
           <div className="mb-2 flex items-center justify-between gap-3">
             <h2 className="min-w-0 flex-1 truncate text-2xl font-bold text-white">
@@ -170,7 +167,6 @@ export function ProviderDetail({ providerId, provider }: ProviderDetailProps) {
           { id: "logs", label: "Logs" },
           { id: "missing-docs", label: "Missing Docs" },
           { id: "psv", label: "PSV" },
-          { id: "notes", label: "Provider Notes" },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -187,15 +183,7 @@ export function ProviderDetail({ providerId, provider }: ProviderDetailProps) {
       </div>
 
       {/* Content Area */}
-      <div
-        className={`min-h-0 flex-1 overflow-y-auto ${
-          activeTab === "logs" ||
-          activeTab === "missing-docs" ||
-          activeTab === "psv"
-            ? ""
-            : "p-6"
-        }`}
-      >
+      <div className="min-h-0 flex-1 overflow-y-auto">
         {activeTab === "logs" && (
           <div>
             <div className="border-border bg-card sticky top-0 z-10 border-b px-6 py-4">
@@ -342,21 +330,6 @@ export function ProviderDetail({ providerId, provider }: ProviderDetailProps) {
             isLoading={psvLoading}
             onChanged={handleLogCreated}
           />
-        )}
-
-        {activeTab === "notes" && (
-          <div className="space-y-6">
-            <h3 className="text-lg font-semibold text-white">Internal Notes</h3>
-            {provider.notes ? (
-              <div className="bg-card rounded-lg border border-zinc-700 p-4 leading-relaxed text-zinc-300">
-                {provider.notes}
-              </div>
-            ) : (
-              <p className="text-zinc-400 italic">
-                No internal provider notes on file.
-              </p>
-            )}
-          </div>
         )}
       </div>
 

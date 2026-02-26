@@ -175,7 +175,6 @@ export default function CommLogsPage() {
               lastName: selectedProvider.lastName,
               degree: selectedProvider.degree,
               email: selectedProvider.email,
-              notes: null,
             }}
           />
         ) : selectedFacility ? (

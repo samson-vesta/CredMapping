@@ -109,13 +109,13 @@ export const providers = pgTable("providers", {
 
 export const workflowPhases = pgTable("workflow_phases", {
   id: uuid("id").defaultRandom().primaryKey(),
-  agentAssigned: uuid("agent_assigned").notNull().references(() => agents.id),
+  agentAssigned: uuid("agent_assigned").references(() => agents.id),
   supportingAgents: jsonb("supporting_agents"), 
   workflowType: workflowType("workflow_type").notNull(), 
   relatedId: uuid("related_id").notNull(),  
   status: text("status").default("Pending"),
   phaseName: text("phase_name").notNull(), 
-  startDate: date("start_date").notNull(),
+  startDate: date("start_date"),
   notes: text("notes"),
   dueDate: date("due_date"),
   completedAt: date("completed_at"),
