@@ -4,9 +4,9 @@ import { useMemo } from "react";
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from "~/components/ui/tooltip";
+import { TruncatedTooltip } from "~/components/ui/truncated-tooltip";
 
 type StatusDotTone = "red" | "blue" | "amber" | "green";
 
@@ -155,22 +155,26 @@ export function LeftPanel({
               >
                 <div className="flex min-h-11 items-center justify-between gap-2">
                   <div className="min-w-0 flex-1">
-                    <h4 className="truncate font-medium text-white">{item.name}</h4>
+                    <TruncatedTooltip
+                      text={item.name}
+                      as="h4"
+                      className="font-medium text-white"
+                    />
                     {item.subText && (
                       <p className="truncate text-xs text-zinc-400">{item.subText}</p>
                     )}
                   </div>
                   <div className="flex shrink-0 flex-col items-center justify-center gap-1">
-                    <TooltipProvider>
-                      {item.statusDots?.map((dot, index) => (
-                        <Tooltip key={`${item.id}-${dot}-${index}`}>
-                          <TooltipTrigger asChild>
-                            <span className={`h-2.5 w-2.5 rounded-full ${getDotColor(dot)}`} />
-                          </TooltipTrigger>
-                          <TooltipContent>{getDotLabel(dot)}</TooltipContent>
-                        </Tooltip>
-                      ))}
-                    </TooltipProvider>
+                    {item.statusDots?.map((dot, index) => (
+                      <Tooltip key={`${item.id}-${dot}-${index}`}>
+                        <TooltipTrigger asChild>
+                          <span className={`h-2.5 w-2.5 rounded-full ${getDotColor(dot)}`} />
+                        </TooltipTrigger>
+                        <TooltipContent side="right" align="center" sideOffset={6}>
+                          {getDotLabel(dot)}
+                        </TooltipContent>
+                      </Tooltip>
+                    ))}
                   </div>
                 </div>
               </button>
