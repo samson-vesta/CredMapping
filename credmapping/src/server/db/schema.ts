@@ -22,7 +22,7 @@ export const privilegeTierEnum = pgEnum("privilege_tier", ["Inactive", "Full", "
 export const formSizes = pgEnum("form_size", ["small", "medium", "large", 'x-large', 'online']);
 export const workflowType = pgEnum("workflow_type", ["pfc", "state_licenses", "prelive_pipeline", "provider_vesta_privileges"]);
 export const facilityStatusEnum = pgEnum("status", ["Active", "Inactive", "In Progress"]);
-export const followUpStatus = pgEnum("follow_up_status", ["Completed, Pending Response", "Not Completed"]);
+export const followUpStatus = pgEnum("follow_up_status", ["Completed", "Pending Response", "Not Completed"]);
 export const psvStatus = pgEnum("psv_status", ["Not Started", "Requested", "Received", "Inactive Rad", "Closed", "Not Affiliated", "Old Request", "Hold"]);
 export const psvType = pgEnum("psv_type", ["Education", "Work", "Hospital", "Peer", "COI/Loss Run", "Claims Document", "Board Actions", "Locums/Work", "Vesta Practice Location", "Vesta Hospital", "Work COI", "OPPE"]);
 
