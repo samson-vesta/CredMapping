@@ -132,12 +132,14 @@ export function ProviderDetail({ providerId, provider }: ProviderDetailProps) {
       <div className="border-border bg-card border-b p-6">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <h2 className="mb-2 truncate text-2xl font-bold text-white">
-              {fullName}
-            </h2>
-            <p className="text-sm text-zinc-400">
-              {provider.email ?? "No provider email listed"}
-            </p>
+            <div className="space-y-2">
+              <h2 className="truncate text-2xl font-bold text-white">
+                {fullName}
+              </h2>
+              <p className="text-sm text-zinc-400">
+                {provider.email ?? "No provider email listed"}
+              </p>
+            </div>
           </div>
           <span className="border-border bg-secondary text-secondary-foreground rounded border px-2 py-1 text-xs font-medium">
             {provider.degree ?? "—"}

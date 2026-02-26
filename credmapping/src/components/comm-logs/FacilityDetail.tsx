@@ -123,22 +123,24 @@ export function FacilityDetail({ facilityId, facility }: FacilityDetailProps) {
   return (
     <div className="bg-card flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       <div className="border-border bg-card border-b p-6">
-        <div className="mb-4 flex items-start justify-between">
+        <div className="mb-4 flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <div className="mb-1 flex items-center gap-3">
-              <h2 className="truncate text-2xl font-bold text-white">
-                {facility.name}
-              </h2>
-              <Badge
-                variant="outline"
-                className="bg-secondary/50 text-secondary-foreground font-mono uppercase"
-              >
-                {facility.state ?? "N/A"}
-              </Badge>
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <h2 className="truncate text-2xl font-bold text-white">
+                  {facility.name}
+                </h2>
+                <Badge
+                  variant="outline"
+                  className="bg-secondary/50 text-secondary-foreground font-mono uppercase"
+                >
+                  {facility.state ?? "N/A"}
+                </Badge>
+              </div>
+              <p className="text-sm text-zinc-400">
+                {facility.email ?? "No facility email listed"}
+              </p>
             </div>
-            <p className="text-sm text-zinc-400">
-              {facility.email ?? "No facility email listed"}
-            </p>
           </div>
           <Badge
             className={
