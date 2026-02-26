@@ -76,6 +76,17 @@ export function FacilityDetail({ facilityId, facility }: FacilityDetailProps) {
     ).sort();
   }, [logs]);
 
+  const commTypeOptions = useMemo(() => {
+    const defaults = ["Email", "Phone Call", "Dropbox", "Document", "Modio", "Meeting"];
+    const fromLogs = (logs ?? [])
+      .map((log) => log.commType)
+      .filter((type): type is string => Boolean(type));
+
+    return Array.from(new Set([...defaults, ...fromLogs])).sort((a, b) =>
+      a.localeCompare(b),
+    );
+  }, [logs]);
+
   const filteredLogs = useMemo(() => {
     if (!logs) return [];
     const result = logs
@@ -231,8 +242,11 @@ export function FacilityDetail({ facilityId, facility }: FacilityDetailProps) {
                           className="bg-background w-full rounded border p-2 text-sm"
                         >
                           <option value="all">All Types</option>
-                          <option value="Email">Email</option>
-                          <option value="Phone Call">Phone Call</option>
+                          {commTypeOptions.map((commType) => (
+                            <option key={commType} value={commType}>
+                              {commType}
+                            </option>
+                          ))}
                         </select>
                       </div>
                       <div className="space-y-1">
