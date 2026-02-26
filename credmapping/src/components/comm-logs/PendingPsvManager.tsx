@@ -108,6 +108,7 @@ export function PendingPsvManager({
   const createMutation = api.commLogs.createPendingPSV.useMutation();
   const updateMutation = api.commLogs.updatePendingPSV.useMutation();
   const isMutating = createMutation.isPending || updateMutation.isPending;
+  const isCreating = isEditing && !editingId;
 
   const filteredPsvs = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -279,7 +280,7 @@ export function PendingPsvManager({
       </div>
 
       <div className="space-y-4 px-6 py-4">
-        {isEditing && (
+        {isCreating && (
           <div className="mb-4 grid gap-3 rounded-lg border border-zinc-700 bg-zinc-900/40 p-4 md:grid-cols-3">
             <div className="space-y-1">
               <label className="text-xs text-zinc-400">
@@ -409,30 +410,125 @@ export function PendingPsvManager({
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800">
-                {filteredPsvs.map((psv) => (
-                  <tr key={psv.id} className="hover:bg-zinc-900/50">
-                    <td className="px-4 py-3 font-medium text-zinc-200">
-                      {psv.type}
-                    </td>
-                    <td className="px-4 py-3 text-zinc-300">{psv.name}</td>
-                    <td className="px-4 py-3 text-zinc-400">{psv.status}</td>
-                    <td className="px-4 py-3 text-zinc-400">
-                      {format(new Date(psv.dateRequested), "MMM d, yyyy")}
-                    </td>
-                    <td className="max-w-60 truncate px-4 py-3 text-zinc-500">
-                      {psv.notes ?? "—"}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => beginEdit(psv)}
-                      >
-                        Edit
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
+                {filteredPsvs.map((psv) =>
+                  editingId === psv.id ? (
+                    <tr key={psv.id} className="bg-zinc-900/40">
+                      <td className="px-4 py-3 align-top">
+                        <select
+                          className="w-full rounded border border-zinc-700 bg-zinc-900 px-2.5 py-2 text-sm text-zinc-300"
+                          value={form.type}
+                          onChange={(e) =>
+                            setForm((s) => ({
+                              ...s,
+                              type: e.target.value as PendingPsv["type"],
+                            }))
+                          }
+                        >
+                          {PSV_TYPES.map((type) => (
+                            <option key={type} value={type}>
+                              {type}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="space-y-2 px-4 py-3 align-top">
+                        <Input
+                          placeholder="e.g. Residency Program - Duke"
+                          value={form.name}
+                          onChange={(e) =>
+                            setForm((s) => ({ ...s, name: e.target.value }))
+                          }
+                        />
+                        <Input
+                          type="date"
+                          value={form.nextFollowUp}
+                          onChange={(e) =>
+                            setForm((s) => ({ ...s, nextFollowUp: e.target.value }))
+                          }
+                        />
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <select
+                          className="w-full rounded border border-zinc-700 bg-zinc-900 px-2.5 py-2 text-sm text-zinc-300"
+                          value={form.status}
+                          onChange={(e) =>
+                            setForm((s) => ({
+                              ...s,
+                              status: e.target.value as Exclude<
+                                PendingPsv["status"],
+                                "Closed"
+                              >,
+                            }))
+                          }
+                        >
+                          {PSV_STATUSES.map((status) => (
+                            <option key={status} value={status}>
+                              {status}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <Input
+                          type="date"
+                          value={form.dateRequested}
+                          onChange={(e) =>
+                            setForm((s) => ({ ...s, dateRequested: e.target.value }))
+                          }
+                        />
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <Textarea
+                          rows={2}
+                          placeholder="Follow-up details, outcomes, blockers"
+                          value={form.notes}
+                          onChange={(e) =>
+                            setForm((s) => ({ ...s, notes: e.target.value }))
+                          }
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-right align-top">
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" size="sm" onClick={resetEditor}>
+                            Cancel
+                          </Button>
+                          <Button
+                            size="sm"
+                            disabled={
+                              isMutating || !form.name.trim() || !form.dateRequested
+                            }
+                            onClick={save}
+                          >
+                            Save
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr key={psv.id} className="hover:bg-zinc-900/50">
+                      <td className="px-4 py-3 font-medium text-zinc-200">
+                        {psv.type}
+                      </td>
+                      <td className="px-4 py-3 text-zinc-300">{psv.name}</td>
+                      <td className="px-4 py-3 text-zinc-400">{psv.status}</td>
+                      <td className="px-4 py-3 text-zinc-400">
+                        {format(new Date(psv.dateRequested), "MMM d, yyyy")}
+                      </td>
+                      <td className="max-w-60 truncate px-4 py-3 text-zinc-500">
+                        {psv.notes ?? "—"}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => beginEdit(psv)}
+                        >
+                          Edit
+                        </Button>
+                      </td>
+                    </tr>
+                  ),
+                )}
               </tbody>
             </table>
           </div>

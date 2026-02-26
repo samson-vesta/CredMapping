@@ -157,8 +157,8 @@ export const pendingPSV = pgTable("pending_psv", {
 
 export const commLogs = pgTable("comm_logs", {
   id: uuid("id").defaultRandom().primaryKey(),
-  relatedType: relatedTypeEnum("related_type"),
-  relatedId: uuid("related_id"),
+  relatedType: relatedTypeEnum("related_type").notNull(),
+  relatedId: uuid("related_id").notNull(),
   subject: text("subject"),
   commType: text("comm_type"), 
   notes: text("notes"),

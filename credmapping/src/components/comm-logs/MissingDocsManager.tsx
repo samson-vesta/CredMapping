@@ -17,13 +17,15 @@ import {
 } from "~/components/ui/sheet";
 import { api } from "~/trpc/react";
 
+type MissingDocStatus = "Completed, Pending Response" | "Not Completed";
+
 type MissingDoc = {
   id: string;
   information: string | null;
   roadblocks: string | null;
   nextFollowUpUS: string | null;
   nextFollowUpIn: string | null;
-  followUpStatus: "Completed, Pending Response" | "Not Completed" | null;
+  followUpStatus: MissingDocStatus | null;
 };
 
 interface MissingDocsManagerProps {
@@ -39,6 +41,7 @@ const defaultForm = {
   roadblocks: "",
   nextFollowUpUS: "",
   nextFollowUpIn: "",
+  followUpStatus: "Not Completed" as MissingDocStatus,
 };
 
 export function MissingDocsManager({
@@ -60,6 +63,7 @@ export function MissingDocsManager({
   const createMutation = api.commLogs.createMissingDoc.useMutation();
   const updateMutation = api.commLogs.updateMissingDoc.useMutation();
   const isMutating = createMutation.isPending || updateMutation.isPending;
+  const isCreating = isEditing && !editingId;
 
   const filteredDocs = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -112,6 +116,7 @@ export function MissingDocsManager({
       roadblocks: doc.roadblocks ?? "",
       nextFollowUpUS: doc.nextFollowUpUS ?? "",
       nextFollowUpIn: doc.nextFollowUpIn ?? "",
+      followUpStatus: doc.followUpStatus ?? "Not Completed",
     });
   };
 
@@ -123,7 +128,7 @@ export function MissingDocsManager({
       roadblocks: form.roadblocks || undefined,
       nextFollowUpUS: form.nextFollowUpUS || undefined,
       nextFollowUpIn: form.nextFollowUpIn || undefined,
-      followUpStatus: "Not Completed" as const,
+      followUpStatus: form.followUpStatus,
     };
 
     if (editingId) {
@@ -212,7 +217,7 @@ export function MissingDocsManager({
       </div>
 
       <div className="space-y-4 px-6 py-4">
-        {isEditing && (
+        {isCreating && (
           <div className="mb-4 grid gap-3 rounded-lg border border-zinc-700 bg-zinc-900/40 p-4 md:grid-cols-4">
             <div className="space-y-1">
               <label className="text-xs text-zinc-400">Required Item</label>
@@ -297,38 +302,109 @@ export function MissingDocsManager({
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800">
-                {filteredDocs.map((doc) => (
-                  <tr key={doc.id} className="hover:bg-zinc-900/50">
-                    <td className="px-4 py-3 font-medium text-zinc-200">
-                      {doc.information}
-                    </td>
-                    <td className="px-4 py-3 text-zinc-400 italic">
-                      {doc.roadblocks ?? "—"}
-                    </td>
-                    <td className="px-4 py-3 text-zinc-400">
-                      {doc.followUpStatus ?? "Not Completed"}
-                    </td>
-                    <td className="px-4 py-3 text-zinc-400">
-                      {doc.nextFollowUpUS
-                        ? format(new Date(doc.nextFollowUpUS), "MMM d, yyyy")
-                        : "—"}
-                    </td>
-                    <td className="px-4 py-3 text-zinc-400">
-                      {doc.nextFollowUpIn
-                        ? format(new Date(doc.nextFollowUpIn), "MMM d, yyyy")
-                        : "—"}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => beginEdit(doc)}
-                      >
-                        Edit
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
+                {filteredDocs.map((doc) =>
+                  editingId === doc.id ? (
+                    <tr key={doc.id} className="bg-zinc-900/40">
+                      <td className="px-4 py-3 align-top">
+                        <Input
+                          placeholder="e.g. State License Copy"
+                          value={form.information}
+                          onChange={(e) =>
+                            setForm((s) => ({ ...s, information: e.target.value }))
+                          }
+                        />
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <Textarea
+                          rows={2}
+                          placeholder="Describe what's missing and blockers"
+                          value={form.roadblocks}
+                          onChange={(e) =>
+                            setForm((s) => ({ ...s, roadblocks: e.target.value }))
+                          }
+                        />
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <select
+                          value={form.followUpStatus}
+                          onChange={(e) =>
+                            setForm((state) => ({
+                              ...state,
+                              followUpStatus: e.target.value as MissingDocStatus,
+                            }))
+                          }
+                          className="w-full rounded border border-zinc-700 bg-zinc-900 px-2.5 py-2 text-sm text-zinc-300"
+                        >
+                          <option value="Not Completed">Not Completed</option>
+                          <option value="Completed, Pending Response">Completed, Pending Response</option>
+                        </select>
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <Input
+                          type="date"
+                          value={form.nextFollowUpUS}
+                          onChange={(e) =>
+                            setForm((s) => ({ ...s, nextFollowUpUS: e.target.value }))
+                          }
+                        />
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <Input
+                          type="date"
+                          value={form.nextFollowUpIn}
+                          onChange={(e) =>
+                            setForm((s) => ({ ...s, nextFollowUpIn: e.target.value }))
+                          }
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-right align-top">
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" size="sm" onClick={resetEditor}>
+                            Cancel
+                          </Button>
+                          <Button
+                            size="sm"
+                            disabled={isMutating || !form.information.trim()}
+                            onClick={save}
+                          >
+                            Save
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr key={doc.id} className="hover:bg-zinc-900/50">
+                      <td className="px-4 py-3 font-medium text-zinc-200">
+                        {doc.information}
+                      </td>
+                      <td className="px-4 py-3 text-zinc-400 italic">
+                        {doc.roadblocks ?? "—"}
+                      </td>
+                      <td className="px-4 py-3 text-zinc-400">
+                        {doc.followUpStatus ?? "Not Completed"}
+                      </td>
+                      <td className="px-4 py-3 text-zinc-400">
+                        {doc.nextFollowUpUS
+                          ? format(new Date(doc.nextFollowUpUS), "MMM d, yyyy")
+                          : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-zinc-400">
+                        {doc.nextFollowUpIn
+                          ? format(new Date(doc.nextFollowUpIn), "MMM d, yyyy")
+                          : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => beginEdit(doc)}
+                        >
+                          Edit
+                        </Button>
+                      </td>
+                    </tr>
+                  ),
+                )}
               </tbody>
             </table>
           </div>
