@@ -143,7 +143,7 @@ export default function CommLogsPage() {
     selectedId && mode === "facility" ? (facilities ?? []).find((f) => f.id === selectedId) : null;
 
   return (
-    <div className="flex h-full min-h-0 overflow-hidden bg-background">
+    <div className="flex h-full min-h-0 overflow-hidden border-y border-border bg-background">
       <LeftPanel
         mode={mode}
         onModeChange={handleModeChange}
@@ -157,7 +157,7 @@ export default function CommLogsPage() {
         onSearchChange={setSearch}
       />
 
-      <div className="relative flex min-h-0 flex-1 overflow-hidden">
+      <div className="relative flex min-h-0 flex-1 overflow-hidden border-r border-border bg-card">
         {!selectedId ? (
           <div className="h-full w-full flex items-center justify-center">
             <div className="text-center">

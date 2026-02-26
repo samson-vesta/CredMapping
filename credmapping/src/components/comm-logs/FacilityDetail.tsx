@@ -110,7 +110,7 @@ export function FacilityDetail({ facilityId, facility }: FacilityDetailProps) {
   };
 
   return (
-    <div className="bg-background flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+    <div className="bg-card flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       <div className="border-border bg-card border-b p-6">
         <div className="mb-4 flex items-start justify-between">
           <div className="min-w-0 flex-1">

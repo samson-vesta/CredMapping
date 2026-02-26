@@ -129,8 +129,10 @@ export const missingDocs = pgTable("missing_docs", {
   relatedId: uuid("related_id"),
   information: text("information"),
   roadblocks: text("roadblocks"), 
-  nextFollowUp: date("next_follow_up"),
-  lastFollowUp: date("last_follow_up"), 
+  nextFollowUpUS: date("next_follow_up_us"),
+  lastFollowUpUS: date("last_follow_up_us"),
+  nextFollowUpIn: date("next_follow_up_in"), 
+  lastFollowUpIn: date("last_follow_up_in"),  
   followUpStatus: followUpStatus("follow_up_status"),  
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }),
@@ -164,12 +166,6 @@ export const commLogs = pgTable("comm_logs", {
   lastUpdatedBy: uuid("last_updated_by").references(() => agents.id),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }),
-});
-
-export const configEnums = pgTable("config_enums", {
-  key: text("key").primaryKey(),
-  value: jsonb("value"),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
 export const facilityContacts = pgTable("facility_contacts", {
@@ -229,6 +225,9 @@ export const facilityPreliveInfo = pgTable("facility_prelive_info", {
   id: uuid("id").defaultRandom().primaryKey(),
   facilityId: uuid("facility_id").references(() => facilities.id),
   priority: text("priority"),
+  medicalDirectorNeeded: boolean("medical_director_needed"), 
+  rsoNeeded: boolean("rso_needed"), 
+  lipNeeded: boolean("lip_needed"),
   goLiveDate: date("go_live_date"),
   boardMeetingDate: date("board_meeting_date"),
   credentialingDueDate: date("credentialing_due_date"),
@@ -281,8 +280,6 @@ export const facilitiesAuthenticatedAll = createAuthenticatedAllPolicy("faciliti
 export const providersAuthenticatedAll = createAuthenticatedAllPolicy("providers_authenticated_all").link(providers);
 
 export const workflowPhasesAuthenticatedAll = createAuthenticatedAllPolicy("workflow_phases_authenticated_all").link(workflowPhases);
-
-export const configEnumsAuthenticatedAll = createAuthenticatedAllPolicy("config_enums_authenticated_all").link(configEnums);
 
 export const facilityContactsAuthenticatedAll = createAuthenticatedAllPolicy("facility_contacts_authenticated_all").link(facilityContacts);
 
