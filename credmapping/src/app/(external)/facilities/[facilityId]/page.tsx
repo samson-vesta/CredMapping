@@ -464,10 +464,6 @@ export default async function FacilityProfilePage({
               <dd>{facility.yearlyVolume?.toLocaleString() ?? "—"}</dd>
             </div>
             <div className="flex justify-between gap-3">
-              <dt className="text-muted-foreground">TAT / SLA</dt>
-              <dd>{facility.tatSla ?? "—"}</dd>
-            </div>
-            <div className="flex justify-between gap-3">
               <dt className="text-muted-foreground">Modalities</dt>
               <dd>{facility.modalities?.join(", ") ?? "—"}</dd>
             </div>

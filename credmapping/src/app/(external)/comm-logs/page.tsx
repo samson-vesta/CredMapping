@@ -13,6 +13,7 @@ type ProviderWithStatus = {
   lastName: string | null;
   degree: string | null;
   email: string | null;
+  privilegeTier: string | null;
   latestStatus: string | null;
   nextFollowupAt: Date | null;
   hasMissingDocs?: boolean;
@@ -57,11 +58,17 @@ export default function CommLogsPage() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("All");
 
+  const normalizedFilter = useMemo(() => {
+    if (filter === "PSV") return "psv";
+    if (filter === "Missing") return "missing";
+    return "all";
+  }, [filter]);
+
   const { data: providers, isLoading: providersLoading } =
     api.providersWithCommLogs.listWithCommLogStatus.useQuery(
       {
         search,
-        filter: filter.toLowerCase().replace(" ", "-"),
+        filter: normalizedFilter,
       },
       { enabled: mode === "provider" },
     );
@@ -70,7 +77,7 @@ export default function CommLogsPage() {
     api.facilitiesWithCommLogs.listWithCommLogStatus.useQuery(
       {
         search,
-        filter: filter.toLowerCase().replace(" ", "-"),
+        filter: normalizedFilter,
       },
       { enabled: mode === "facility" },
     );
@@ -175,6 +182,7 @@ export default function CommLogsPage() {
               lastName: selectedProvider.lastName,
               degree: selectedProvider.degree,
               email: selectedProvider.email,
+              privilegeTier: selectedProvider.privilegeTier,
             }}
           />
         ) : selectedFacility ? (

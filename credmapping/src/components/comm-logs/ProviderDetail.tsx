@@ -26,6 +26,7 @@ interface ProviderDetailProps {
     lastName: string | null;
     degree: string | null;
     email: string | null;
+    privilegeTier: string | null;
   };
 }
 
@@ -155,8 +156,8 @@ export function ProviderDetail({ providerId, provider }: ProviderDetailProps) {
             </p>
           </div>
           <div>
-            <p className="mb-1 text-zinc-400">Database Entry</p>
-            <p className="font-medium text-white">Verified</p>
+            <p className="mb-1 text-zinc-400">Vesta Privileges Tier</p>
+            <p className="font-medium text-white">{provider.privilegeTier ?? "—"}</p>
           </div>
         </div>
       </div>

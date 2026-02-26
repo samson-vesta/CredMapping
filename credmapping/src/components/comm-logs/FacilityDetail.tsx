@@ -160,9 +160,9 @@ export function FacilityDetail({ facilityId, facility }: FacilityDetailProps) {
             </p>
           </div>
           <div>
-            <p className="mb-1 text-zinc-400">TAT / SLA</p>
+            <p className="mb-1 text-zinc-400">Status</p>
             <p className="font-medium text-white">
-              {contactData?.facilityInfo?.tatSla ?? "Standard"}
+              {facility.status ?? "Unknown"}
             </p>
           </div>
         </div>

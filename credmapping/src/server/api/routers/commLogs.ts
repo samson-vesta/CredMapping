@@ -9,6 +9,7 @@ import {
   facilityContacts,
   missingDocs,
   pendingPSV,
+  providerVestaPrivileges,
 } from "~/server/db/schema";
 
 const getEarliestFollowUp = (
@@ -435,7 +436,7 @@ export const providersWithCommLogsRouter = createTRPCRouter({
   listWithCommLogStatus: protectedProcedure
     .input(z.object({ search: z.string().optional(), filter: z.string().optional() }))
     .query(async ({ ctx, input }) => {
-      const [providerRows, missingDocRows, pendingPsvRows, providerLogRows] = await Promise.all([
+      const [providerRows, missingDocRows, pendingPsvRows, providerLogRows, providerPrivilegeRows] = await Promise.all([
         ctx.db.select({
           id: providers.id,
           firstName: providers.firstName,
@@ -469,6 +470,18 @@ export const providersWithCommLogsRouter = createTRPCRouter({
           .from(commLogs)
           .where(eq(commLogs.relatedType, "provider"))
           .orderBy(desc(commLogs.createdAt)),
+        ctx.db
+          .select({
+            providerId: providerVestaPrivileges.providerId,
+            privilegeTier: providerVestaPrivileges.privilegeTier,
+            updatedAt: providerVestaPrivileges.updatedAt,
+            createdAt: providerVestaPrivileges.createdAt,
+          })
+          .from(providerVestaPrivileges)
+          .orderBy(
+            desc(providerVestaPrivileges.updatedAt),
+            desc(providerVestaPrivileges.createdAt),
+          ),
       ]);
 
       const missingDocsByProvider = new Map<string, string | null>();
@@ -508,6 +521,12 @@ export const providersWithCommLogsRouter = createTRPCRouter({
         latestSubjectByProvider.set(row.relatedId, row.subject);
       }
 
+      const privilegeTierByProvider = new Map<string, string | null>();
+      for (const row of providerPrivilegeRows) {
+        if (!row.providerId || privilegeTierByProvider.has(row.providerId)) continue;
+        privilegeTierByProvider.set(row.providerId, row.privilegeTier);
+      }
+
       let filteredRows = providerRows.map((provider) => {
         const missingFollowUp = missingDocsByProvider.get(provider.id);
         const psv = psvByProvider.get(provider.id);
@@ -531,6 +550,7 @@ export const providersWithCommLogsRouter = createTRPCRouter({
           ...provider,
           hasMissingDocs,
           hasPSV,
+          privilegeTier: privilegeTierByProvider.get(provider.id) ?? null,
           latestStatus,
           nextFollowupAt,
         };
@@ -538,10 +558,8 @@ export const providersWithCommLogsRouter = createTRPCRouter({
 
       if (input.filter === "psv") {
         filteredRows = filteredRows.filter((row) => row.hasPSV);
-      } else if (input.filter === "missing-docs") {
+      } else if (input.filter === "missing") {
         filteredRows = filteredRows.filter((row) => row.hasMissingDocs);
-      } else if (input.filter === "completed") {
-        filteredRows = filteredRows.filter((row) => !row.hasMissingDocs && !row.hasPSV);
       }
 
       if (input.search) {
@@ -609,10 +627,8 @@ export const facilitiesWithCommLogsRouter = createTRPCRouter({
         };
       });
 
-      if (input.filter === "missing-docs") {
+      if (input.filter === "missing") {
         filteredRows = filteredRows.filter((facility) => facility.hasMissingDocs);
-      } else if (input.filter === "general") {
-        filteredRows = filteredRows.filter((facility) => !facility.hasMissingDocs);
       }
 
       if (input.search) {
