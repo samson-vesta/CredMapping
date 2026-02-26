@@ -1,10 +1,9 @@
 import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { Mail, Phone } from "lucide-react";
 import Link from "next/link";
-import { AddProviderDialog } from "~/components/providers/add-provider-dialog";
+import { ProvidersPendingProvider, ProvidersListOverlay } from "~/app/(external)/providers/providers-pending-context";
+import { ProvidersTopSection } from "~/app/(external)/providers/providers-top-section";
 import { ProvidersAutoAdvance } from "~/components/providers-auto-advance";
-import { MetricsTrendChart } from "~/components/metrics-trend-chart";
-import { Button } from "~/components/ui/button";
 import { VirtualScrollContainer } from "~/components/ui/virtual-scroll-container";
 import { getAppRole } from "~/server/auth/domain";
 import { db } from "~/server/db";
@@ -372,85 +371,28 @@ export default async function ProvidersPage(props: {
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-6 overflow-hidden">
-      <MetricsTrendChart
-        labels={{
-          primary: "New providers",
-          secondary: "New PFC records",
-          tertiary: "Related incidents",
-        }}
-        points={providerTrendPoints}
-        title="Provider onboarding velocity"
-      />
+    <ProvidersPendingProvider>
+      <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
+        <ProvidersTopSection
+          doctorStatusFilter={doctorStatusFilter}
+          isSuperAdmin={isSuperAdmin}
+          search={search}
+          sort={sort}
+          statusOptions={statusOptions}
+          trendPoints={providerTrendPoints}
+        />
 
-      <form
-        className="bg-card flex flex-col gap-3 rounded-lg border p-4 lg:flex-row lg:items-end"
-        method="get"
-      >
-        <div className="grid flex-1 gap-3 md:grid-cols-3">
-          <label className="space-y-1">
-            <span className="text-muted-foreground text-xs uppercase">Sort providers</span>
-            <select
-              className="bg-background h-9 w-full rounded-md border px-3 text-sm"
-              defaultValue={sort}
-              name="sort"
+        <ProvidersListOverlay>
+          {providerCards.length === 0 ? (
+            <div className="text-muted-foreground rounded-lg border border-dashed p-8 text-sm">
+              No providers found.
+            </div>
+          ) : (
+            <VirtualScrollContainer
+              className="min-h-0 flex-1"
+              heightClassName="h-full"
+              viewportClassName="providers-scroll-viewport"
             >
-              <option value="name_asc">Doctor name (A → Z)</option>
-              <option value="name_desc">Doctor name (Z → A)</option>
-              <option value="expired_privs_desc">Expired privileges (high → low)</option>
-              <option value="expired_privs_asc">Expired privileges (low → high)</option>
-            </select>
-          </label>
-
-          <label className="space-y-1">
-            <span className="text-muted-foreground text-xs uppercase">Doctor status</span>
-            <select
-              className="bg-background h-9 w-full rounded-md border px-3 text-sm"
-              defaultValue={doctorStatusFilter}
-              name="doctorStatus"
-            >
-              <option value="all">All statuses</option>
-              {statusOptions.map((status) => (
-                <option key={status} value={status}>
-                  {status}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="space-y-1">
-            <span className="text-muted-foreground text-xs uppercase">Search providers</span>
-            <input
-              className="bg-background h-9 w-full rounded-md border px-3 text-sm"
-              defaultValue={search}
-              name="search"
-              placeholder="Search by name, email, or notes"
-              type="search"
-            />
-          </label>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Button type="submit" variant="outline">
-            Apply
-          </Button>
-          <Button asChild variant="outline">
-            <Link href="/providers">Reset</Link>
-          </Button>
-          {isSuperAdmin ? <AddProviderDialog /> : null}
-        </div>
-      </form>
-
-      {providerCards.length === 0 ? (
-        <div className="text-muted-foreground rounded-lg border border-dashed p-8 text-sm">
-          No providers found.
-        </div>
-      ) : (
-        <VirtualScrollContainer
-          className="min-h-0 flex-1"
-          heightClassName="h-full"
-          viewportClassName="providers-scroll-viewport"
-        >
           <div className="space-y-4 p-4">
             {providerCards.map((card) => {
               const {
@@ -691,7 +633,9 @@ export default async function ProvidersPage(props: {
             </div>
           </div>
         </VirtualScrollContainer>
-      )}
-    </div>
+          )}
+        </ProvidersListOverlay>
+      </div>
+    </ProvidersPendingProvider>
   );
 }

@@ -148,6 +148,8 @@ export function MetricsTrendChart({
   title,
   points,
   labels,
+  onOpenChange,
+  defaultOpen = false,
 }: {
   title: string;
   points: TrendPoint[];
@@ -156,6 +158,8 @@ export function MetricsTrendChart({
     secondary: string;
     tertiary: string;
   };
+  onOpenChange?: (isOpen: boolean) => void;
+  defaultOpen?: boolean;
 }) {
   const [viewMode, setViewMode] = useState<ViewMode>("monthly");
   const [chartMode, setChartMode] = useState<ChartMode>("line");
@@ -176,7 +180,11 @@ export function MetricsTrendChart({
 
   return (
     <section className="bg-card rounded-lg border p-4">
-      <details className="group" open>
+      <details
+        className="group"
+        open={defaultOpen || undefined}
+        onToggle={(e) => onOpenChange?.((e.currentTarget as HTMLDetailsElement).open)}
+      >
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
           <h2 className="text-base font-semibold">{title}</h2>
           <ChevronDown className="text-muted-foreground size-4 transition-transform group-open:rotate-180" />
@@ -215,59 +223,58 @@ export function MetricsTrendChart({
           {chartData.length === 0 ? (
             <p className="text-muted-foreground py-6 text-sm">No historical trend data available.</p>
           ) : (
-            <div className="mt-4 grid gap-4 lg:grid-cols-3">
-              {metricCards.map((metric) => (
-                <div className="rounded-md border p-3" key={metric.key}>
-                  <p className="text-muted-foreground mb-2 text-xs uppercase">{metric.label}</p>
-                  <ChartContainer className="h-[180px] w-full" config={chartConfig}>
-                    {chartMode === "line" ? (
-                      <LineChart data={chartData} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
-                        <CartesianGrid vertical={false} />
-                        <XAxis axisLine={false} dataKey="label" tickLine={false} tickMargin={8} minTickGap={24} />
-                        <ChartTooltip
-                          content={
-                            <ChartTooltipContent
-                              formatter={(value) => (
-                                <span className="text-foreground font-medium">
-                                  {`${metric.label}: ${Number(value).toLocaleString()}`}
-                                </span>
-                              )}
-                              hideLabel
-                              nameKey={metric.key}
-                            />
-                          }
-                        />
-                        <Line
-                          dataKey={metric.key}
-                          stroke={`var(--color-${metric.key})`}
-                          strokeWidth={2}
-                          type="monotone"
-                          dot={false}
-                        />
-                      </LineChart>
-                    ) : (
-                      <BarChart data={chartData} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
-                        <CartesianGrid vertical={false} />
-                        <XAxis axisLine={false} dataKey="label" tickLine={false} tickMargin={8} minTickGap={24} />
-                        <ChartTooltip
-                          content={
-                            <ChartTooltipContent
-                              formatter={(value) => (
-                                <span className="text-foreground font-medium">
-                                  {`${metric.label}: ${Number(value).toLocaleString()}`}
-                                </span>
-                              )}
-                              hideLabel
-                              nameKey={metric.key}
-                            />
-                          }
-                        />
-                        <Bar dataKey={metric.key} fill={`var(--color-${metric.key})`} radius={3} />
-                      </BarChart>
-                    )}
-                  </ChartContainer>
-                </div>
-              ))}
+            <div className="mt-4">
+              {/* Metric totals legend row */}
+              <div className="mb-3 flex flex-wrap gap-4">
+                {metricCards.map((metric) => {
+                  const total = chartData.reduce((sum, d) => sum + d[metric.key], 0);
+                  return (
+                    <div key={metric.key} className="flex items-center gap-1.5 text-sm">
+                      <span
+                        className="h-2.5 w-2.5 rounded-full shrink-0"
+                        style={{ background: `var(--color-${metric.key})` }}
+                      />
+                      <span className="text-muted-foreground">{metric.label}:</span>
+                      <span className="font-semibold">{total.toLocaleString()}</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Single combined chart */}
+              <ChartContainer className="h-[180px] w-full" config={chartConfig}>
+                {chartMode === "line" ? (
+                  <LineChart data={chartData} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
+                    <CartesianGrid vertical={false} />
+                    <XAxis axisLine={false} dataKey="label" tickLine={false} tickMargin={8} minTickGap={28} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    {metricCards.map((metric) => (
+                      <Line
+                        key={metric.key}
+                        dataKey={metric.key}
+                        stroke={`var(--color-${metric.key})`}
+                        strokeWidth={2}
+                        type="monotone"
+                        dot={false}
+                      />
+                    ))}
+                  </LineChart>
+                ) : (
+                  <BarChart data={chartData} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
+                    <CartesianGrid vertical={false} />
+                    <XAxis axisLine={false} dataKey="label" tickLine={false} tickMargin={8} minTickGap={28} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    {metricCards.map((metric) => (
+                      <Bar
+                        key={metric.key}
+                        dataKey={metric.key}
+                        fill={`var(--color-${metric.key})`}
+                        radius={3}
+                      />
+                    ))}
+                  </BarChart>
+                )}
+              </ChartContainer>
             </div>
           )}
         </div>
