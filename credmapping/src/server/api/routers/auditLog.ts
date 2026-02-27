@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, desc, gte, lte, ilike, and, sql, count } from "drizzle-orm";
+import { eq, desc, gte, lte, ilike, and, inArray, sql, count } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import {
   auditLog,
