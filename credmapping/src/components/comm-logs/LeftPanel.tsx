@@ -1,16 +1,33 @@
 "use client";
 
 import { useMemo } from "react";
-import { FollowUpBadge } from "./FollowUpBadge";
+import { ArrowUpDown, SlidersHorizontal } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "~/components/ui/tooltip";
+import { TruncatedTooltip } from "~/components/ui/truncated-tooltip";
+import { Input } from "~/components/ui/input";
+import { ScrollIndicatorContainer } from "~/components/ui/scroll-indicator-container";
+import {
+  Sheet,
+  SheetContent,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "~/components/ui/sheet";
+import { Button } from "~/components/ui/button";
+
+type StatusDotTone = "red" | "blue" | "amber" | "green";
+type SortOption = "alpha-asc" | "alpha-desc" | "updated-asc" | "updated-desc";
 
 interface ListItem {
   id: string;
   name: string;
   subText?: string;
-  rightMeta?: string;
-  badge?: string;
-  nextFollowupAt: Date | string | null;
-  status?: string | null;
+  statusDots?: StatusDotTone[];
 }
 
 interface LeftPanelProps {
@@ -24,10 +41,12 @@ interface LeftPanelProps {
   onFilterChange?: (filter: string) => void;
   search?: string;
   onSearchChange?: (search: string) => void;
+  sort?: SortOption;
+  onSortChange?: (sort: SortOption) => void;
 }
 
-const providerFilters = ["All", "PSV", "Missing Docs", "Completed"];
-const facilityFilters = ["All", "Missing Docs", "General"];
+const providerFilters = ["All", "PSV", "Missing"];
+const facilityFilters = ["All", "Missing"];
 
 export function LeftPanel({
   mode,
@@ -40,6 +59,8 @@ export function LeftPanel({
   onFilterChange,
   search = "",
   onSearchChange,
+  sort = "alpha-asc",
+  onSortChange,
 }: LeftPanelProps) {
   const filters = mode === "provider" ? providerFilters : facilityFilters;
 
@@ -53,26 +74,27 @@ export function LeftPanel({
     });
   }, [items, search]);
 
-  const getStatusStyles = (status: string | null | undefined) => {
-    if (!status) return "bg-zinc-700 text-zinc-400";
-    const s = status.toLowerCase();
-    
-    if (s.includes("missing")) return "bg-rose-500/15 text-rose-400";
-    if (s.includes("psv")) return "bg-blue-500/15 text-blue-400";
-    if (s.includes("completed") || s.includes("active")) return "bg-green-500/15 text-green-400";
-    if (s.includes("pending")) return "bg-yellow-500/15 text-yellow-400";
-    
-    return "bg-zinc-700 text-zinc-400";
+  const getDotColor = (dot: StatusDotTone) => {
+    if (dot === "red") return "bg-rose-500";
+    if (dot === "blue") return "bg-blue-500";
+    if (dot === "amber") return "bg-amber-400";
+    return "bg-emerald-500";
+  };
+
+  const getDotLabel = (dot: StatusDotTone) => {
+    if (dot === "red") return "Past due follow-up";
+    if (dot === "blue") return "Pending PSV";
+    if (dot === "amber") return "Missing docs";
+    return "No active issues";
   };
 
   return (
-    <div className="flex h-full min-h-0 w-[290px] flex-col border-r border-border bg-card">
-      {/* Header */}
+    <div className="flex h-full min-h-0 w-[290px] flex-col border-r border-l border-border bg-card">
       <div className="border-b border-border p-4">
-        <div className="flex gap-2 mb-4">
+        <div className="mb-4 flex gap-2">
           <button
             onClick={() => onModeChange("provider")}
-            className={`flex-1 px-3 py-2 rounded font-medium text-sm transition-colors ${
+            className={`flex-1 rounded px-3 py-2 text-sm font-medium transition-colors ${
               mode === "provider"
                 ? "bg-primary text-primary-foreground"
                 : "bg-secondary text-secondary-foreground hover:bg-accent"
@@ -82,7 +104,7 @@ export function LeftPanel({
           </button>
           <button
             onClick={() => onModeChange("facility")}
-            className={`flex-1 px-3 py-2 rounded font-medium text-sm transition-colors ${
+            className={`flex-1 rounded px-3 py-2 text-sm font-medium transition-colors ${
               mode === "facility"
                 ? "bg-primary text-primary-foreground"
                 : "bg-secondary text-secondary-foreground hover:bg-accent"
@@ -92,99 +114,124 @@ export function LeftPanel({
           </button>
         </div>
 
-        {/* Search */}
-        <input
-          type="text"
-          placeholder={mode === "facility" ? "Search facilities..." : "Search providers..."}
+        <Input
+          placeholder={
+            mode === "facility" ? "Search facilities..." : "Search providers..."
+          }
           value={search}
           onChange={(e) => onSearchChange?.(e.target.value)}
-          className="w-full rounded border border-input bg-background px-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          className="h-9 w-full"
         />
+
+        <Sheet>
+          <SheetTrigger asChild>
+            <Button variant="outline" className="mt-3 h-9 w-full">
+              <SlidersHorizontal className="size-4" /> Filters and Sort
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left" className="gap-0">
+            <SheetHeader>
+              <SheetTitle className="flex items-center gap-2">
+                Filters and Sort
+              </SheetTitle>
+            </SheetHeader>
+            <div className="border-border space-y-4 border-t px-4 py-3">
+              <div className="space-y-1">
+                <label className="text-xs text-zinc-500">Filter</label>
+                <select
+                  value={filter}
+                  onChange={(event) => onFilterChange?.(event.target.value)}
+                  className="w-full rounded border border-zinc-700 bg-zinc-900 px-2.5 py-2 text-sm text-zinc-300"
+                >
+                  {filters.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-zinc-500">Sort Order</label>
+                <select
+                  value={sort}
+                  onChange={(event) => onSortChange?.(event.target.value as SortOption)}
+                  className="w-full rounded border border-zinc-700 bg-zinc-900 px-2.5 py-2 text-sm text-zinc-300"
+                >
+                  <option value="alpha-asc">Alphabetical (A → Z)</option>
+                  <option value="alpha-desc">Alphabetical (Z → A)</option>
+                  <option value="updated-asc">Last Updated (Oldest First)</option>
+                  <option value="updated-desc">Last Updated (Newest First)</option>
+                </select>
+              </div>
+            </div>
+            <SheetFooter className="px-4 py-4">
+              <Button
+                variant="secondary"
+                className="w-full"
+                onClick={() => {
+                  onFilterChange?.("All");
+                  onSortChange?.("alpha-asc");
+                }}
+              >
+                Reset filters
+              </Button>
+            </SheetFooter>
+          </SheetContent>
+        </Sheet>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-2 border-b border-border px-4 py-3">
-        {filters.map((f) => (
-          <button
-            key={f}
-            onClick={() => onFilterChange?.(f)}
-            className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
-              filter === f
-                ? "bg-primary text-primary-foreground"
-                : "bg-secondary text-secondary-foreground hover:bg-accent"
-            }`}
-          >
-            {f}
-          </button>
-        ))}
-      </div>
-
-      {/* List */}
-      <div className="flex-1 overflow-y-auto">
+      <ScrollIndicatorContainer className="flex-1">
         {isLoading ? (
-          <div className="p-4 space-y-2">
+          <div className="space-y-2 p-4">
             {Array.from({ length: 5 }).map((_, i) => (
-              <div
-                key={i}
-                className="h-16 bg-zinc-800 rounded animate-pulse"
-              />
+              <div key={i} className="h-14 animate-pulse rounded bg-zinc-800" />
             ))}
           </div>
         ) : filteredItems.length === 0 ? (
-          <div className="p-4 text-center text-zinc-400 text-sm">
+          <div className="p-4 text-center text-sm text-zinc-400">
             No {mode === "facility" ? "facilities" : "providers"} found
           </div>
         ) : (
-          <div className="p-2">
+          <div className="space-y-2 px-4 py-3">
             {filteredItems.map((item) => (
               <button
                 key={item.id}
                 onClick={() => onSelectItem(item.id)}
-                className={`w-full text-left p-3 rounded-lg mb-2 transition-colors ${
+                className={`w-full rounded-lg border p-2.5 text-left transition-colors ${
                   selectedItemId === item.id
-                    ? "border border-primary/40 bg-primary/10"
-                    : "border border-border hover:bg-accent/60"
+                    ? "border-primary/40 bg-primary/10"
+                    : "border-border hover:bg-accent/60"
                 }`}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <div className="mb-1 flex items-center justify-between gap-2">
-                      <h4 className="min-w-0 flex-1 truncate font-medium text-white">
-                        {item.name}
-                      </h4>
-                      <span className="max-w-[40%] truncate text-xs font-medium text-zinc-400">
-                        {item.rightMeta}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                      {item.subText ? (
-                        <p className="text-xs text-zinc-400 truncate">
-                          {item.subText}
-                        </p>
-                      ) : (
-                        <span aria-hidden="true" />
-                      )}
-                      {item.status && (
-                        <span
-                          className={`text-xs font-medium px-2 py-0.5 rounded shrink-0 whitespace-nowrap ${getStatusStyles(item.status)}`}
-                        >
-                          {item.status}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="shrink-0 empty:hidden">
-                    <FollowUpBadge
-                      nextFollowupAt={item.nextFollowupAt}
-                      status={item.status}
+                <div className="flex min-h-11 items-center justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <TruncatedTooltip
+                      text={item.name}
+                      as="h4"
+                      className="font-medium text-white"
                     />
+                    {item.subText && (
+                      <p className="truncate text-xs text-zinc-400">{item.subText}</p>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 flex-col items-center justify-center gap-1">
+                    {item.statusDots?.map((dot, index) => (
+                      <Tooltip key={`${item.id}-${dot}-${index}`}>
+                        <TooltipTrigger asChild>
+                          <span className={`h-2.5 w-2.5 rounded-full ${getDotColor(dot)}`} />
+                        </TooltipTrigger>
+                        <TooltipContent side="right" align="center" sideOffset={6}>
+                          {getDotLabel(dot)}
+                        </TooltipContent>
+                      </Tooltip>
+                    ))}
                   </div>
                 </div>
               </button>
             ))}
           </div>
         )}
-      </div>
+      </ScrollIndicatorContainer>
     </div>
   );
 }

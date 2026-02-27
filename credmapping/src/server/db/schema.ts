@@ -1,6 +1,5 @@
-import { create } from "domain";
 import { sql } from "drizzle-orm";
-import { 
+import {  
   bigint,
   boolean,
   date,
@@ -23,7 +22,7 @@ export const privilegeTierEnum = pgEnum("privilege_tier", ["Inactive", "Full", "
 export const formSizes = pgEnum("form_size", ["small", "medium", "large", 'x-large', 'online']);
 export const workflowType = pgEnum("workflow_type", ["pfc", "state_licenses", "prelive_pipeline", "provider_vesta_privileges"]);
 export const facilityStatusEnum = pgEnum("status", ["Active", "Inactive", "In Progress"]);
-export const followUpStatus = pgEnum("follow_up_status", ["Completed, Pending Response", "Not Completed"]);
+export const followUpStatus = pgEnum("follow_up_status", ["Completed", "Pending Response", "Not Completed"]);
 export const psvStatus = pgEnum("psv_status", ["Not Started", "Requested", "Received", "Inactive Rad", "Closed", "Not Affiliated", "Old Request", "Hold"]);
 export const psvType = pgEnum("psv_type", ["Education", "Work", "Hospital", "Peer", "COI/Loss Run", "Claims Document", "Board Actions", "Locums/Work", "Vesta Practice Location", "Vesta Hospital", "Work COI", "OPPE"]);
 
@@ -70,7 +69,7 @@ export const agents = pgTable("agents", {
 
 export const auditLog = pgTable("audit_log", {
   id: uuid("id").defaultRandom().primaryKey(),
-  tableName: text("table_name").notNull(),
+  tableName: text("table_name").notNull(), 
   recordId: uuid("record_id"),
   action: text("action").notNull(),
   actorId: uuid("actor_id").references(() => agents.id, { onDelete: "set null" }),
@@ -116,7 +115,7 @@ export const workflowPhases = pgTable("workflow_phases", {
   relatedId: uuid("related_id").notNull(),  
   status: text("status").default("Pending"),
   phaseName: text("phase_name").notNull(), 
-  startDate: date("start_date").notNull(),
+  startDate: date("start_date"),
   notes: text("notes"),
   dueDate: date("due_date"),
   completedAt: date("completed_at"),
@@ -130,8 +129,10 @@ export const missingDocs = pgTable("missing_docs", {
   relatedId: uuid("related_id"),
   information: text("information"),
   roadblocks: text("roadblocks"), 
-  nextFollowUp: date("next_follow_up"),
-  lastFollowUp: date("last_follow_up"), 
+  nextFollowUpUS: date("next_follow_up_us"),
+  lastFollowUpUS: date("last_follow_up_us"),
+  nextFollowUpIn: date("next_follow_up_in"), 
+  lastFollowUpIn: date("last_follow_up_in"),  
   followUpStatus: followUpStatus("follow_up_status"),  
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }),
@@ -156,8 +157,8 @@ export const pendingPSV = pgTable("pending_psv", {
 
 export const commLogs = pgTable("comm_logs", {
   id: uuid("id").defaultRandom().primaryKey(),
-  relatedType: relatedTypeEnum("related_type"),
-  relatedId: uuid("related_id"),
+  relatedType: relatedTypeEnum("related_type").notNull(),
+  relatedId: uuid("related_id").notNull(),
   subject: text("subject"),
   commType: text("comm_type"), 
   notes: text("notes"),
@@ -165,12 +166,6 @@ export const commLogs = pgTable("comm_logs", {
   lastUpdatedBy: uuid("last_updated_by").references(() => agents.id),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }),
-});
-
-export const configEnums = pgTable("config_enums", {
-  key: text("key").primaryKey(),
-  value: jsonb("value"),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
 export const facilityContacts = pgTable("facility_contacts", {
@@ -195,7 +190,9 @@ export const incidentLogs = pgTable("incident_logs", {
   escalatedTo: uuid("escalated_to").references(() => agents.id).notNull(), 
   dateIdentified: date("date_identified").notNull(),
   resolutionDate: date("resolution_date"), 
-  subcategory: text("subcategory").notNull(), 
+  subcategory: text("subcategory").notNull(),
+  rootCauseIdentified: boolean("root_cause_identified"),
+  rootCauseDescription: text("root_cause_description"), 
   critical: boolean("critical").notNull(), 
   incidentDescription: text("incident_description"), 
   immediateResolutionAttempt: text("immediate_resolution_attempt"), 
@@ -228,6 +225,9 @@ export const facilityPreliveInfo = pgTable("facility_prelive_info", {
   id: uuid("id").defaultRandom().primaryKey(),
   facilityId: uuid("facility_id").references(() => facilities.id),
   priority: text("priority"),
+  medicalDirectorNeeded: boolean("medical_director_needed"), 
+  rsoNeeded: boolean("rso_needed"), 
+  lipNeeded: boolean("lip_needed"),
   goLiveDate: date("go_live_date"),
   boardMeetingDate: date("board_meeting_date"),
   credentialingDueDate: date("credentialing_due_date"),
@@ -280,8 +280,6 @@ export const facilitiesAuthenticatedAll = createAuthenticatedAllPolicy("faciliti
 export const providersAuthenticatedAll = createAuthenticatedAllPolicy("providers_authenticated_all").link(providers);
 
 export const workflowPhasesAuthenticatedAll = createAuthenticatedAllPolicy("workflow_phases_authenticated_all").link(workflowPhases);
-
-export const configEnumsAuthenticatedAll = createAuthenticatedAllPolicy("config_enums_authenticated_all").link(configEnums);
 
 export const facilityContactsAuthenticatedAll = createAuthenticatedAllPolicy("facility_contacts_authenticated_all").link(facilityContacts);
 

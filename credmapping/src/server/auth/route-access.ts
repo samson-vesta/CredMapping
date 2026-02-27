@@ -3,7 +3,7 @@ import { createClient } from "~/utils/supabase/server";
 import { getAppRole, type AppRole } from "~/server/auth/domain";
 import { db } from "~/server/db";
 import { agents } from "~/server/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { ilike } from "drizzle-orm";
 
 /**
  * Single source of truth: route prefix → allowed roles.
@@ -40,7 +40,7 @@ export async function requireRole(allowedRoles: AppRole[]): Promise<AppRole> {
     ? await db
         .select({ role: agents.role })
         .from(agents)
-        .where(eq(sql`lower(${agents.email})`, normalizedEmail))
+        .where(ilike(agents.email, normalizedEmail))
         .limit(1)
     : [];
 

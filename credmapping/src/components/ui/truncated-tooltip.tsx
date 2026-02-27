@@ -1,80 +1,60 @@
 "use client";
 
-import * as React from "react";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "~/components/ui/tooltip";
+import { type HTMLAttributes, useCallback, useRef, useState } from "react";
+import { cn } from "~/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";
 
-/**
- * A tooltip that only appears when the child text is actually truncated
- * (i.e. `scrollWidth > clientWidth`). Uses a ResizeObserver to stay
- * up-to-date as the layout changes.
- *
- * Usage:
- *   <TruncatedTooltip content="Full long text here">
- *     <p className="truncate">Full long text here</p>
- *   </TruncatedTooltip>
- */
+type SupportedTag = "span" | "div" | "p" | "h4";
 
-interface TruncatedTooltipProps {
-  /** The full text (or ReactNode) shown inside the tooltip popup. */
-  content: React.ReactNode;
-  /** Side of the trigger the tooltip appears on. */
-  side?: "top" | "right" | "bottom" | "left";
-  /** Extra className applied to the wrapping span. */
-  className?: string;
-  children: React.ReactElement;
+interface TruncatedTooltipProps extends Omit<HTMLAttributes<HTMLElement>, "children"> {
+  text: string;
+  as?: SupportedTag;
+  tooltipClassName?: string;
 }
 
 export function TruncatedTooltip({
-  content,
-  side = "top",
+  text,
+  as = "span",
   className,
-  children,
+  tooltipClassName,
+  onMouseEnter,
+  onFocus,
+  ...props
 }: TruncatedTooltipProps) {
-  const triggerRef = React.useRef<HTMLElement | null>(null);
-  const [isTruncated, setIsTruncated] = React.useState(false);
+  const [isOverflowed, setIsOverflowed] = useState(false);
+  const textRef = useRef<HTMLElement | null>(null);
+  const Component = as;
 
-  const checkTruncation = React.useCallback(() => {
-    const el = triggerRef.current;
-    if (!el) return;
-    setIsTruncated(el.scrollWidth > el.clientWidth);
+  const checkOverflow = useCallback(() => {
+    const node = textRef.current;
+    if (!node) return;
+
+    const hasHorizontalOverflow = node.scrollWidth > node.clientWidth;
+    const hasVerticalOverflow = node.scrollHeight > node.clientHeight;
+    setIsOverflowed(hasHorizontalOverflow || hasVerticalOverflow);
   }, []);
 
-  React.useEffect(() => {
-    const el = triggerRef.current;
-    if (!el) return;
-
-    // Initial check
-    checkTruncation();
-
-    const observer = new ResizeObserver(checkTruncation);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [checkTruncation]);
-
-  // If the text isn't truncated, render children without a tooltip wrapper
-  if (!isTruncated) {
-    return React.cloneElement(children, {
-      ref: triggerRef,
-    } as Record<string, unknown>);
-  }
-
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          {React.cloneElement(children, {
-            ref: triggerRef,
-          } as Record<string, unknown>)}
-        </TooltipTrigger>
-        <TooltipContent side={side} className={className}>
-          {content}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Component
+          ref={textRef}
+          className={cn("block truncate", className)}
+          onMouseEnter={(event) => {
+            checkOverflow();
+            onMouseEnter?.(event);
+          }}
+          onFocus={(event) => {
+            checkOverflow();
+            onFocus?.(event);
+          }}
+          {...props}
+        >
+          {text}
+        </Component>
+      </TooltipTrigger>
+      {isOverflowed ? <TooltipContent className={tooltipClassName}>{text}</TooltipContent> : null}
+    </Tooltip>
   );
 }
+

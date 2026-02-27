@@ -1,4 +1,4 @@
-import { and, eq, ilike, or, sql } from "drizzle-orm";
+import { and, eq, ilike, or } from "drizzle-orm";
 import { z } from "zod";
 
 import { commLogs, facilities, providers } from "~/server/db/schema";
@@ -65,7 +65,6 @@ export const searchRouter = createTRPCRouter({
                 ilike(providers.lastName, likeQuery),
                 ilike(providers.email, likeQuery),
                 ilike(providers.notes, likeQuery),
-                sql`concat_ws(' ', ${providers.firstName}, ${providers.middleName}, ${providers.lastName}) ilike ${likeQuery}`,
               ),
             )
             .limit(input.limitPerType);
