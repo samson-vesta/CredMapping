@@ -132,7 +132,7 @@ export function LeftPanel({
           <SheetContent side="left" className="gap-0">
             <SheetHeader>
               <SheetTitle className="flex items-center gap-2">
-                <ArrowUpDown className="size-4" /> Filters and Sort
+                Filters and Sort
               </SheetTitle>
             </SheetHeader>
             <div className="border-border space-y-4 border-t px-4 py-3">

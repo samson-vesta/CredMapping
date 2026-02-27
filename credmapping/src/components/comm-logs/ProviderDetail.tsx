@@ -306,7 +306,7 @@ export function ProviderDetail({ providerId, provider }: ProviderDetailProps) {
                     </SheetTrigger>
                     <SheetContent className="gap-0">
                       <SheetHeader>
-                        <SheetTitle>Activity Filters</SheetTitle>
+                        <SheetTitle>Comm Log Filters and Sort</SheetTitle>
                       </SheetHeader>
                       <div className="border-border space-y-4 border-t px-4 py-3">
                         <div className="space-y-1">

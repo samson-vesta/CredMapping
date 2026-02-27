@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
-import { SlidersHorizontal } from "lucide-react";
+import { ArrowUpDown, SlidersHorizontal } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { StandardEmptyState } from "./StandardEmptyState";
 import { Input } from "~/components/ui/input";
@@ -11,7 +11,7 @@ import { TruncatedTooltip } from "~/components/ui/truncated-tooltip";
 import {
   Sheet,
   SheetContent,
-  SheetDescription,
+  SheetFooter,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
@@ -203,14 +203,13 @@ export function PendingPsvManager({
                   <SlidersHorizontal className="size-4" /> Filters
                 </Button>
               </SheetTrigger>
-              <SheetContent>
+              <SheetContent className="gap-0">
                 <SheetHeader>
-                  <SheetTitle>PSV Filters</SheetTitle>
-                  <SheetDescription>
-                    Filter and sort PSV items.
-                  </SheetDescription>
+                  <SheetTitle className="flex items-center gap-2">
+                    PSV Filters and Sort
+                  </SheetTitle>
                 </SheetHeader>
-                <div className="space-y-4 px-4 py-4">
+                <div className="border-border space-y-4 border-t px-4 py-3">
                   <div className="space-y-1">
                     <label className="text-xs text-zinc-500">Status</label>
                     <select
@@ -259,8 +258,10 @@ export function PendingPsvManager({
                       <option value="oldest">Requested Date (Oldest)</option>
                     </select>
                   </div>
+                </div>
+                <SheetFooter className="px-4 py-4">
                   <Button
-                    variant="outline"
+                    variant="secondary"
                     className="w-full"
                     onClick={() => {
                       setStatusFilter("active");
@@ -271,7 +272,7 @@ export function PendingPsvManager({
                   >
                     Reset filters
                   </Button>
-                </div>
+                </SheetFooter>
               </SheetContent>
             </Sheet>
             <Button size="sm" className="h-9" onClick={beginCreate}>
