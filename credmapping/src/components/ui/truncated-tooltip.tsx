@@ -38,7 +38,9 @@ export function TruncatedTooltip({
     <Tooltip>
       <TooltipTrigger asChild>
         <Component
-          ref={textRef}
+          ref={(node) => {
+            textRef.current = node;
+          }}
           className={cn("block truncate", className)}
           onMouseEnter={(event) => {
             checkOverflow();
@@ -57,4 +59,3 @@ export function TruncatedTooltip({
     </Tooltip>
   );
 }
-
