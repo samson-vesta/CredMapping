@@ -9,7 +9,7 @@ import { Input } from "~/components/ui/input";
 import {
   Sheet,
   SheetContent,
-  SheetDescription,
+  SheetFooter,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
@@ -215,14 +215,11 @@ export function ProviderDetail({ providerId, provider }: ProviderDetailProps) {
                         <SlidersHorizontal className="size-4" /> Filters
                       </Button>
                     </SheetTrigger>
-                    <SheetContent>
+                    <SheetContent className="gap-0">
                       <SheetHeader>
                         <SheetTitle>Activity Filters</SheetTitle>
-                        <SheetDescription>
-                          Filter the interaction diary.
-                        </SheetDescription>
                       </SheetHeader>
-                      <div className="space-y-4 px-4 py-4">
+                      <div className="border-border space-y-4 border-t px-4 py-3">
                         <div className="space-y-1">
                           <label className="text-xs text-zinc-500">
                             Method
@@ -276,8 +273,10 @@ export function ProviderDetail({ providerId, provider }: ProviderDetailProps) {
                             <option value="oldest">Oldest First</option>
                           </select>
                         </div>
+                      </div>
+                      <SheetFooter className="px-4 py-4">
                         <Button
-                          variant="outline"
+                          variant="secondary"
                           className="w-full"
                           onClick={() => {
                             setSelectedCommType("all");
@@ -287,7 +286,7 @@ export function ProviderDetail({ providerId, provider }: ProviderDetailProps) {
                         >
                           Reset filters
                         </Button>
-                      </div>
+                      </SheetFooter>
                     </SheetContent>
                   </Sheet>
                   {canCreateLog && (

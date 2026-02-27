@@ -11,7 +11,7 @@ import { Input } from "~/components/ui/input";
 import {
   Sheet,
   SheetContent,
-  SheetDescription,
+  SheetFooter,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
@@ -222,14 +222,11 @@ export function FacilityDetail({ facilityId, facility }: FacilityDetailProps) {
                       <SlidersHorizontal className="h-4 w-4" /> Filters
                     </Button>
                   </SheetTrigger>
-                  <SheetContent>
+                  <SheetContent className="gap-0">
                     <SheetHeader>
                       <SheetTitle>Filter Logs</SheetTitle>
-                      <SheetDescription>
-                        Narrow down the activity history.
-                      </SheetDescription>
                     </SheetHeader>
-                    <div className="space-y-4 px-2 py-4">
+                    <div className="border-border space-y-4 border-t px-4 py-3">
                       <div className="space-y-1">
                         <label className="text-muted-foreground text-xs">
                           Log Type
@@ -279,9 +276,11 @@ export function FacilityDetail({ facilityId, facility }: FacilityDetailProps) {
                           <option value="oldest">Oldest First</option>
                         </select>
                       </div>
+                    </div>
+                    <SheetFooter className="px-4 py-4">
                       <Button
-                        variant="ghost"
-                        className="w-full text-xs"
+                        variant="outline"
+                        className="w-full"
                         onClick={() => {
                           setSelectedCommType("all");
                           setSelectedAgent("all");
@@ -290,7 +289,7 @@ export function FacilityDetail({ facilityId, facility }: FacilityDetailProps) {
                       >
                         Reset
                       </Button>
-                    </div>
+                    </SheetFooter>
                   </SheetContent>
                 </Sheet>
 
