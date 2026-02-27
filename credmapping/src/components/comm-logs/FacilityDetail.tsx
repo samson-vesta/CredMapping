@@ -147,8 +147,8 @@ export function FacilityDetail({ facilityId, facility }: FacilityDetailProps) {
           </span>
         </div>
 
-        <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
-          <div className="min-w-[11rem] flex-1 basis-0">
+        <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2 xl:grid-cols-4 xl:gap-x-6">
+          <div className="min-w-0">
             <div className="flex items-baseline gap-1.5">
               <p className="text-zinc-400">Missing Docs:</p>
               <p
@@ -158,7 +158,7 @@ export function FacilityDetail({ facilityId, facility }: FacilityDetailProps) {
               </p>
             </div>
           </div>
-          <div className="min-w-[11rem] flex-1 basis-0">
+          <div className="min-w-0">
             <div className="flex items-baseline gap-1.5">
               <p className="text-zinc-400">Total Activity:</p>
               <p className="font-medium text-white">
@@ -166,7 +166,7 @@ export function FacilityDetail({ facilityId, facility }: FacilityDetailProps) {
               </p>
             </div>
           </div>
-          <div className="min-w-[11rem] flex-1 basis-0">
+          <div className="min-w-0">
             <div className="flex items-baseline gap-1.5">
               <p className="text-zinc-400">Proxy Entity:</p>
               <p className="truncate font-medium text-white">
@@ -174,8 +174,8 @@ export function FacilityDetail({ facilityId, facility }: FacilityDetailProps) {
               </p>
             </div>
           </div>
-          <div className="min-w-[11rem] flex-1 basis-0">
-            <div className="flex items-baseline gap-1.5">
+          <div className="min-w-0 xl:justify-self-end">
+            <div className="flex items-baseline gap-1.5 xl:justify-end">
               <p className="text-zinc-400">Status:</p>
               <p className="font-medium text-white">
                 {facility.status ?? "Unknown"}

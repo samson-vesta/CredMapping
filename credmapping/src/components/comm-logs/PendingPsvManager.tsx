@@ -7,6 +7,7 @@ import { Button } from "~/components/ui/button";
 import { StandardEmptyState } from "./StandardEmptyState";
 import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
+import { TruncatedTooltip } from "~/components/ui/truncated-tooltip";
 import {
   Sheet,
   SheetContent,
@@ -535,8 +536,13 @@ export function PendingPsvManager({
                       <td className="px-4 py-3 text-zinc-400">
                         {format(new Date(psv.dateRequested), "MMM d, yyyy")}
                       </td>
-                      <td className="max-w-60 truncate px-4 py-3 text-zinc-500">
-                        {psv.notes ?? "—"}
+                      <td className="px-4 py-3 text-zinc-500">
+                        <TruncatedTooltip
+                          as="p"
+                          text={psv.notes ?? "—"}
+                          className="max-w-60"
+                          tooltipClassName="max-w-sm whitespace-pre-wrap break-words"
+                        />
                       </td>
                       <td className="px-4 py-3 text-right">
                         <Button

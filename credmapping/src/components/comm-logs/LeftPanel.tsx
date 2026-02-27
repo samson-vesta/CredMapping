@@ -7,6 +7,7 @@ import {
   TooltipTrigger,
 } from "~/components/ui/tooltip";
 import { TruncatedTooltip } from "~/components/ui/truncated-tooltip";
+import { Input } from "~/components/ui/input";
 
 type StatusDotTone = "red" | "blue" | "amber" | "green";
 
@@ -98,14 +99,13 @@ export function LeftPanel({
           </button>
         </div>
 
-        <input
-          type="text"
+        <Input
           placeholder={
             mode === "facility" ? "Search facilities..." : "Search providers..."
           }
           value={search}
           onChange={(e) => onSearchChange?.(e.target.value)}
-          className="w-full rounded border border-input bg-background px-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          className="h-9 w-full"
         />
       </div>
 

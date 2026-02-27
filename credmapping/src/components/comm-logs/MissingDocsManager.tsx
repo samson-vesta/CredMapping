@@ -7,6 +7,7 @@ import { Button } from "~/components/ui/button";
 import { StandardEmptyState } from "./StandardEmptyState";
 import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
+import { TruncatedTooltip } from "~/components/ui/truncated-tooltip";
 import {
   Sheet,
   SheetContent,
@@ -288,12 +289,12 @@ export function MissingDocsManager({
             <div className="overflow-x-auto border-b border-zinc-700">
               <table className="w-full min-w-[980px] table-fixed text-sm">
                 <colgroup>
-                  <col className="w-[20%]" />
-                  <col className="w-[32%]" />
+                  <col className="w-[19%]" />
+                  <col className="w-[31%]" />
                   <col className="w-[14%]" />
                   <col className="w-[14%]" />
                   <col className="w-[14%]" />
-                  <col className="w-[6%]" />
+                  <col className="w-[8%]" />
                 </colgroup>
                 <thead>
                   <tr className="bg-muted/50 text-zinc-400">
@@ -305,10 +306,10 @@ export function MissingDocsManager({
                     </th>
                     <th className="px-4 py-3 text-left font-medium">Status</th>
                     <th className="px-4 py-3 text-left font-medium">
-                      Next Follow-up (US)
+                      Next FU (US)
                     </th>
                     <th className="px-4 py-3 text-left font-medium">
-                      Next Follow-up (IN)
+                      Next FU (IN)
                     </th>
                     <th className="px-4 py-3 text-right font-medium">Actions</th>
                   </tr>
@@ -318,12 +319,12 @@ export function MissingDocsManager({
             <div className="min-h-0 h-full overflow-auto">
               <table className="w-full min-w-[980px] table-fixed text-sm">
                 <colgroup>
-                  <col className="w-[20%]" />
-                  <col className="w-[32%]" />
+                  <col className="w-[19%]" />
+                  <col className="w-[31%]" />
                   <col className="w-[14%]" />
                   <col className="w-[14%]" />
                   <col className="w-[14%]" />
-                  <col className="w-[6%]" />
+                  <col className="w-[8%]" />
                 </colgroup>
                 <tbody className="divide-y divide-zinc-800">
                 {filteredDocs.map((doc) =>
@@ -403,7 +404,12 @@ export function MissingDocsManager({
                         {doc.information}
                       </td>
                       <td className="px-4 py-3 text-zinc-400 italic">
-                        {doc.roadblocks ?? "—"}
+                        <TruncatedTooltip
+                          as="p"
+                          text={doc.roadblocks ?? "—"}
+                          className="max-w-full"
+                          tooltipClassName="max-w-sm whitespace-pre-wrap break-words"
+                        />
                       </td>
                       <td className="px-4 py-3 text-zinc-400">
                         {doc.followUpStatus ?? "Not Completed"}
