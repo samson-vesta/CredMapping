@@ -268,6 +268,132 @@ export const workflowsRouter = createTRPCRouter({
       return row;
     }),
 
+  // Fetch providers for create workflow dropdown
+  listProvidersForDropdown: protectedProcedure.query(async ({ ctx }) => {
+    const rows = await ctx.db
+      .select({ id: providers.id, firstName: providers.firstName, lastName: providers.lastName })
+      .from(providers)
+      .orderBy(asc(providers.firstName));
+    return rows.map((r) => ({
+      id: r.id,
+      name: [r.firstName, r.lastName].filter(Boolean).join(" ") || "Unknown Provider",
+    }));
+  }),
+
+  // Fetch facilities for create workflow dropdown
+  listFacilitiesForDropdown: protectedProcedure.query(async ({ ctx }) => {
+    return await ctx.db
+      .select({ id: facilities.id, name: facilities.name })
+      .from(facilities)
+      .orderBy(asc(facilities.name));
+  }),
+
+  /** Create a new workflow phase.
+   * Writes audit log automatically. */
+  create: protectedProcedure
+    .input(
+      z.object({
+        // --- REQUIRED IDENTIFIERS ---
+        workflowType: z.enum(["pfc", "state_licenses", "prelive_pipeline", "provider_vesta_privileges"]),
+        providerId: z.string().uuid(),
+        facilityId: z.string().uuid(),
+
+        // --- BULK PHASES ---
+        // Instead of individual fields, we accept an array of phase objects
+        phases: z.array(
+          z.object({
+            phaseName: z.string().trim().min(1),
+            startDate: z.string().date().optional(),
+            dueDate: z.string().date().optional(),
+            status: z.string().trim().optional().default("Pending"),
+            completedAt: z.string().date().optional(),
+            workflowNotes: z.string().optional(),
+            agentAssigned: z.string().uuid().optional(),
+          })
+        ).min(1, "At least one phase is required"),
+
+        // --- PFC RELATIONSHIP OPTIONAL FIELDS ---
+        facilityType: z.string().optional(),
+        privileges: z.string().optional(),
+        priority: z.string().optional(),
+        applicationRequired: z.boolean().optional(),
+        pfcNotes: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const actor = await resolveAgentId(ctx.db, ctx.user.id);
+      if (!actor) throw new Error("Agent record not found.");
+
+      // Existing PFC Check
+      const [existingPfc] = await ctx.db
+        .select()
+        .from(providerFacilityCredentials)
+        .where(
+          and(
+            eq(providerFacilityCredentials.providerId, input.providerId),
+            eq(providerFacilityCredentials.facilityId, input.facilityId)
+          )
+        )
+        .limit(1);
+
+      if (existingPfc) throw new Error("This provider is already connected to this facility.");
+
+      // Create the Relationship (PFC only right now)
+      const [newPfc] = await ctx.db
+        .insert(providerFacilityCredentials)
+        .values({
+          providerId: input.providerId,
+          facilityId: input.facilityId,
+          facilityType: input.facilityType,
+          privileges: input.privileges,
+          priority: input.priority,
+          applicationRequired: input.applicationRequired,
+          notes: input.pfcNotes,
+        })
+        .returning();
+
+      await writeAuditLog(ctx.db, {
+        tableName: "provider_facility_credentials",
+        recordId: newPfc!.id,
+        action: "create",
+        actorId: actor.id,
+        actorEmail: actor.email,
+        newData: newPfc as unknown as Record<string, unknown>,
+      });
+      
+      const phaseRecords = input.phases.map((phase) => ({
+        workflowType: input.workflowType,
+        relatedId: newPfc!.id,
+        phaseName: phase.phaseName,
+        startDate: phase.startDate,
+        dueDate: phase.dueDate,
+        status: phase.status,
+        completedAt: phase.completedAt,
+        notes: phase.workflowNotes,
+        agentAssigned: phase.agentAssigned ?? null,
+        supportingAgents: [],
+      }));
+
+      const createdPhases = await ctx.db
+        .insert(workflowPhases)
+        .values(phaseRecords)
+        .returning();
+
+      // Audit Log for each phase
+      for (const phase of createdPhases) {
+        await writeAuditLog(ctx.db, {
+          tableName: "workflow_phases",
+          recordId: phase.id,
+          action: "create",
+          actorId: actor.id,
+          actorEmail: actor.email,
+          newData: phase as unknown as Record<string, unknown>,
+        });
+      }
+
+      return { pfc: newPfc, phases: createdPhases };
+    }),
+
   /** Update a workflow phase — the core operation.
    *  Writes audit log + manages supportingAgents automatically. */
   update: protectedProcedure

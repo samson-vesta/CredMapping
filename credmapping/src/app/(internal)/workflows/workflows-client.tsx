@@ -25,6 +25,7 @@ import {
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
+import { Separator } from "~/components/ui/separator"
 import {
   Select,
   SelectContent,
@@ -32,6 +33,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "~/components/ui/accordion";
 import {
   Table,
   TableBody,
@@ -57,16 +64,48 @@ import {
   ModalHeader,
   ModalTitle,
 } from "~/components/ui/app-modal";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "~/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "~/components/ui/popover";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
 import { Checkbox } from "~/components/ui/checkbox";
 import { Textarea } from "~/components/ui/textarea";
 import { cn } from "~/lib/utils";
 import { Label } from "~/components/ui/label";
 
+type WorkflowPhaseInput = {
+  phaseName: string;
+  startDate: string;
+  dueDate: string;
+  status: string;
+  agentAssigned: string;
+  workflowNotes: string;
+};
+
 /* ─── Helpers ──────────────────────────────────────────────── */
 
 /** Fallback suggestions when no statuses exist in the DB yet */
 const DEFAULT_STATUS_SUGGESTIONS = ["Pending", "In Progress", "Blocked", "Completed"];
+
+const PFC_PHASES = [
+  "Application Request",
+  "Application Completion",
+  "QA1",
+  "QA2",
+  "QA3",
+  "Provider QA",
+  "Facility Decision"
+];
 
 const WORKFLOW_TYPE_LABELS: Record<string, string> = {
   pfc: "PFC",
@@ -713,6 +752,314 @@ function WorkflowDetailSheet({
   );
 }
 
+/* ─── Add Workflow Dialog ────────────────────────────────── */
+
+function AddWorkflowDialog() {
+  const [open, setOpen] = useState(false);
+  const utils = api.useUtils();
+
+  const [openProvider, setOpenProvider] = useState(false);
+  const [openFacility, setOpenFacility] = useState(false);
+
+  const [workflowType, setWorkflowType] = useState<"pfc" | "state_licenses" | "prelive_pipeline" | "provider_vesta_privileges">("pfc");
+  const [providerId, setProviderId] = useState<string>("");
+  const [facilityId, setFacilityId] = useState<string>("");
+
+  const [phases, setPhases] = useState<WorkflowPhaseInput[]>(() => 
+    PFC_PHASES.map((name) => ({
+      phaseName: name,
+      startDate: new Date().toISOString().split("T")[0]!,
+      dueDate: "",
+      status: "Pending",
+      agentAssigned: "",
+      workflowNotes: "",
+    }))
+  );
+
+  // Update logic when workflow type changes
+  useEffect(() => {
+    if (workflowType === "pfc") {
+      setPhases(PFC_PHASES.map((name) => ({
+        phaseName: name,
+        startDate: new Date().toISOString().split("T")[0]!,
+        dueDate: "",
+        status: "Pending",
+        agentAssigned: "",
+        workflowNotes: "",
+      })));
+    } else {
+      // Default to 3 generic phases for other types
+      setPhases([1, 2, 3].map((num) => ({
+        phaseName: `Phase ${num}`,
+        startDate: new Date().toISOString().split("T")[0]!,
+        dueDate: "",
+        status: "Pending",
+        agentAssigned: "",
+        workflowNotes: "",
+      })));
+    }
+  }, [workflowType]);
+
+  const [facilityType, setFacilityType] = useState<string>("");
+  const [privileges, setPrivileges] = useState<string>("");
+  const [priority, setPriority] = useState<string>("");
+  const [applicationRequired, setApplicationRequired] = useState<boolean>(false);
+  const [pfcNotes, setPfcNotes] = useState<string>("");
+
+  const updatePhase = <K extends keyof WorkflowPhaseInput>(
+    index: number,
+    field: K,
+    value: WorkflowPhaseInput[K]
+  ) => {
+    const nextPhases = [...phases];
+    const targetPhase = nextPhases[index];
+
+    if (targetPhase) {
+      targetPhase[field] = value;
+      setPhases(nextPhases);
+    }
+  };
+
+  // Fetch lists for Dropdowns
+  const { data: providers = [], isLoading: isLoadingProviders } = api.workflows.listProvidersForDropdown.useQuery(undefined, {
+    enabled: open,
+  });
+  const { data: facilities = [], isLoading: isLoadingFacilities } = api.workflows.listFacilitiesForDropdown.useQuery(undefined, {
+    enabled: open,
+  });
+  const { data: agentList = [] } = api.workflows.listAgents.useQuery(undefined, {
+    enabled: open,
+  });
+
+  const createMutation = api.workflows.create.useMutation({
+    onSuccess: () => {
+      toast.success("New relationship and all workflow phases created!");
+      setOpen(false);
+      void utils.workflows.list.invalidate();
+      resetForm();
+    },
+    onError: (e) => toast.error(String(e.message)),
+  });
+
+  function resetForm() {
+    setProviderId("");
+    setFacilityId("");
+    setWorkflowType("pfc");
+    setFacilityType("");
+    setPrivileges("");
+    setPriority("");
+    setApplicationRequired(false);
+    setPfcNotes("");
+  }
+
+  function handleCreate() {
+    if (!providerId || !facilityId) {
+      toast.error("Please select both a Provider and a Facility.");
+      return;
+    }
+
+    createMutation.mutate({
+      workflowType,
+      providerId,
+      facilityId,
+      phases: phases.map(p => ({
+        ...p,
+        dueDate: p.dueDate || undefined,
+        agentAssigned: p.agentAssigned || undefined,
+        workflowNotes: p.workflowNotes || undefined
+      })),
+      facilityType: facilityType || undefined,
+      privileges: privileges || undefined,
+      priority: priority || undefined,
+      applicationRequired,
+      pfcNotes: pfcNotes || undefined,
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => {
+      setOpen(next);
+      if (!next) resetForm();
+    }}>
+      <DialogTrigger asChild>
+        <Button className="gap-2">
+          <Plus className="size-4" /> Add Workflow
+        </Button>
+      </DialogTrigger>
+
+      <ModalContent className="sm:max-w-160 overflow-visible">
+        <ModalHeader>
+          <ModalTitle>Start Credentialing Process</ModalTitle>
+        </ModalHeader>
+        
+        <div className="space-y-6 py-4 max-h-[75vh] overflow-y-auto px-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          
+          {/* Workflow Type Selector */}
+          <div className="space-y-1.5 px-1">
+            <Label>Workflow Type</Label>
+            <Select value={workflowType} onValueChange={(v: "pfc" | "state_licenses" | "prelive_pipeline" | "provider_vesta_privileges") => setWorkflowType(v)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pfc">Provider Facility Credentials (PFC)</SelectItem>
+                <SelectItem value="state_licenses">State Licenses</SelectItem>
+                <SelectItem value="prelive_pipeline">Pre-Live Pipeline</SelectItem>
+                <SelectItem value="provider_vesta_privileges">Vesta Privileges</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Identifiers */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-1">
+            <div className="space-y-1.5 flex flex-col">
+              <Label>Provider *</Label>
+              <Popover modal={true} open={openProvider} onOpenChange={setOpenProvider}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" role="combobox" className="justify-between font-normal w-full" disabled={isLoadingProviders}>
+                    <span className="truncate">{providerId ? providers.find(p => p.id === providerId)?.name : "Search..."}</span>
+                    <ArrowUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search name..." />
+                    <CommandList>
+                      <CommandEmpty>No providers found.</CommandEmpty>
+                      <CommandGroup>
+                        {providers.map((p) => (
+                          <CommandItem key={p.id} value={p.name} onSelect={() => { setProviderId(p.id); setOpenProvider(false); }}>
+                            <CheckCircle2 className={cn("mr-2 h-4 w-4", providerId === p.id ? "opacity-100" : "opacity-0")} />
+                            {p.name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div className="space-y-1.5 flex flex-col">
+              <Label>Facility *</Label>
+              <Popover modal={true} open={openFacility} onOpenChange={setOpenFacility}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" role="combobox" className="justify-between font-normal w-full" disabled={isLoadingFacilities}>
+                    <span className="truncate">{facilityId ? facilities.find(f => f.id === facilityId)?.name : "Search..."}</span>
+                    <ArrowUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search facility..." />
+                    <CommandList>
+                      <CommandEmpty>No facilities found.</CommandEmpty>
+                      <CommandGroup>
+                        {facilities.map((f) => (
+                          <CommandItem key={f.id} value={f.name ?? ""} onSelect={() => { setFacilityId(f.id); setOpenFacility(false); }}>
+                            <CheckCircle2 className={cn("mr-2 h-4 w-4", facilityId === f.id ? "opacity-100" : "opacity-0")} />
+                            {f.name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Relationship Details (PFC Specific) */}
+          <div className="space-y-4 px-1">
+            <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Relationship Info (PFC Only)</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label>Facility Type</Label>
+                <Input value={facilityType} onChange={(e) => setFacilityType(e.target.value)} placeholder="e.g. Hospital" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Priority</Label>
+                <Input value={priority} onChange={(e) => setPriority(e.target.value)} placeholder="High/Med/Low" />
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox id="appReq" checked={applicationRequired} onCheckedChange={(v) => setApplicationRequired(!!v)} />
+              <Label htmlFor="appReq">Application Required</Label>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Workflow Phases with Accordion */}
+          <div className="space-y-4 px-1">
+            <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Configure Workflow Phases</h4>
+            <Accordion type="single" collapsible className="w-full border rounded-md overflow-hidden bg-background">
+              {phases.map((phase, index) => (
+                <AccordionItem key={index} value={`phase-${index}`} className="px-3 border-b last:border-b-0">
+                  <AccordionTrigger className="hover:no-underline py-3">
+                    <div className="flex items-center gap-3">
+                      <Badge variant="secondary" className="h-5 w-5 flex items-center justify-center p-0 rounded-full">{index + 1}</Badge>
+                      <span className="font-medium text-sm">{phase.phaseName}</span>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="pb-4 space-y-4 pt-1">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-[11px] uppercase">Phase Name</Label>
+                        <Input size={1} value={phase.phaseName} onChange={(e) => updatePhase(index, 'phaseName', e.target.value)} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[11px] uppercase">Status</Label>
+                        <Input size={1} value={phase.status} onChange={(e) => updatePhase(index, 'status', e.target.value)} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[11px] uppercase">Start Date</Label>
+                        <Input type="date" value={phase.startDate} onChange={(e) => updatePhase(index, 'startDate', e.target.value)} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[11px] uppercase">Due Date</Label>
+                        <Input type="date" value={phase.dueDate} onChange={(e) => updatePhase(index, 'dueDate', e.target.value)} />
+                      </div>
+                      <div className="col-span-2 space-y-1.5">
+                        <Label className="text-[11px] uppercase">Assign Agent</Label>
+                        <Select value={phase.agentAssigned} onValueChange={(v) => updatePhase(index, 'agentAssigned', v)}>
+                          <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
+                          <SelectContent>
+                            {agentList.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] uppercase">Phase Notes</Label>
+                      <Textarea rows={2} value={phase.workflowNotes} onChange={(e) => updatePhase(index, 'workflowNotes', e.target.value)} />
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
+          </div>
+        </div>
+
+        <ModalFooter className="border-t pt-4">
+          <DialogClose asChild>
+            <Button variant="outline">Cancel</Button>
+          </DialogClose>
+          <Button 
+            onClick={handleCreate} 
+            disabled={createMutation.isPending || !providerId || !facilityId}
+          >
+            {createMutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
+            Create Workflow
+          </Button>
+        </ModalFooter>
+      </ModalContent>
+    </Dialog>
+  );
+}
+
 /* ─── Main Workflows Page ────────────────────────────────── */
 
 export default function WorkflowsClient() {
@@ -867,6 +1214,8 @@ export default function WorkflowsClient() {
             Manage credentialing workflow phases, track progress, and log incidents.
           </p>
         </div>
+
+        <AddWorkflowDialog />
       </div>
 
       {/* Filters */}
@@ -949,7 +1298,7 @@ export default function WorkflowsClient() {
           <AlertTriangle className="size-3.5" />
           {hasIncidents ? "Has Incidents" : "All"}
         </Button>
-
+        
         {isFetching && !isLoading && (
           <Loader2 className="size-4 animate-spin text-muted-foreground" />
         )}
