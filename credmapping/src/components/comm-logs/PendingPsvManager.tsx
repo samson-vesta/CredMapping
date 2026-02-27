@@ -279,7 +279,7 @@ export function PendingPsvManager({
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col space-y-4 px-6 py-4">
+      <div className="flex min-h-0 flex-1 flex-col px-6 py-4">
         {isCreating && (
           <div className="mb-4 grid gap-3 rounded-lg border border-zinc-700 bg-zinc-900/40 p-4 md:grid-cols-3">
             <div className="space-y-1">
@@ -393,31 +393,44 @@ export function PendingPsvManager({
             ))}
           </div>
         ) : filteredPsvs.length > 0 ? (
-          <div className="bg-card min-h-0 flex-1 overflow-auto rounded-lg border border-zinc-700">
-            <table className="w-full min-w-[920px] text-sm">
-              <thead>
-                <tr className="bg-muted/50 border-b border-zinc-700 text-zinc-400">
-                  <th className="bg-muted/95 sticky top-0 z-10 px-4 py-3 text-left font-medium backdrop-blur">
-                    Verification Type
-                  </th>
-                  <th className="bg-muted/95 sticky top-0 z-10 px-4 py-3 text-left font-medium backdrop-blur">
-                    Target
-                  </th>
-                  <th className="bg-muted/95 sticky top-0 z-10 px-4 py-3 text-left font-medium backdrop-blur">
-                    Status
-                  </th>
-                  <th className="bg-muted/95 sticky top-0 z-10 px-4 py-3 text-left font-medium backdrop-blur">
-                    Date Requested
-                  </th>
-                  <th className="bg-muted/95 sticky top-0 z-10 px-4 py-3 text-left font-medium backdrop-blur">
-                    Notes
-                  </th>
-                  <th className="bg-muted/95 sticky top-0 z-10 px-4 py-3 text-right font-medium backdrop-blur">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-800">
+          <div className="bg-card min-h-0 flex-1 overflow-hidden rounded-lg border border-zinc-700">
+            <div className="overflow-x-auto border-b border-zinc-700">
+              <table className="w-full min-w-[920px] table-fixed text-sm">
+                <colgroup>
+                  <col className="w-[18%]" />
+                  <col className="w-[40%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[8%]" />
+                </colgroup>
+                <thead>
+                  <tr className="bg-muted/50 text-zinc-400">
+                    <th className="px-4 py-3 text-left font-medium">
+                      Verification Type
+                    </th>
+                    <th className="px-4 py-3 text-left font-medium">Target</th>
+                    <th className="px-4 py-3 text-left font-medium">Status</th>
+                    <th className="px-4 py-3 text-left font-medium">
+                      Date Requested
+                    </th>
+                    <th className="px-4 py-3 text-left font-medium">Notes</th>
+                    <th className="px-4 py-3 text-right font-medium">Actions</th>
+                  </tr>
+                </thead>
+              </table>
+            </div>
+            <div className="min-h-0 h-full overflow-auto">
+              <table className="w-full min-w-[920px] table-fixed text-sm">
+                <colgroup>
+                  <col className="w-[18%]" />
+                  <col className="w-[40%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[8%]" />
+                </colgroup>
+                <tbody className="divide-y divide-zinc-800">
                 {filteredPsvs.map((psv) =>
                   editingId === psv.id ? (
                     <tr key={psv.id} className="bg-zinc-900/40">
@@ -537,8 +550,9 @@ export function PendingPsvManager({
                     </tr>
                   ),
                 )}
-              </tbody>
-            </table>
+                </tbody>
+              </table>
+            </div>
           </div>
         ) : (
           <StandardEmptyState message="No matching PSV records found." />
