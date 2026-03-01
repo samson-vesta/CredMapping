@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
-import { ArrowUpDown, SlidersHorizontal } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { StandardEmptyState } from "./StandardEmptyState";
 import { Input } from "~/components/ui/input";
@@ -222,7 +222,7 @@ export function MissingDocsManager({
         {isCreating && (
           <div className="mb-4 grid gap-3 rounded-lg border border-zinc-700 bg-zinc-900/40 p-4 md:grid-cols-4">
             <div className="space-y-1">
-              <label className="text-xs text-zinc-400">Required Item</label>
+              <label className="text-xs text-zinc-400">Information</label>
               <Input
                 placeholder="e.g. State License Copy"
                 value={form.information}
@@ -260,10 +260,10 @@ export function MissingDocsManager({
               <Input value="Not Completed" disabled />
             </div>
             <div className="space-y-1 md:col-span-4">
-              <label className="text-xs text-zinc-400">Issue / Notes</label>
+              <label className="text-xs text-zinc-400">Roadblocks</label>
               <Textarea
                 rows={3}
-                placeholder="Describe what's missing and blockers"
+                placeholder="Describe missing details and blockers"
                 value={form.roadblocks}
                 onChange={(e) =>
                   setForm((s) => ({ ...s, roadblocks: e.target.value }))
@@ -301,10 +301,10 @@ export function MissingDocsManager({
                 <thead>
                   <tr className="bg-muted/50 text-zinc-400">
                     <th className="px-4 py-3 text-left font-medium">
-                      Required Item
+                      Information
                     </th>
                     <th className="px-4 py-3 text-left font-medium">
-                      Issue / Notes
+                      Roadblocks
                     </th>
                     <th className="px-4 py-3 text-left font-medium">Status</th>
                     <th className="px-4 py-3 text-left font-medium">
@@ -344,7 +344,7 @@ export function MissingDocsManager({
                       <td className="px-4 py-3 align-top">
                         <Textarea
                           rows={2}
-                          placeholder="Describe what's missing and blockers"
+                          placeholder="Describe missing details and blockers"
                           value={form.roadblocks}
                           onChange={(e) =>
                             setForm((s) => ({ ...s, roadblocks: e.target.value }))

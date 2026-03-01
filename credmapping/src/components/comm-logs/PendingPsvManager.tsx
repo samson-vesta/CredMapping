@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
-import { ArrowUpDown, SlidersHorizontal } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { StandardEmptyState } from "./StandardEmptyState";
 import { Input } from "~/components/ui/input";
