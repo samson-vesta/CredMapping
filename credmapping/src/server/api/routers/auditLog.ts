@@ -141,11 +141,12 @@ export const auditLogRouter = createTRPCRouter({
               ilike(auditLog.actorEmail, `%${searchTerm}%`),
               ilike(sql`${auditLog.oldData}::text`, `%${searchTerm}%`),
               ilike(sql`${auditLog.newData}::text`, `%${searchTerm}%`),
+              ilike(sql`${auditLog.recordId}::text`, `%${searchTerm}%`),
             ),
           );
         }
       }
-      if (input.recordId)
+      if (input.recordId && !input.actorEmail && !input.dataContent)
         conditions.push(
           ilike(sql`${auditLog.recordId}::text`, `%${input.recordId}%`)
         );

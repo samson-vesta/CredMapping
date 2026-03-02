@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AuditLogRow } from "~/components/audit-log/AuditLogRow";
 import { Button } from "~/components/ui/button";
 import { Card } from "~/components/ui/card";
+import { DatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
 import { ScrollIndicatorContainer } from "~/components/ui/scroll-indicator-container";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select";
@@ -222,7 +223,7 @@ export function AuditLogClient() {
           <div className="relative min-w-[240px] flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search agent or data content..."
+              placeholder="Search user, data content, or record ID..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9"
@@ -256,13 +257,19 @@ export function AuditLogClient() {
             </SelectContent>
           </Select>
 
-          <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-[170px]" aria-label="From date" />
-          <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-[170px]" aria-label="To date" />
+          <DatePicker value={fromDate} onChange={setFromDate} placeholder="From date" className="w-[170px]" clearable={false} />
+          <DatePicker value={toDate} onChange={setToDate} placeholder="To date" className="w-[170px]" clearable={false} />
 
-          <Button variant="outline" onClick={handleClearAll} disabled={isLoading}>
-            Reset filters
+          <Button
+            onClick={handleClearAll}
+            disabled={isLoading}
+            className="bg-rose-600 text-white hover:bg-rose-700 dark:bg-rose-500 dark:hover:bg-rose-600"
+          >
+            Reset Filters
           </Button>
         </div>
+
+        <div className="border-t border-border" />
 
         {isLoading ? (
           <div className="space-y-0">
