@@ -12,7 +12,6 @@ import { Button } from "~/components/ui/button";
 import { Card } from "~/components/ui/card";
 
 interface FilterSectionProps {
-  timestamp?: string;
   user?: string;
   action?: "all" | "insert" | "update" | "delete";
   tableName?: string;
@@ -20,7 +19,6 @@ interface FilterSectionProps {
   dataContent?: string;
   fromDate?: string;
   toDate?: string;
-  onTimestampChange?: (value: string) => void;
   onUserChange?: (value: string) => void;
   onActionChange?: (value: "all" | "insert" | "update" | "delete") => void;
   onTableNameChange?: (value: string) => void;
@@ -34,7 +32,6 @@ interface FilterSectionProps {
 }
 
 export function FilterSection({
-  timestamp,
   user,
   action = "all",
   tableName,
@@ -42,7 +39,6 @@ export function FilterSection({
   dataContent,
   fromDate,
   toDate,
-  onTimestampChange,
   onUserChange,
   onActionChange,
   onTableNameChange,
@@ -57,21 +53,9 @@ export function FilterSection({
   return (
     <Card className="mb-6">
       <div className="space-y-4 p-6">
-      
-        <div className="grid grid-cols-3 gap-4">
-      
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-foreground">
-              Timestamp
-            </label>
-            <Input
-              placeholder="Search by date/time..."
-              value={timestamp ?? ""}
-              onChange={(e) => onTimestampChange?.(e.target.value)}
-            />
-          </div>
-
-   
+        {/* Row 1: User | Action | Table | Buttons */}
+        <div className="grid grid-cols-4 gap-4 items-end">
+          {/* User */}
           <div className="space-y-2">
             <label className="text-xs font-medium text-foreground">User</label>
             <Input
@@ -81,7 +65,7 @@ export function FilterSection({
             />
           </div>
 
-        
+          {/* Action */}
           <div className="space-y-2">
             <label className="text-xs font-medium text-foreground">
               Action
@@ -106,7 +90,7 @@ export function FilterSection({
             </Select>
           </div>
 
-     
+          {/* Table */}
           <div className="space-y-2">
             <label className="text-xs font-medium text-foreground">
               Table
@@ -134,7 +118,30 @@ export function FilterSection({
             </Select>
           </div>
 
-      
+          {/* Buttons Column */}
+          <div className="flex flex-col gap-2">
+            <Button
+              size="sm"
+              onClick={onLoad}
+              disabled={isLoading}
+              className="bg-primary text-primary-foreground"
+            >
+              {isLoading ? "Loading..." : "Load"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onClearAll}
+              disabled={isLoading}
+            >
+              Clear All
+            </Button>
+          </div>
+        </div>
+
+        {/* Row 2: Record ID | Data Content | Date Range | Spacer */}
+        <div className="grid grid-cols-4 gap-4">
+          {/* Record ID */}
           <div className="space-y-2">
             <label className="text-xs font-medium text-foreground">
               Record ID
@@ -146,7 +153,7 @@ export function FilterSection({
             />
           </div>
 
- 
+          {/* Data Content */}
           <div className="space-y-2">
             <label className="text-xs font-medium text-foreground">
               Data Content
@@ -157,48 +164,29 @@ export function FilterSection({
               onChange={(e) => onDataContentChange?.(e.target.value)}
             />
           </div>
-        </div>
 
-       
-        <div className="flex flex-wrap items-end gap-4">
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-foreground">From:</label>
-            <Input
-              type="date"
-              value={fromDate ?? ""}
-              onChange={(e) => onFromDateChange?.(e.target.value)}
-              className="max-w-[160px]"
-            />
+          {/* Date Range */}
+          <div className="flex gap-2">
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-foreground">From:</label>
+              <Input
+                type="date"
+                value={fromDate ?? ""}
+                onChange={(e) => onFromDateChange?.(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-foreground">To:</label>
+              <Input
+                type="date"
+                value={toDate ?? ""}
+                onChange={(e) => onToDateChange?.(e.target.value)}
+              />
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-foreground">To:</label>
-            <Input
-              type="date"
-              value={toDate ?? ""}
-              onChange={(e) => onToDateChange?.(e.target.value)}
-              className="max-w-[160px]"
-            />
-          </div>
-
-          <div className="ml-auto flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onClearAll}
-              disabled={isLoading}
-            >
-              Clear All Filters
-            </Button>
-            <Button
-              size="sm"
-              onClick={onLoad}
-              disabled={isLoading}
-              className="bg-primary text-primary-foreground"
-            >
-              {isLoading ? "Loading..." : "Load"}
-            </Button>
-          </div>
+          {/* Spacer */}
+          <div />
         </div>
       </div>
     </Card>

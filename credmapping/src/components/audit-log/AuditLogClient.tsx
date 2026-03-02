@@ -46,7 +46,9 @@ function formatAuditLogRecord(record: AuditLogRecord): FormattedAuditLog {
 
 export function AuditLogClient() {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-  const [timestamp, setTimestamp] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 50;
+  
   const [user, setUser] = useState("");
   const [action, setAction] = useState<"all" | "insert" | "update" | "delete">(
     "all"
@@ -66,7 +68,7 @@ export function AuditLogClient() {
 
   // Fetch audit logs
   const {
-    data: auditLogs = [],
+    data: result,
     isLoading,
     error,
     refetch,
@@ -79,13 +81,16 @@ export function AuditLogClient() {
       actorEmail: user ?? undefined,
       recordId: recordId ?? undefined,
       dataContent: dataContent ?? undefined,
-      limit: 100,
-      offset: 0,
+      limit: PAGE_SIZE,
+      offset: (currentPage - 1) * PAGE_SIZE,
     },
     {
       enabled: false, 
     }
   );
+
+  const auditLogs = result?.rows ?? [];
+  const totalCount = result?.total ?? 0;
 
   // Auto-load on mount
   useEffect(() => {
@@ -105,7 +110,7 @@ export function AuditLogClient() {
   };
 
   const handleClearAll = () => {
-    setTimestamp("");
+    setCurrentPage(1);
     setUser("");
     setAction("all");
     setTableName("");
@@ -119,8 +124,7 @@ export function AuditLogClient() {
     void refetch();
   };
 
-  // Calculate stats
-  const totalCount = auditLogs.length;
+  // Calculate stats based on all data (not just current page)
   const insertCount = auditLogs.filter(
     (log) => log.action === "insert"
   ).length;
@@ -139,8 +143,31 @@ export function AuditLogClient() {
   if (error) {
     return (
       <div className="space-y-6">
+        {/* Stats Bar - New Top Position */}
+        <div className="flex justify-between items-end px-4 py-3 rounded border border-border bg-card">
+          <div className="flex flex-col items-center gap-0.5">
+            <span className="text-lg font-semibold text-foreground">{totalCount}</span>
+            <span className="text-xs text-muted-foreground uppercase">Total entries</span>
+          </div>
+          <div className="flex flex-col items-center gap-0.5">
+            <span className="text-lg font-semibold text-yellow-400">{updateCount}</span>
+            <span className="text-xs text-muted-foreground uppercase">Updates</span>
+          </div>
+          <div className="flex flex-col items-center gap-0.5">
+            <span className="text-lg font-semibold text-green-400">{insertCount}</span>
+            <span className="text-xs text-muted-foreground uppercase">Inserts</span>
+          </div>
+          <div className="flex flex-col items-center gap-0.5">
+            <span className="text-lg font-semibold text-destructive">{deleteCount}</span>
+            <span className="text-xs text-muted-foreground uppercase">Deletes</span>
+          </div>
+          <div className="flex flex-col items-center gap-0.5">
+            <span className="text-lg font-semibold text-foreground">{uniqueUsers}</span>
+            <span className="text-xs text-muted-foreground uppercase">Unique users</span>
+          </div>
+        </div>
+
         <FilterSection
-          timestamp={timestamp}
           user={user}
           action={action}
           tableName={tableName}
@@ -148,7 +175,6 @@ export function AuditLogClient() {
           dataContent={dataContent}
           fromDate={fromDate}
           toDate={toDate}
-          onTimestampChange={setTimestamp}
           onUserChange={setUser}
           onActionChange={setAction}
           onTableNameChange={setTableName}
@@ -174,10 +200,33 @@ export function AuditLogClient() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
+      {/* Stats Bar - New Top Position */}
+      <div className="flex justify-between items-end px-4 py-3 rounded border border-border bg-card">
+        <div className="flex flex-col items-center gap-0.5">
+          <span className="text-lg font-semibold text-foreground">{totalCount}</span>
+          <span className="text-xs text-muted-foreground uppercase">Total entries</span>
+        </div>
+        <div className="flex flex-col items-center gap-0.5">
+          <span className="text-lg font-semibold text-yellow-400">{updateCount}</span>
+          <span className="text-xs text-muted-foreground uppercase">Updates</span>
+        </div>
+        <div className="flex flex-col items-center gap-0.5">
+          <span className="text-lg font-semibold text-green-400">{insertCount}</span>
+          <span className="text-xs text-muted-foreground uppercase">Inserts</span>
+        </div>
+        <div className="flex flex-col items-center gap-0.5">
+          <span className="text-lg font-semibold text-destructive">{deleteCount}</span>
+          <span className="text-xs text-muted-foreground uppercase">Deletes</span>
+        </div>
+        <div className="flex flex-col items-center gap-0.5">
+          <span className="text-lg font-semibold text-foreground">{uniqueUsers}</span>
+          <span className="text-xs text-muted-foreground uppercase">Unique users</span>
+        </div>
+      </div>
+
       {/* Filter Section */}
       <FilterSection
-        timestamp={timestamp}
         user={user}
         action={action}
         tableName={tableName}
@@ -185,7 +234,6 @@ export function AuditLogClient() {
         dataContent={dataContent}
         fromDate={fromDate}
         toDate={toDate}
-        onTimestampChange={setTimestamp}
         onUserChange={setUser}
         onActionChange={setAction}
         onTableNameChange={setTableName}
@@ -239,7 +287,7 @@ export function AuditLogClient() {
       <Card className="overflow-hidden">
         {isLoading ? (
           <div className="space-y-0">
-            <div className="sticky top-0 z-10 grid grid-cols-[180px_220px_100px_180px_200px_1fr] gap-4 border-b border-border bg-muted px-4 py-2">
+            <div className="sticky top-0 z-10 grid grid-cols-[180px_220px_100px_160px_240px_1fr] gap-4 border-b border-border bg-muted px-4 py-2">
               <div className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">
                 Timestamp
               </div>
@@ -262,7 +310,7 @@ export function AuditLogClient() {
             {Array.from({ length: 10 }).map((_, i) => (
               <div
                 key={i}
-                className="grid grid-cols-[180px_220px_100px_180px_200px_1fr] gap-4 border-b border-border px-4 py-3"
+                className="grid grid-cols-[180px_220px_100px_160px_240px_1fr] gap-4 border-b border-border px-4 py-3"
               >
                 <Skeleton className="h-4 w-full" />
                 <Skeleton className="h-4 w-full" />
@@ -282,7 +330,7 @@ export function AuditLogClient() {
           </div>
         ) : (
           <div className="divide-y divide-border">
-            <div className="sticky top-0 z-10 grid grid-cols-[180px_220px_100px_180px_200px_1fr] gap-4 border-b border-border bg-muted px-4 py-2">
+            <div className="sticky top-0 z-10 grid grid-cols-[180px_220px_100px_160px_240px_1fr] gap-4 border-b border-border bg-muted px-4 py-2">
               <div className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">
                 Timestamp
               </div>
@@ -319,6 +367,36 @@ export function AuditLogClient() {
                 />
               );
             })}
+          </div>
+        )}
+        
+        {/* Pagination Controls */}
+        {!isLoading && auditLogs.length > 0 && (
+          <div className="flex items-center justify-between border-t border-border px-4 py-3 bg-muted/50">
+            <div className="text-xs text-muted-foreground">
+              Showing {(currentPage - 1) * PAGE_SIZE + 1} to{" "}
+              {Math.min(currentPage * PAGE_SIZE, totalCount)} of {totalCount}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1 || isLoading}
+                className="px-3 py-1 text-sm rounded border border-border hover:bg-muted disabled:opacity-50"
+              >
+                Previous
+              </button>
+              <button
+                onClick={() =>
+                  setCurrentPage((p) =>
+                    Math.min(Math.ceil(totalCount / PAGE_SIZE), p + 1)
+                  )
+                }
+                disabled={currentPage >= Math.ceil(totalCount / PAGE_SIZE) || isLoading}
+                className="px-3 py-1 text-sm rounded border border-border hover:bg-muted disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
           </div>
         )}
       </Card>

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, desc, gte, lte, ilike, and, inArray, sql } from "drizzle-orm";
+import { eq, desc, gte, lte, ilike, and, inArray, sql, count } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import {
   auditLog,
@@ -139,6 +139,15 @@ export const auditLogRouter = createTRPCRouter({
           ilike(sql`${auditLog.recordId}::text`, `%${input.recordId}%`)
         );
 
+      // Get total count
+      const countResult = await ctx.db
+        .select({ count: count() })
+        .from(auditLog)
+        .where(conditions.length ? and(...conditions) : undefined);
+
+      const total = countResult[0]?.count ?? 0;
+
+      // Get paginated rows
       const rows = await ctx.db
         .select()
         .from(auditLog)
@@ -147,6 +156,6 @@ export const auditLogRouter = createTRPCRouter({
         .limit(input.limit)
         .offset(input.offset);
 
-      return rows;
+      return { rows, total };
     }),
 });

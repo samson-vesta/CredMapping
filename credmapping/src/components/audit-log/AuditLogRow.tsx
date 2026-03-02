@@ -63,7 +63,7 @@ function RecordIdCell({ recordId }: { recordId: string | null }) {
   if (!recordId)
     return <span className="text-muted-foreground/40">—</span>;
 
-  const truncated = recordId.slice(0, 8) + "...";
+  const truncated = recordId.slice(0, 18) + "...";
 
   const handleCopy = async (e: React.MouseEvent) => {
     e.stopPropagation(); 
@@ -147,15 +147,16 @@ export function AuditLogRow({
   onToggleExpand,
 }: AuditLogRowProps) {
   const changedFields = computeChangedFields(oldData, newData);
-  const displayFields = changedFields.slice(0, 3);
-  const moreCount = changedFields.length - 3;
+  const MAX_VISIBLE_PILLS = 3;
+  const visibleFields = changedFields.slice(0, MAX_VISIBLE_PILLS);
+  const hiddenFields = changedFields.slice(MAX_VISIBLE_PILLS);
 
   return (
     <>
       <div
         onClick={onToggleExpand}
         className={cn(
-          "group grid cursor-pointer grid-cols-[180px_220px_100px_180px_200px_1fr] gap-4 border-b border-border px-4 py-3 items-center transition-colors",
+          "group grid cursor-pointer grid-cols-[180px_220px_100px_160px_240px_1fr] gap-4 border-b border-border px-4 py-3 items-center transition-colors",
           isExpanded
             ? "border-l-2 border-l-primary bg-muted/10"
             : "border-l-2 border-l-transparent hover:bg-muted/20"
@@ -198,18 +199,39 @@ export function AuditLogRow({
         {/* Changes & Chevron */}
         <div className="flex items-center gap-2 min-w-0">
           <div className="flex flex-wrap gap-1 min-w-0 flex-1">
-            {displayFields.map((field) => (
+            {visibleFields.map((field) => (
               <span
                 key={field}
-                className="inline-flex items-center rounded border border-yellow-500/20 bg-yellow-500/10 px-2 py-0.5 text-xs text-yellow-400 font-mono whitespace-nowrap"
+                className="text-[10.5px] px-1.5 py-0.5 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 font-mono whitespace-nowrap"
               >
                 {field}
               </span>
             ))}
-            {moreCount > 0 && (
-              <span className="inline-flex items-center rounded border border-border bg-muted px-2 py-0.5 text-xs text-muted-foreground font-mono">
-                +{moreCount} more
-              </span>
+            {hiddenFields.length > 0 && (
+              <TooltipProvider delayDuration={100}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="text-[10.5px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border font-mono cursor-default hover:border-muted-foreground/50 transition-colors">
+                      +{hiddenFields.length} more
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs">
+                    <p className="text-[10px] text-muted-foreground mb-1 uppercase tracking-wide font-semibold">
+                      All changed fields:
+                    </p>
+                    <div className="flex flex-wrap gap-1">
+                      {changedFields.map((field) => (
+                        <span
+                          key={field}
+                          className="font-mono text-xs bg-yellow-500/10 text-yellow-400 px-1.5 py-0.5 rounded border border-yellow-500/20"
+                        >
+                          {field}
+                        </span>
+                      ))}
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
           </div>
           <ChevronDown
