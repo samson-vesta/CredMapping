@@ -34,7 +34,7 @@ const initialFormState: AddFacilityForm = {
   tatSla: "",
 };
 
-export function AddFacilityDialog() {
+export function AddFacilityDialog({ triggerClassName }: { triggerClassName?: string }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<AddFacilityForm>(initialFormState);
 
@@ -81,7 +81,7 @@ export function AddFacilityDialog() {
       }}
     >
       <DialogTrigger asChild>
-        <Button className="h-8.5 gap-2" size="sm">
+        <Button className={`h-8.5 gap-2 ${triggerClassName ?? ""}`.trim()} size="sm">
           <Plus className="h-6 w-4" />
           Add Facility
         </Button>

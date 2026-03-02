@@ -32,7 +32,7 @@ export function ActionBadge({ action, className }: ActionBadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded border px-2 py-1 font-mono text-xs uppercase",
+        "inline-flex w-fit items-center justify-center rounded border px-2 py-1 font-mono text-xs uppercase",
         config.bg,
         config.text,
         config.border,

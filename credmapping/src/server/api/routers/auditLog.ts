@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, desc, gte, lte, ilike, and, inArray, sql, count } from "drizzle-orm";
+import { eq, desc, gte, lte, ilike, and, inArray, sql, count, or } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import {
   auditLog,
@@ -132,9 +132,21 @@ export const auditLogRouter = createTRPCRouter({
         conditions.push(eq(auditLog.action, input.action));
       if (input.tableName && input.tableName !== "all")
         conditions.push(eq(auditLog.tableName, input.tableName));
-      if (input.actorEmail)
-        conditions.push(ilike(auditLog.actorEmail, `%${input.actorEmail}%`));
-      if (input.recordId)
+      if (input.actorEmail || input.dataContent) {
+        const searchTerm = input.actorEmail ?? input.dataContent;
+
+        if (searchTerm) {
+          conditions.push(
+            or(
+              ilike(auditLog.actorEmail, `%${searchTerm}%`),
+              ilike(sql`${auditLog.oldData}::text`, `%${searchTerm}%`),
+              ilike(sql`${auditLog.newData}::text`, `%${searchTerm}%`),
+              ilike(sql`${auditLog.recordId}::text`, `%${searchTerm}%`),
+            ),
+          );
+        }
+      }
+      if (input.recordId && !input.actorEmail && !input.dataContent)
         conditions.push(
           ilike(sql`${auditLog.recordId}::text`, `%${input.recordId}%`)
         );

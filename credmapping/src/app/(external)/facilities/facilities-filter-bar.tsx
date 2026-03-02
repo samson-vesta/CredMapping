@@ -2,7 +2,7 @@
 
 import { Search, X, Loader2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useRef, useState, useTransition } from "react";
+import { type ReactNode, useRef, useState, useTransition } from "react";
 import { AddFacilityDialog } from "~/components/facilities/add-facility-dialog";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -11,9 +11,9 @@ import { useSetFacilitiesPending } from "./facilities-pending-context";
 interface FacilitiesFilterBarProps {
   sort: string;
   activityFilter: string;
-  contactsFilter: string;
   search: string;
   isSuperAdmin: boolean;
+  graphFilters?: ReactNode;
   /** When true, renders filters in a single horizontal row (chart is collapsed). */
   compact?: boolean;
 }
@@ -21,15 +21,14 @@ interface FacilitiesFilterBarProps {
 const DEFAULTS: Record<string, string> = {
   sort: "name_asc",
   activity: "all",
-  contacts: "all",
 };
 
 export function FacilitiesFilterBar({
   sort,
   activityFilter,
-  contactsFilter,
   search: initialSearch,
   isSuperAdmin,
+  graphFilters,
   compact = false,
 }: FacilitiesFilterBarProps) {
   const router = useRouter();
@@ -78,13 +77,12 @@ export function FacilitiesFilterBar({
   const hasActiveFilters =
     sort !== "name_asc" ||
     activityFilter !== "all" ||
-    contactsFilter !== "all" ||
     initialSearch !== "";
 
   if (compact) {
     // Horizontal row layout — shown when the chart is collapsed
     return (
-      <div className="bg-card flex flex-wrap items-center gap-2 rounded-lg border p-3">
+      <div className="bg-card flex h-full flex-wrap items-center gap-2 rounded-lg border p-3">
         {/* Search */}
         <div className="relative min-w-[200px] flex-1">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -130,17 +128,6 @@ export function FacilitiesFilterBar({
           <option value="in_progress">In progress</option>
         </select>
 
-        <select
-          className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground"
-          disabled={isPending}
-          onChange={(e) => navigate({ contacts: e.target.value })}
-          value={contactsFilter}
-        >
-          <option value="all">All contacts</option>
-          <option value="with">With contacts</option>
-          <option value="without">Without contacts</option>
-        </select>
-
         {isPending && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
 
         {hasActiveFilters && (
@@ -160,11 +147,9 @@ export function FacilitiesFilterBar({
   }
 
   return (
-    <div className="bg-card flex flex-col gap-3 rounded-lg border p-4">
+    <div className="bg-card flex h-full flex-col gap-3 rounded-lg border p-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-          Filters
-        </h2>
+        <h2 className="text-base font-semibold">Filters</h2>
         {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
       </div>
 
@@ -221,23 +206,10 @@ export function FacilitiesFilterBar({
         </select>
       </label>
 
-      {/* Contact coverage */}
-      <label className="space-y-1">
-        <span className="text-xs text-muted-foreground">Contact coverage</span>
-        <select
-          className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
-          disabled={isPending}
-          onChange={(e) => navigate({ contacts: e.target.value })}
-          value={contactsFilter}
-        >
-          <option value="all">All facilities</option>
-          <option value="with">With contacts</option>
-          <option value="without">Without contacts</option>
-        </select>
-      </label>
+      {graphFilters}
 
       {/* Actions */}
-      <div className="flex flex-wrap items-center gap-2 pt-1">
+      <div className="mt-auto flex flex-wrap items-center gap-2 border-t pt-3">
         {hasActiveFilters && (
           <Button
             className="flex-1"
@@ -249,7 +221,7 @@ export function FacilitiesFilterBar({
             <X className="h-3.5 w-3.5" /> Reset filters
           </Button>
         )}
-        {isSuperAdmin && <AddFacilityDialog />}
+        {isSuperAdmin && <AddFacilityDialog triggerClassName="w-full justify-center" />}
       </div>
     </div>
   );

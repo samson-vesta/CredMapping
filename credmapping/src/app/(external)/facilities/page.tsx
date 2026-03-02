@@ -1,4 +1,4 @@
-import { and, count, desc, eq, ilike, inArray, not, or } from "drizzle-orm";
+import { and, count, desc, eq, ilike, inArray, or } from "drizzle-orm";
 import { Mail, Phone } from "lucide-react";
 import Link from "next/link";
 import { FacilitiesPendingProvider, FacilitiesListOverlay } from "~/app/(external)/facilities/facilities-pending-context";
@@ -37,14 +37,10 @@ const getFacilityStatusTone = (status: FacilityStatus | null) => {
 };
 
 type FacilitySort = "name_asc" | "name_desc" | "updated_desc" | "updated_asc";
-type ContactsFilter = "all" | "with" | "without";
 type ActivityFilter = "all" | "active" | "inactive" | "in_progress";
 
 const isFacilitySort = (value: string): value is FacilitySort =>
   ["name_asc", "name_desc", "updated_desc", "updated_asc"].includes(value);
-
-const isContactsFilter = (value: string): value is ContactsFilter =>
-  ["all", "with", "without"].includes(value);
 
 const isActivityFilter = (value: string): value is ActivityFilter =>
   ["all", "active", "inactive", "in_progress"].includes(value);
@@ -75,9 +71,6 @@ export default async function FacilitiesPage(props: {
   const rawSort = typeof searchParams?.sort === "string" ? searchParams.sort : "";
   const sort: FacilitySort = isFacilitySort(rawSort) ? rawSort : "name_asc";
 
-  const rawContacts = typeof searchParams?.contacts === "string" ? searchParams.contacts : "all";
-  const contactsFilter: ContactsFilter = isContactsFilter(rawContacts) ? rawContacts : "all";
-
   const rawActivity = typeof searchParams?.activity === "string" ? searchParams.activity : "all";
   const activityFilter: ActivityFilter = isActivityFilter(rawActivity) ? rawActivity : "all";
 
@@ -87,16 +80,15 @@ export default async function FacilitiesPage(props: {
     ? Math.max(pageSize, Number.parseInt(rawLimit, 10) || pageSize)
     : pageSize;
 
-  const [contactFacilityRows, facilityCreatedRows, credentialCreatedRows, workflowIncidentRows] =
+  const [facilityCreatedRows, credentialCreatedRows, workflowIncidentRows] =
     await Promise.all([
-      db.selectDistinct({ facilityId: facilityContacts.facilityId }).from(facilityContacts),
-    db.select({ createdAt: facilities.createdAt }).from(facilities),
-    db.select({ createdAt: providerFacilityCredentials.createdAt }).from(providerFacilityCredentials),
-    db
-      .select({ createdAt: workflowPhases.createdAt })
-      .from(workflowPhases)
-      .where(eq(workflowPhases.workflowType, "pfc")),
-  ]);
+      db.select({ createdAt: facilities.createdAt }).from(facilities),
+      db.select({ createdAt: providerFacilityCredentials.createdAt }).from(providerFacilityCredentials),
+      db
+        .select({ createdAt: workflowPhases.createdAt })
+        .from(workflowPhases)
+        .where(eq(workflowPhases.workflowType, "pfc")),
+    ]);
 
   const facilityTimeline = new Map<string, { primary: number; secondary: number; tertiary: number }>();
 
@@ -121,10 +113,6 @@ export default async function FacilitiesPage(props: {
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([date, values]) => ({ date, ...values }));
 
-  const facilitiesWithContacts = contactFacilityRows
-    .map((row) => row.facilityId)
-    .filter((id): id is string => Boolean(id));
-
   const searchWhere = hasSearch
     ? or(
         ilike(facilities.name, `%${search}%`),
@@ -147,24 +135,9 @@ export default async function FacilitiesPage(props: {
               : "In Progress",
         );
 
-  const hasContactMatches = contactsFilter !== "with" || facilitiesWithContacts.length > 0;
+  const whereClause = and(searchWhere, activityWhere);
 
-  const contactsWhere =
-    contactsFilter === "all"
-      ? undefined
-      : contactsFilter === "with"
-        ? facilitiesWithContacts.length > 0
-          ? inArray(facilities.id, facilitiesWithContacts)
-          : undefined
-        : facilitiesWithContacts.length > 0
-          ? not(inArray(facilities.id, facilitiesWithContacts))
-          : undefined;
-
-  const whereClause = and(searchWhere, activityWhere, contactsWhere);
-
-  const totalVisibleRow = hasContactMatches
-    ? await db.select({ count: count() }).from(facilities).where(whereClause)
-    : [{ count: 0 }];
+  const totalVisibleRow = await db.select({ count: count() }).from(facilities).where(whereClause);
 
   const orderByClause =
     sort === "name_desc"
@@ -177,14 +150,12 @@ export default async function FacilitiesPage(props: {
 
   const visibleLimit = Math.min(requestedLimit, totalVisibleRow[0]?.count ?? 0);
 
-  const facilityRows = hasContactMatches
-    ? await db
-        .select()
-        .from(facilities)
-        .where(whereClause)
-        .orderBy(...orderByClause)
-        .limit(visibleLimit)
-    : [];
+  const facilityRows = await db
+    .select()
+    .from(facilities)
+    .where(whereClause)
+    .orderBy(...orderByClause)
+    .limit(visibleLimit);
 
   const facilityIds = facilityRows.map((row) => row.id);
 
@@ -280,7 +251,6 @@ export default async function FacilitiesPage(props: {
   const queryParams = new URLSearchParams();
   if (search) queryParams.set("search", search);
   if (sort !== "name_asc") queryParams.set("sort", sort);
-  if (contactsFilter !== "all") queryParams.set("contacts", contactsFilter);
   if (activityFilter !== "all") queryParams.set("activity", activityFilter);
 
   const createLimitHref = (nextLimit: number) => {
@@ -295,7 +265,6 @@ export default async function FacilitiesPage(props: {
       <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
         <FacilitiesTopSection
           activityFilter={activityFilter}
-          contactsFilter={contactsFilter}
           isSuperAdmin={isSuperAdmin}
           search={search}
           sort={sort}

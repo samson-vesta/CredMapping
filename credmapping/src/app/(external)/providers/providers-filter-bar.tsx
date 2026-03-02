@@ -2,7 +2,7 @@
 
 import { Search, X, Loader2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useRef, useState, useTransition } from "react";
+import { type ReactNode, useRef, useState, useTransition } from "react";
 import { AddProviderDialog } from "~/components/providers/add-provider-dialog";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -14,6 +14,7 @@ interface ProvidersFilterBarProps {
   search: string;
   statusOptions: string[];
   isSuperAdmin: boolean;
+  graphFilters?: ReactNode;
   /** When true, renders filters in a single horizontal row (chart is collapsed). */
   compact?: boolean;
 }
@@ -29,6 +30,7 @@ export function ProvidersFilterBar({
   search: initialSearch,
   statusOptions,
   isSuperAdmin,
+  graphFilters,
   compact = false,
 }: ProvidersFilterBarProps) {
   const router = useRouter();
@@ -79,7 +81,7 @@ export function ProvidersFilterBar({
 
   if (compact) {
     return (
-      <div className="bg-card flex flex-wrap items-center gap-2 rounded-lg border p-3">
+      <div className="bg-card flex h-full flex-wrap items-center gap-2 rounded-lg border p-3">
         {/* Search */}
         <div className="relative min-w-[200px] flex-1">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -141,11 +143,9 @@ export function ProvidersFilterBar({
   }
 
   return (
-    <div className="bg-card flex flex-col gap-3 rounded-lg border p-4">
+    <div className="bg-card flex h-full flex-col gap-3 rounded-lg border p-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-          Filters
-        </h2>
+        <h2 className="text-base font-semibold">Filters</h2>
         {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
       </div>
 
@@ -204,8 +204,10 @@ export function ProvidersFilterBar({
         </select>
       </label>
 
+      {graphFilters}
+
       {/* Actions */}
-      <div className="flex flex-wrap items-center gap-2 pt-1">
+      <div className="mt-auto flex flex-wrap items-center gap-2 border-t pt-3">
         {hasActiveFilters && (
           <Button
             className="flex-1"
@@ -217,7 +219,7 @@ export function ProvidersFilterBar({
             <X className="h-3.5 w-3.5" /> Reset filters
           </Button>
         )}
-        {isSuperAdmin && <AddProviderDialog />}
+        {isSuperAdmin && <AddProviderDialog triggerClassName="w-full justify-center" />}
       </div>
     </div>
   );
