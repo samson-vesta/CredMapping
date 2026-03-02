@@ -68,7 +68,7 @@ export function DiffPanel({ oldData, newData, action }: DiffPanelProps) {
       <div className="border-t border-border bg-muted/30">
         <div className="flex items-center justify-between px-4 py-2 bg-muted/40 border-b border-border">
           <div className="flex items-center gap-2">
-            <div className="size-2 rounded-full bg-green-400"></div>
+            <div className="size-2 rounded-full bg-green-500 dark:bg-green-400"></div>
             <h4 className="font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               New Record
             </h4>
@@ -93,7 +93,7 @@ export function DiffPanel({ oldData, newData, action }: DiffPanelProps) {
   
                 <div className="px-2 py-1.5 text-xs text-muted-foreground/30">→</div>
      
-                <div className="flex-1 px-3 py-1.5 font-mono text-xs text-green-400">
+                <div className="flex-1 px-3 py-1.5 font-mono text-xs text-green-600 dark:text-green-400">
                   {formatValue(field.newVal) !== "" ? (
                     formatValue(field.newVal)
                   ) : (
@@ -158,7 +158,7 @@ export function DiffPanel({ oldData, newData, action }: DiffPanelProps) {
     <div className="border-t border-border bg-muted/30">
       <div className="flex items-center justify-between px-4 py-2 bg-muted/40 border-b border-border">
         <div className="flex items-center gap-2">
-          <div className="size-2 rounded-full bg-yellow-400"></div>
+          <div className="size-2 rounded-full bg-yellow-500 dark:bg-yellow-400"></div>
           <h4 className="font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Field Changes
           </h4>
@@ -200,7 +200,7 @@ export function DiffPanel({ oldData, newData, action }: DiffPanelProps) {
               <div
                 className={cn(
                   "flex-1 px-3 py-1.5 font-mono text-xs",
-                  field.changed ? "bg-green-500/5 text-green-400" : "text-muted-foreground"
+                  field.changed ? "bg-green-500/5 text-green-600 dark:text-green-400" : "text-muted-foreground"
                 )}
               >
                 {formattedNew !== "" ? (

@@ -1,11 +1,10 @@
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
+  Activity,
   AlertTriangle,
   Building2,
-  CalendarClock,
   Mail,
   MapPin,
   Phone,
@@ -13,9 +12,10 @@ import {
   Stethoscope,
   User,
 } from "lucide-react";
-import { WorkflowPhaseDrawer } from "~/components/providers/workflow-phase-drawer";
+import { ActivityTimeline } from "~/components/audit-log/ActivityTimeline";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
+import { CollapsibleSection } from "~/components/ui/collapsible-section";
 import { db } from "~/server/db";
 import {
   agents,
@@ -29,18 +29,6 @@ import {
 import {
   EditFacilityDialog,
   DeleteFacilityDialog,
-  AddContactDialog,
-  EditContactDialog,
-  DeleteContactButton,
-  TogglePrimaryButton,
-  AddPreliveDialog,
-  EditPreliveDialog,
-  DeletePreliveButton,
-  AddPfcDialog,
-  EditPfcDialog,
-  DeletePfcButton,
-  AddWorkflowPhaseDialog,
-  DeleteWorkflowPhaseButton,
 } from "~/components/facilities/facility-actions";
 
 /* ─── Helpers ──────────────────────────────────────────────────── */
@@ -126,7 +114,7 @@ export default async function FacilityProfilePage({
 
   /* ── Parallel data loads ──────────────────────────────────── */
 
-  const [contactRows, preliveRows, credentialRows, allProviders] = await Promise.all([
+  const [contactRows, preliveRows, credentialRows] = await Promise.all([
     db
       .select()
       .from(facilityContacts)
@@ -158,23 +146,7 @@ export default async function FacilityProfilePage({
       .leftJoin(providers, eq(providerFacilityCredentials.providerId, providers.id))
       .where(eq(providerFacilityCredentials.facilityId, facilityId))
       .orderBy(desc(providerFacilityCredentials.updatedAt)),
-    db
-      .select({
-        id: providers.id,
-        firstName: providers.firstName,
-        lastName: providers.lastName,
-        degree: providers.degree,
-      })
-      .from(providers)
-      .orderBy(asc(providers.lastName), asc(providers.firstName)),
   ]);
-
-  /* Provider options for AddPfc selector */
-  const providerOptions = allProviders.map((p) => {
-    const name = [p.firstName, p.lastName].filter(Boolean).join(" ") || "Unnamed";
-    const label = p.degree ? `${name}, ${p.degree}` : name;
-    return { id: p.id, label };
-  });
 
   /* ── Workflow phases for credentials ──────────────────────── */
 
@@ -228,53 +200,6 @@ export default async function FacilityProfilePage({
     workflowsByCredential.set(workflow.relatedId, current);
   }
 
-  /* ── Server action ────────────────────────────────────────── */
-
-  async function updateWorkflowPhaseAction(formData: FormData) {
-    "use server";
-
-    const getText = (key: string) => {
-      const value = formData.get(key);
-      return typeof value === "string" ? value.trim() : "";
-    };
-
-    const workflowId = getText("workflowId");
-    const credentialId = getText("providerCredentialId");
-    const phaseName = getText("phaseName");
-    const status = getText("status");
-    const startDate = getText("startDate");
-    const dueDate = getText("dueDate");
-    const completedAt = getText("completedAt");
-
-    if (!workflowId || !credentialId || !phaseName || !startDate || !dueDate) return;
-
-    const [workflow] = await db
-      .select({
-        id: workflowPhases.id,
-        workflowType: workflowPhases.workflowType,
-      })
-      .from(workflowPhases)
-      .where(and(eq(workflowPhases.id, workflowId), eq(workflowPhases.relatedId, credentialId)))
-      .limit(1);
-
-    if (workflow?.workflowType !== "pfc") return;
-
-    await db
-      .update(workflowPhases)
-      .set({
-        phaseName,
-        status: status || "Pending",
-        startDate,
-        dueDate,
-        completedAt: completedAt || null,
-        updatedAt: new Date(),
-      })
-      .where(eq(workflowPhases.id, workflowId));
-
-    revalidatePath(`/facilities/${facilityId}`);
-    revalidatePath("/facilities");
-  }
-
   /* ── Derived data ─────────────────────────────────────────── */
 
   const totalWorkflowPhases = credentialIds.reduce(
@@ -285,9 +210,9 @@ export default async function FacilityProfilePage({
   /* ── Render ───────────────────────────────────────────────── */
 
   return (
-    <div className="space-y-6 pb-4">
+    <div className="space-y-4 pb-4">
       {/* ── Hero header ───────────────────────────────────────── */}
-      <section className="rounded-xl border bg-gradient-to-r from-emerald-950/20 via-background to-blue-950/20 p-5">
+      <section className="rounded-xl border  p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-2">
             <p className="text-muted-foreground flex items-center gap-2 text-xs uppercase tracking-wide">
@@ -326,7 +251,20 @@ export default async function FacilityProfilePage({
           </div>
         </div>
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-4">
+        {/* Inline details */}
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          {facility.proxy && <span>Proxy: {facility.proxy}</span>}
+          {facility.yearlyVolume !== null && <span>Volume: {facility.yearlyVolume?.toLocaleString()}</span>}
+          {facility.tatSla && <span>TAT/SLA: {facility.tatSla}</span>}
+          {facility.modalities && facility.modalities.length > 0 && (
+            <span>Modalities: {facility.modalities.join(", ")}</span>
+          )}
+          <span>Created {formatDate(facility.createdAt)}</span>
+          <span>·</span>
+          <span>Updated {formatDate(facility.updatedAt)}</span>
+        </div>
+
+        <div className="mt-3 grid gap-3 sm:grid-cols-4">
           <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 p-3">
             <p className="text-xs text-emerald-700 dark:text-emerald-300">Contacts</p>
             <p className="text-xl font-semibold">{contactRows.length}</p>
@@ -346,16 +284,13 @@ export default async function FacilityProfilePage({
         </div>
       </section>
 
-      {/* ── Contacts + Facility details ───────────────────────── */}
-      <section className="grid gap-4 lg:grid-cols-3">
-        <article className="rounded-lg border p-4 lg:col-span-2">
-          <p className="text-muted-foreground mb-2 flex items-center gap-2 text-xs uppercase">
-            <User className="size-4" /> Facility contacts
-          </p>
-          <div className="mb-3">
-            <AddContactDialog facilityId={facilityId} />
-          </div>
-          {contactRows.length === 0 ? (
+      {/* ── Contacts ──────────────────────────────────────────── */}
+      <CollapsibleSection
+        title={<span className="flex items-center gap-2"><User className="size-4" /> Facility contacts</span>}
+        badge={contactRows.length}
+        maxHeight="20rem"
+      >
+        {contactRows.length === 0 ? (
             <p className="text-muted-foreground text-sm">No contacts found for this facility.</p>
           ) : (
             <div className="overflow-x-auto">
@@ -367,7 +302,6 @@ export default async function FacilityProfilePage({
                     <th className="py-1 pr-3">Email</th>
                     <th className="py-1 pr-3">Phone</th>
                     <th className="py-1 pr-3">Primary</th>
-                    <th className="py-1">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -402,68 +336,20 @@ export default async function FacilityProfilePage({
                           "—"
                         )}
                       </td>
-                      <td className="py-1">
-                        <div className="flex items-center gap-1">
-                          <EditContactDialog contact={contact} />
-                          <TogglePrimaryButton contactId={contact.id} isPrimary={!!contact.isPrimary} />
-                          <DeleteContactButton contactId={contact.id} contactName={contact.name} />
-                        </div>
-                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           )}
-        </article>
-
-        <article className="rounded-lg border p-4">
-          <p className="text-muted-foreground mb-2 flex items-center gap-2 text-xs uppercase">
-            <CalendarClock className="size-4" /> Facility details
-          </p>
-          <dl className="space-y-2 text-sm">
-            <div className="flex justify-between gap-3">
-              <dt className="text-muted-foreground">Status</dt>
-              <dd>{facility.status ?? "—"}</dd>
-            </div>
-            <div className="flex justify-between gap-3">
-              <dt className="text-muted-foreground">Proxy</dt>
-              <dd>{facility.proxy ?? "—"}</dd>
-            </div>
-            <div className="flex justify-between gap-3">
-              <dt className="text-muted-foreground">Yearly volume</dt>
-              <dd>{facility.yearlyVolume?.toLocaleString() ?? "—"}</dd>
-            </div>
-            <div className="flex justify-between gap-3">
-              <dt className="text-muted-foreground">TAT / SLA</dt>
-              <dd>{facility.tatSla ?? "—"}</dd>
-            </div>
-            <div className="flex justify-between gap-3">
-              <dt className="text-muted-foreground">Modalities</dt>
-              <dd>{facility.modalities?.join(", ") ?? "—"}</dd>
-            </div>
-            <div className="border-t pt-2">
-              <div className="flex justify-between gap-3">
-                <dt className="text-muted-foreground">Created</dt>
-                <dd>{formatDate(facility.createdAt)}</dd>
-              </div>
-            </div>
-            <div className="flex justify-between gap-3">
-              <dt className="text-muted-foreground">Updated</dt>
-              <dd>{formatDate(facility.updatedAt)}</dd>
-            </div>
-          </dl>
-        </article>
-      </section>
+      </CollapsibleSection>
 
       {/* ── Pre-live info ─────────────────────────────────────── */}
-      <section className="rounded-lg border p-4">
-        <div className="mb-2 flex items-center justify-between">
-          <p className="text-muted-foreground flex items-center gap-2 text-xs uppercase">
-            <Rocket className="size-4" /> Pre-live pipeline
-          </p>
-          <AddPreliveDialog facilityId={facilityId} />
-        </div>
+      <CollapsibleSection
+        title={<span className="flex items-center gap-2"><Rocket className="size-4" /> Pre-live pipeline</span>}
+        badge={preliveRows.length}
+        maxHeight="24rem"
+      >
         {preliveRows.length === 0 ? (
           <p className="text-muted-foreground text-sm">No pre-live records found for this facility.</p>
         ) : (
@@ -472,21 +358,6 @@ export default async function FacilityProfilePage({
               const roles = parseRoles(prelive.rolesNeeded);
               return (
                 <div key={prelive.id} className="rounded-md border p-3">
-                  <div className="mb-2 flex items-center justify-end gap-1">
-                    <EditPreliveDialog
-                      prelive={{
-                        id: prelive.id,
-                        priority: prelive.priority,
-                        goLiveDate: prelive.goLiveDate,
-                        boardMeetingDate: prelive.boardMeetingDate,
-                        credentialingDueDate: prelive.credentialingDueDate,
-                        tempsPossible: prelive.tempsPossible,
-                        rolesNeeded: prelive.rolesNeeded,
-                        payorEnrollmentRequired: prelive.payorEnrollmentRequired,
-                      }}
-                    />
-                    <DeletePreliveButton preliveId={prelive.id} />
-                  </div>
                   <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
                     <div>
                       <p className="text-muted-foreground text-xs">Priority</p>
@@ -542,41 +413,40 @@ export default async function FacilityProfilePage({
             })}
           </div>
         )}
-      </section>
+      </CollapsibleSection>
 
       {/* ── Provider credential sub-workflows ─────────────────── */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <p className="text-muted-foreground flex items-center gap-2 text-xs uppercase">
-            <Stethoscope className="size-4" /> Provider credential sub-workflows
-          </p>
-          <AddPfcDialog facilityId={facilityId} providers={providerOptions} />
-        </div>
+      <CollapsibleSection
+        title={<span className="flex items-center gap-2"><Stethoscope className="size-4" /> Provider credential sub-workflows</span>}
+        badge={credentialRows.length}
+        maxHeight="32rem"
+      >
         {credentialRows.length === 0 ? (
-          <div className="text-muted-foreground rounded-lg border border-dashed p-4 text-sm">
+          <p className="text-muted-foreground text-sm">
             No provider credentials exist for this facility.
-          </div>
+          </p>
         ) : (
-          credentialRows.map((credential) => {
-            const workflowList = workflowsByCredential.get(credential.id) ?? [];
-            const providerName = formatProviderName({
-              firstName: credential.providerFirstName,
-              middleName: credential.providerMiddleName,
-              lastName: credential.providerLastName,
-              degree: credential.providerDegree,
-            });
-            const isHighPriority = (credential.priority ?? "").toLowerCase().includes("high");
+          <div className="space-y-2">
+            {credentialRows.map((credential) => {
+              const workflowList = workflowsByCredential.get(credential.id) ?? [];
+              const providerName = formatProviderName({
+                firstName: credential.providerFirstName,
+                middleName: credential.providerMiddleName,
+                lastName: credential.providerLastName,
+                degree: credential.providerDegree,
+              });
+              const isHighPriority = (credential.priority ?? "").toLowerCase().includes("high");
 
-            return (
-              <article
-                key={credential.id}
-                className={`rounded-lg border p-4 ${
-                  isHighPriority ? "border-amber-400/60 bg-amber-500/5" : "border-border"
-                }`}
-              >
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-lg font-semibold">
+              return (
+                <div
+                  key={credential.id}
+                  className={`rounded-lg border p-3 ${
+                    isHighPriority ? "border-amber-400/60 bg-amber-500/5" : "border-border"
+                  }`}
+                >
+                  {/* ── Compact horizontal header ── */}
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <h3 className="text-sm font-semibold leading-tight">
                       {credential.providerId ? (
                         <Link className="hover:underline" href={`/providers/${credential.providerId}`}>
                           {providerName}
@@ -584,104 +454,74 @@ export default async function FacilityProfilePage({
                       ) : (
                         providerName
                       )}
-                    </h2>
-                    <p className="text-muted-foreground text-sm">
-                      Priority: {credential.priority ?? "—"} · Decision:{" "}
-                      {credential.decision ?? "—"} · Privileges: {credential.privileges ?? "—"}
-                    </p>
+                    </h3>
+                    <Badge variant="outline" className="text-[11px] px-1.5 py-0">{credential.priority ?? "—"}</Badge>
+                    <Badge variant="outline" className="text-[11px] px-1.5 py-0">{credential.decision ?? "—"}</Badge>
+                    {credential.privileges && (
+                      <Badge variant="outline" className="text-[11px] px-1.5 py-0">{credential.privileges}</Badge>
+                    )}
+                    {credential.facilityType && (
+                      <span className="text-muted-foreground text-[11px]">{credential.facilityType}</span>
+                    )}
+                    {credential.applicationRequired !== null && (
+                      <span className="text-muted-foreground text-[11px]">App: {credential.applicationRequired ? "Yes" : "No"}</span>
+                    )}
+                    {isHighPriority && (
+                      <span className="flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-300 font-medium">
+                        <AlertTriangle className="size-3" /> High
+                      </span>
+                    )}
+                    {credential.notes && (
+                      <span className="text-muted-foreground text-[11px] max-w-xs truncate" title={credential.notes}>{credential.notes}</span>
+                    )}
+                    <span className="text-muted-foreground text-[11px] ml-auto shrink-0">Updated {formatDate(credential.updatedAt)}</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <EditPfcDialog
-                      pfc={{
-                        id: credential.id,
-                        facilityType: credential.facilityType,
-                        privileges: credential.privileges,
-                        decision: credential.decision,
-                        notes: credential.notes,
-                        priority: credential.priority,
-                        formSize: credential.formSize,
-                        applicationRequired: credential.applicationRequired,
-                      }}
-                    />
-                    <DeletePfcButton pfcId={credential.id} providerName={providerName} />
-                    <div className="text-right text-sm">
-                      {isHighPriority ? (
-                        <p className="flex items-center gap-1 text-amber-600 dark:text-amber-300">
-                          <AlertTriangle className="size-4" /> High priority
-                        </p>
-                      ) : null}
-                      <p className="text-muted-foreground">Updated {formatDate(credential.updatedAt)}</p>
-                    </div>
-                  </div>
-                </div>
 
-                <div className="text-muted-foreground mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs">
-                  {credential.facilityType && <span>Type: {credential.facilityType}</span>}
-                  {credential.applicationRequired !== null && (
-                    <span>Application: {credential.applicationRequired ? "Required" : "Not required"}</span>
+                  {/* ── Workflow table ── */}
+                  {workflowList.length === 0 ? (
+                    <p className="text-muted-foreground text-xs mt-1">No workflow phases linked.</p>
+                  ) : (
+                    <div className="overflow-x-auto mt-2">
+                      <table className="w-full text-left text-xs">
+                        <thead className="text-muted-foreground uppercase">
+                          <tr>
+                            <th className="py-1 pr-3 font-medium">Phase</th>
+                            <th className="py-1 pr-3 font-medium">Status</th>
+                            <th className="py-1 pr-3 font-medium">Start</th>
+                            <th className="py-1 pr-3 font-medium">Due</th>
+                            <th className="py-1 pr-3 font-medium">Completed</th>
+                          </tr>
+                        </thead>
+                        <tbody className="text-sm">
+                          {workflowList.map((workflow) => (
+                            <tr key={workflow.id} className="border-t">
+                              <td className="py-1 pr-3">{workflow.phaseName}</td>
+                              <td className="py-1 pr-3">{workflow.status ?? "—"}</td>
+                              <td className="py-1 pr-3">{workflow.startDate ?? "—"}</td>
+                              <td className={`py-1 pr-3 ${getDueDateTone(workflow.dueDate)}`}>
+                                {workflow.dueDate ?? "—"}
+                              </td>
+                              <td className="py-1 pr-3">{workflow.completedAt ?? "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   )}
                 </div>
-
-                <p className="text-muted-foreground mt-2 text-sm">{credential.notes ?? "No notes"}</p>
-
-                {workflowList.length === 0 ? (
-                  <div className="mt-3 flex items-center justify-between">
-                    <p className="text-muted-foreground text-sm">No workflow phases linked.</p>
-                    <AddWorkflowPhaseDialog relatedId={credential.id} />
-                  </div>
-                ) : (
-                  <div className="mt-3">
-                    <div className="mb-2 flex justify-end">
-                      <AddWorkflowPhaseDialog relatedId={credential.id} />
-                    </div>
-                    <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm">
-                      <thead className="text-muted-foreground text-xs uppercase">
-                        <tr>
-                          <th className="py-1 pr-3">Phase</th>
-                          <th className="py-1 pr-3">Status</th>
-                          <th className="py-1 pr-3">Start</th>
-                          <th className="py-1 pr-3">Due</th>
-                          <th className="py-1 pr-3">Completed</th>
-                          <th className="py-1">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {workflowList.map((workflow) => (
-                          <tr key={workflow.id} className="border-t">
-                            <td className="py-1 pr-3">{workflow.phaseName}</td>
-                            <td className="py-1 pr-3">{workflow.status ?? "—"}</td>
-                            <td className="py-1 pr-3">{workflow.startDate ?? "—"}</td>
-                            <td className={`py-1 pr-3 ${getDueDateTone(workflow.dueDate)}`}>
-                              {workflow.dueDate ?? "—"}
-                            </td>
-                            <td className="py-1 pr-3">{workflow.completedAt ?? "—"}</td>
-                            <td className="py-1">
-                              <div className="flex items-center gap-1">
-                                <WorkflowPhaseDrawer
-                                  timeline={workflowList}
-                                  updateAction={updateWorkflowPhaseAction}
-                                  workflow={{
-                                    ...workflow,
-                                    facilityName: facility.name ?? "Unknown facility",
-                                    providerCredentialId: credential.id,
-                                  }}
-                                />
-                                <DeleteWorkflowPhaseButton phaseId={workflow.id} phaseName={workflow.phaseName} />
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    </div>
-                  </div>
-                )}
-              </article>
-            );
-          })
+              );
+            })}
+          </div>
         )}
-      </section>
+      </CollapsibleSection>
+
+      {/* ── Activity Timeline ─────────────────────────────────── */}
+      <CollapsibleSection
+        title={<span className="flex items-center gap-2"><Activity className="size-5" /> Activity Log</span>}
+        defaultOpen={false}
+      >
+        <ActivityTimeline entityType="facility" entityId={facilityId} />
+      </CollapsibleSection>
     </div>
   );
 }

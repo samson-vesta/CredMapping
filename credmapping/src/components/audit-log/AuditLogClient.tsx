@@ -1,14 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { FilterSection } from "~/components/audit-log/FilterSection";
+import { ArrowDown, ArrowUp, Search } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { AuditLogRow } from "~/components/audit-log/AuditLogRow";
+import { Button } from "~/components/ui/button";
 import { Card } from "~/components/ui/card";
+import { DatePicker } from "~/components/ui/date-picker";
+import { Input } from "~/components/ui/input";
+import { ScrollIndicatorContainer } from "~/components/ui/scroll-indicator-container";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select";
 import { Skeleton } from "~/components/ui/skeleton";
-import { api } from "~/trpc/react";
 import { type auditLog } from "~/server/db/schema";
+import { api } from "~/trpc/react";
 
 type AuditLogRecord = typeof auditLog.$inferSelect;
+
+type SortDirection = "asc" | "desc";
+type SortField = "timestamp" | "user" | "action" | "tableName" | "recordId" | "changes";
 
 interface FormattedAuditLog {
   id: string;
@@ -23,9 +31,7 @@ interface FormattedAuditLog {
 
 const ACTION_VALUES = ["insert", "update", "delete"] as const;
 
-function toAuditAction(
-  action: string | null | undefined
-): "insert" | "update" | "delete" {
+function toAuditAction(action: string | null | undefined): "insert" | "update" | "delete" {
   return ACTION_VALUES.includes(action as (typeof ACTION_VALUES)[number])
     ? (action as "insert" | "update" | "delete")
     : "update";
@@ -44,29 +50,71 @@ function formatAuditLogRecord(record: AuditLogRecord): FormattedAuditLog {
   };
 }
 
+function computeChangedFieldCount(oldData: Record<string, unknown> | null, newData: Record<string, unknown> | null): number {
+  if (!oldData && !newData) {
+    return 0;
+  }
+
+  const oldValues = oldData ?? {};
+  const newValues = newData ?? {};
+  const allKeys = new Set([...Object.keys(oldValues), ...Object.keys(newValues)]);
+
+  let count = 0;
+
+  allKeys.forEach((key) => {
+    if (JSON.stringify(oldValues[key]) !== JSON.stringify(newValues[key])) {
+      count += 1;
+    }
+  });
+
+  return count;
+}
+
+function SortHeader({
+  label,
+  field,
+  sortField,
+  sortDirection,
+  onSort,
+}: {
+  label: string;
+  field: SortField;
+  sortField: SortField;
+  sortDirection: SortDirection;
+  onSort: (field: SortField) => void;
+}) {
+  const isActive = sortField === field;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(field)}
+      className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
+    >
+      {label}
+      {isActive ? sortDirection === "asc" ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" /> : null}
+    </button>
+  );
+}
+
 export function AuditLogClient() {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-  const [timestamp, setTimestamp] = useState("");
-  const [user, setUser] = useState("");
-  const [action, setAction] = useState<"all" | "insert" | "update" | "delete">(
-    "all"
-  );
-  const [tableName, setTableName] = useState("");
-  const [recordId, setRecordId] = useState("");
-  const [dataContent, setDataContent] = useState("");
+  const [sortField, setSortField] = useState<SortField>("timestamp");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const PAGE_SIZE = 50;
 
-  // Date defaults: 7 days ago to today
-  const today = new Date().toISOString().split("T")[0];
-  const sevenDaysAgo = new Date(new Date().setDate(new Date().getDate() - 7))
-    .toISOString()
-    .split("T")[0];
+  const [searchQuery, setSearchQuery] = useState("");
+  const [action, setAction] = useState<"all" | "insert" | "update" | "delete">("all");
+  const [tableName, setTableName] = useState("");
+
+  const today = new Date().toISOString().slice(0, 10);
+  const sevenDaysAgo = new Date(new Date().setDate(new Date().getDate() - 7)).toISOString().slice(0, 10);
 
   const [fromDate, setFromDate] = useState(sevenDaysAgo);
   const [toDate, setToDate] = useState(today);
 
-  // Fetch audit logs
   const {
-    data: auditLogs = [],
+    data: result,
     isLoading,
     error,
     refetch,
@@ -76,21 +124,22 @@ export function AuditLogClient() {
       toDate: toDate ?? undefined,
       action: action !== "all" ? action : undefined,
       tableName: tableName ?? undefined,
-      actorEmail: user ?? undefined,
-      recordId: recordId ?? undefined,
-      dataContent: dataContent ?? undefined,
-      limit: 100,
+      actorEmail: searchQuery ?? undefined,
+      dataContent: searchQuery ?? undefined,
+      limit: PAGE_SIZE,
       offset: 0,
     },
     {
-      enabled: false, 
-    }
+      enabled: false,
+    },
   );
 
-  // Auto-load on mount
+  const auditLogs = useMemo(() => result?.rows ?? [], [result?.rows]);
+
   useEffect(() => {
+    setExpandedRows(new Set());
     void refetch();
-  }, [refetch]);
+  }, [action, fromDate, refetch, searchQuery, tableName, toDate]);
 
   const handleToggleExpand = (id: string) => {
     setExpandedRows((prev) => {
@@ -105,165 +154,134 @@ export function AuditLogClient() {
   };
 
   const handleClearAll = () => {
-    setTimestamp("");
-    setUser("");
+    setSearchQuery("");
     setAction("all");
     setTableName("");
-    setRecordId("");
-    setDataContent("");
     setFromDate(sevenDaysAgo);
     setToDate(today);
+    setExpandedRows(new Set());
   };
 
-  const handleLoad = () => {
-    void refetch();
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+
+    setSortField(field);
+    setSortDirection("asc");
   };
 
-  // Calculate stats
-  const totalCount = auditLogs.length;
-  const insertCount = auditLogs.filter(
-    (log) => log.action === "insert"
-  ).length;
-  const updateCount = auditLogs.filter(
-    (log) => log.action === "update"
-  ).length;
-  const deleteCount = auditLogs.filter(
-    (log) => log.action === "delete"
-  ).length;
-  const uniqueUsers = new Set(
-    auditLogs
-      .map((log) => log.actorEmail ?? "unknown")
-      .filter((email) => email !== "unknown")
-  ).size;
+  const sortedAuditLogs = useMemo(() => {
+    const formatted = auditLogs.map(formatAuditLogRecord);
+
+    return [...formatted].sort((a, b) => {
+      const directionMultiplier = sortDirection === "asc" ? 1 : -1;
+
+      const compare = (valueA: string | number, valueB: string | number) => {
+        if (valueA < valueB) return -1 * directionMultiplier;
+        if (valueA > valueB) return 1 * directionMultiplier;
+        return 0;
+      };
+
+      switch (sortField) {
+        case "timestamp":
+          return compare(a.timestamp.getTime(), b.timestamp.getTime());
+        case "user":
+          return compare((a.user ?? "").toLowerCase(), (b.user ?? "").toLowerCase());
+        case "action":
+          return compare(a.action, b.action);
+        case "tableName":
+          return compare(a.tableName.toLowerCase(), b.tableName.toLowerCase());
+        case "recordId":
+          return compare((a.recordId ?? "").toLowerCase(), (b.recordId ?? "").toLowerCase());
+        case "changes":
+          return compare(computeChangedFieldCount(a.oldData, a.newData), computeChangedFieldCount(b.oldData, b.newData));
+        default:
+          return 0;
+      }
+    });
+  }, [auditLogs, sortDirection, sortField]);
 
   if (error) {
     return (
-      <div className="space-y-6">
-        <FilterSection
-          timestamp={timestamp}
-          user={user}
-          action={action}
-          tableName={tableName}
-          recordId={recordId}
-          dataContent={dataContent}
-          fromDate={fromDate}
-          toDate={toDate}
-          onTimestampChange={setTimestamp}
-          onUserChange={setUser}
-          onActionChange={setAction}
-          onTableNameChange={setTableName}
-          onRecordIdChange={setRecordId}
-          onDataContentChange={setDataContent}
-          onFromDateChange={setFromDate}
-          onToDateChange={setToDate}
-          onClearAll={handleClearAll}
-          onLoad={handleLoad}
-          isLoading={isLoading}
-        />
-        <Card className="p-6 text-center">
+      <Card className="flex h-full min-h-0 items-center justify-center p-6 text-center">
+        <div>
           <p className="text-destructive">Error loading audit logs</p>
-          <button
-            onClick={handleLoad}
-            className="mt-2 text-sm text-primary hover:underline"
-          >
+          <Button onClick={() => void refetch()} variant="outline" size="sm" className="mt-3">
             Retry
-          </button>
-        </Card>
-      </div>
+          </Button>
+        </div>
+      </Card>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Filter Section */}
-      <FilterSection
-        timestamp={timestamp}
-        user={user}
-        action={action}
-        tableName={tableName}
-        recordId={recordId}
-        dataContent={dataContent}
-        fromDate={fromDate}
-        toDate={toDate}
-        onTimestampChange={setTimestamp}
-        onUserChange={setUser}
-        onActionChange={setAction}
-        onTableNameChange={setTableName}
-        onRecordIdChange={setRecordId}
-        onDataContentChange={setDataContent}
-        onFromDateChange={setFromDate}
-        onToDateChange={setToDate}
-        onClearAll={handleClearAll}
-        onLoad={handleLoad}
-        isLoading={isLoading}
-      />
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <Card className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md gap-0 py-0">
+        <div className="flex flex-wrap items-center gap-3 border-b border-border bg-muted/20 px-4 py-3">
+          <div className="relative min-w-[240px] flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search user, data content, or record ID..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+          </div>
 
-      {/* Stats Bar */}
-      <div className="flex flex-wrap gap-6 px-4 py-2 rounded border border-border bg-card">
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Total entries:</span>
-          <span className="text-sm font-semibold text-foreground">
-            {totalCount}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-yellow-400" />
-          <span className="text-xs text-muted-foreground">Updates:</span>
-          <span className="text-sm font-semibold text-yellow-400">
-            {updateCount}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-green-400" />
-          <span className="text-xs text-muted-foreground">Inserts:</span>
-          <span className="text-sm font-semibold text-green-400">
-            {insertCount}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-destructive" />
-          <span className="text-xs text-muted-foreground">Deletes:</span>
-          <span className="text-sm font-semibold text-destructive">
-            {deleteCount}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Unique users:</span>
-          <span className="text-sm font-semibold text-foreground">
-            {uniqueUsers}
-          </span>
-        </div>
-      </div>
+          <Select value={action} onValueChange={(value) => setAction(value as "all" | "insert" | "update" | "delete")}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Actions</SelectItem>
+              <SelectItem value="insert">Insert</SelectItem>
+              <SelectItem value="update">Update</SelectItem>
+              <SelectItem value="delete">Delete</SelectItem>
+            </SelectContent>
+          </Select>
 
-      {/* Entries Table */}
-      <Card className="overflow-hidden">
+          <Select value={tableName || "all"} onValueChange={(value) => setTableName(value === "all" ? "" : value)}>
+            <SelectTrigger className="w-[190px]">
+              <SelectValue placeholder="All Tables" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Tables</SelectItem>
+              <SelectItem value="facilities">facilities</SelectItem>
+              <SelectItem value="providers">providers</SelectItem>
+              <SelectItem value="comm_logs">comm_logs</SelectItem>
+              <SelectItem value="certifications">certifications</SelectItem>
+              <SelectItem value="doctor_facility_assignments">doctor_facility_assignments</SelectItem>
+              <SelectItem value="agents">agents</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <DatePicker value={fromDate} onChange={setFromDate} placeholder="From date" className="w-[170px]" clearable={false} />
+          <DatePicker value={toDate} onChange={setToDate} placeholder="To date" className="w-[170px]" clearable={false} />
+
+          <Button
+            onClick={handleClearAll}
+            disabled={isLoading}
+            className="bg-rose-600 text-white hover:bg-rose-700 dark:bg-rose-500 dark:hover:bg-rose-600"
+          >
+            Reset Filters
+          </Button>
+        </div>
+
+        <div className="border-t border-border" />
+
         {isLoading ? (
           <div className="space-y-0">
-            <div className="sticky top-0 z-10 grid grid-cols-[180px_220px_100px_180px_200px_1fr] gap-4 border-b border-border bg-muted px-4 py-2">
-              <div className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">
-                Timestamp
-              </div>
-              <div className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">
-                User
-              </div>
-              <div className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">
-                Action
-              </div>
-              <div className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">
-                Table
-              </div>
-              <div className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">
-                Record ID
-              </div>
-              <div className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">
-                Changes
-              </div>
+            <div className="grid grid-cols-[180px_220px_110px_160px_240px_1fr] gap-4 border-b border-border bg-muted px-4 py-2">
+              {["Timestamp", "User", "Action", "Table", "Record ID", "Changes"].map((column) => (
+                <div key={column} className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  {column}
+                </div>
+              ))}
             </div>
-            {Array.from({ length: 10 }).map((_, i) => (
-              <div
-                key={i}
-                className="grid grid-cols-[180px_220px_100px_180px_200px_1fr] gap-4 border-b border-border px-4 py-3"
-              >
+            {Array.from({ length: 10 }).map((_, index) => (
+              <div key={index} className="grid grid-cols-[180px_220px_110px_160px_240px_1fr] gap-4 border-b border-border px-4 py-3">
                 <Skeleton className="h-4 w-full" />
                 <Skeleton className="h-4 w-full" />
                 <Skeleton className="h-4 w-full" />
@@ -273,53 +291,41 @@ export function AuditLogClient() {
               </div>
             ))}
           </div>
-        ) : auditLogs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
+        ) : sortedAuditLogs.length === 0 ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 py-16 text-muted-foreground">
             <span className="text-3xl opacity-30">🔍</span>
-            <p className="text-sm">
-              No audit log entries found for the selected filters
-            </p>
+            <p className="text-sm">No audit log entries found for the selected filters</p>
           </div>
         ) : (
-          <div className="divide-y divide-border">
-            <div className="sticky top-0 z-10 grid grid-cols-[180px_220px_100px_180px_200px_1fr] gap-4 border-b border-border bg-muted px-4 py-2">
-              <div className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">
-                Timestamp
-              </div>
-              <div className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">
-                User
-              </div>
-              <div className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">
-                Action
-              </div>
-              <div className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">
-                Table
-              </div>
-              <div className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">
-                Record ID
-              </div>
-              <div className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">
-                Changes
-              </div>
+          <>
+            <div className="grid grid-cols-[180px_220px_110px_160px_240px_1fr] gap-4 border-b border-border bg-muted px-4 py-2">
+              <SortHeader label="Timestamp" field="timestamp" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+              <SortHeader label="User" field="user" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+              <SortHeader label="Action" field="action" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+              <SortHeader label="Table" field="tableName" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+              <SortHeader label="Record ID" field="recordId" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+              <SortHeader label="Changes" field="changes" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
             </div>
-            {auditLogs.map((log) => {
-              const formatted = formatAuditLogRecord(log);
-              return (
-                <AuditLogRow
-                  key={formatted.id}
-                  timestamp={formatted.timestamp}
-                  user={formatted.user}
-                  action={formatted.action}
-                  tableName={formatted.tableName}
-                  recordId={formatted.recordId}
-                  oldData={formatted.oldData}
-                  newData={formatted.newData}
-                  isExpanded={expandedRows.has(formatted.id)}
-                  onToggleExpand={() => handleToggleExpand(formatted.id)}
-                />
-              );
-            })}
-          </div>
+
+            <ScrollIndicatorContainer className="min-h-0 flex-1" viewportClassName="hide-scrollbar">
+              <div className="divide-y divide-border">
+                {sortedAuditLogs.map((formatted) => (
+                  <AuditLogRow
+                    key={formatted.id}
+                    timestamp={formatted.timestamp}
+                    user={formatted.user}
+                    action={formatted.action}
+                    tableName={formatted.tableName}
+                    recordId={formatted.recordId}
+                    oldData={formatted.oldData}
+                    newData={formatted.newData}
+                    isExpanded={expandedRows.has(formatted.id)}
+                    onToggleExpand={() => handleToggleExpand(formatted.id)}
+                  />
+                ))}
+              </div>
+            </ScrollIndicatorContainer>
+          </>
         )}
       </Card>
     </div>

@@ -1,11 +1,10 @@
-import { and, count, desc, eq, ilike, inArray, not, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, ilike, inArray, or } from "drizzle-orm";
 import { Mail, Phone } from "lucide-react";
 import Link from "next/link";
-import { AddFacilityDialog } from "~/components/facilities/add-facility-dialog";
-import { MetricsTrendChart } from "~/components/metrics-trend-chart";
+import { FacilitiesPendingProvider, FacilitiesListOverlay } from "~/app/(external)/facilities/facilities-pending-context";
+import { FacilitiesTopSection } from "~/app/(external)/facilities/facilities-top-section";
 import { ProvidersAutoAdvance } from "~/components/providers-auto-advance";
 import { Badge } from "~/components/ui/badge";
-import { Button } from "~/components/ui/button";
 import { VirtualScrollContainer } from "~/components/ui/virtual-scroll-container";
 import { getAppRole } from "~/server/auth/domain";
 import { db } from "~/server/db";
@@ -38,14 +37,10 @@ const getFacilityStatusTone = (status: FacilityStatus | null) => {
 };
 
 type FacilitySort = "name_asc" | "name_desc" | "updated_desc" | "updated_asc";
-type ContactsFilter = "all" | "with" | "without";
 type ActivityFilter = "all" | "active" | "inactive" | "in_progress";
 
 const isFacilitySort = (value: string): value is FacilitySort =>
   ["name_asc", "name_desc", "updated_desc", "updated_asc"].includes(value);
-
-const isContactsFilter = (value: string): value is ContactsFilter =>
-  ["all", "with", "without"].includes(value);
 
 const isActivityFilter = (value: string): value is ActivityFilter =>
   ["all", "active", "inactive", "in_progress"].includes(value);
@@ -76,9 +71,6 @@ export default async function FacilitiesPage(props: {
   const rawSort = typeof searchParams?.sort === "string" ? searchParams.sort : "";
   const sort: FacilitySort = isFacilitySort(rawSort) ? rawSort : "name_asc";
 
-  const rawContacts = typeof searchParams?.contacts === "string" ? searchParams.contacts : "all";
-  const contactsFilter: ContactsFilter = isContactsFilter(rawContacts) ? rawContacts : "all";
-
   const rawActivity = typeof searchParams?.activity === "string" ? searchParams.activity : "all";
   const activityFilter: ActivityFilter = isActivityFilter(rawActivity) ? rawActivity : "all";
 
@@ -88,16 +80,15 @@ export default async function FacilitiesPage(props: {
     ? Math.max(pageSize, Number.parseInt(rawLimit, 10) || pageSize)
     : pageSize;
 
-  const [contactFacilityRows, facilityCreatedRows, credentialCreatedRows, workflowIncidentRows] =
+  const [facilityCreatedRows, credentialCreatedRows, workflowIncidentRows] =
     await Promise.all([
-      db.selectDistinct({ facilityId: facilityContacts.facilityId }).from(facilityContacts),
-    db.select({ createdAt: facilities.createdAt }).from(facilities),
-    db.select({ createdAt: providerFacilityCredentials.createdAt }).from(providerFacilityCredentials),
-    db
-      .select({ createdAt: workflowPhases.createdAt })
-      .from(workflowPhases)
-      .where(eq(workflowPhases.workflowType, "pfc")),
-  ]);
+      db.select({ createdAt: facilities.createdAt }).from(facilities),
+      db.select({ createdAt: providerFacilityCredentials.createdAt }).from(providerFacilityCredentials),
+      db
+        .select({ createdAt: workflowPhases.createdAt })
+        .from(workflowPhases)
+        .where(eq(workflowPhases.workflowType, "pfc")),
+    ]);
 
   const facilityTimeline = new Map<string, { primary: number; secondary: number; tertiary: number }>();
 
@@ -122,10 +113,6 @@ export default async function FacilitiesPage(props: {
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([date, values]) => ({ date, ...values }));
 
-  const facilitiesWithContacts = contactFacilityRows
-    .map((row) => row.facilityId)
-    .filter((id): id is string => Boolean(id));
-
   const searchWhere = hasSearch
     ? or(
         ilike(facilities.name, `%${search}%`),
@@ -148,18 +135,7 @@ export default async function FacilitiesPage(props: {
               : "In Progress",
         );
 
-  const contactsWhere =
-    contactsFilter === "all"
-      ? undefined
-      : contactsFilter === "with"
-        ? facilitiesWithContacts.length > 0
-          ? inArray(facilities.id, facilitiesWithContacts)
-          : sql`1 = 0`
-        : facilitiesWithContacts.length > 0
-          ? not(inArray(facilities.id, facilitiesWithContacts))
-          : undefined;
-
-  const whereClause = and(searchWhere, activityWhere, contactsWhere);
+  const whereClause = and(searchWhere, activityWhere);
 
   const totalVisibleRow = await db.select({ count: count() }).from(facilities).where(whereClause);
 
@@ -275,7 +251,6 @@ export default async function FacilitiesPage(props: {
   const queryParams = new URLSearchParams();
   if (search) queryParams.set("search", search);
   if (sort !== "name_asc") queryParams.set("sort", sort);
-  if (contactsFilter !== "all") queryParams.set("contacts", contactsFilter);
   if (activityFilter !== "all") queryParams.set("activity", activityFilter);
 
   const createLimitHref = (nextLimit: number) => {
@@ -286,85 +261,27 @@ export default async function FacilitiesPage(props: {
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-6 overflow-hidden">
-      <MetricsTrendChart
-        labels={{
-          primary: "New facilities",
-          secondary: "New PFC links",
-          tertiary: "Related incidents",
-        }}
-        points={facilityTrendPoints}
-        title="Facility onboarding velocity"
-      />
+    <FacilitiesPendingProvider>
+      <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
+        <FacilitiesTopSection
+          activityFilter={activityFilter}
+          isSuperAdmin={isSuperAdmin}
+          search={search}
+          sort={sort}
+          trendPoints={facilityTrendPoints}
+        />
 
-      <form className="bg-card flex flex-col gap-3 rounded-lg border p-4 lg:flex-row lg:items-end" method="get">
-        <div className="grid flex-1 gap-3 md:grid-cols-4">
-          <label className="space-y-1">
-            <span className="text-muted-foreground text-xs uppercase">Sort facilities</span>
-            <select className="bg-background h-9 w-full rounded-md border px-3 text-sm" defaultValue={sort} name="sort">
-              <option value="name_asc">Facility name (A → Z)</option>
-              <option value="name_desc">Facility name (Z → A)</option>
-              <option value="updated_desc">Updated (newest first)</option>
-              <option value="updated_asc">Updated (oldest first)</option>
-            </select>
-          </label>
-
-          <label className="space-y-1">
-            <span className="text-muted-foreground text-xs uppercase">Activity</span>
-            <select className="bg-background h-9 w-full rounded-md border px-3 text-sm" defaultValue={activityFilter} name="activity">
-              <option value="all">All facilities</option>
-              <option value="active">Active only</option>
-              <option value="inactive">Inactive only</option>
-              <option value="in_progress">In progress only</option>
-            </select>
-          </label>
-
-          <label className="space-y-1">
-            <span className="text-muted-foreground text-xs uppercase">Contact coverage</span>
-            <select
-              className="bg-background h-9 w-full rounded-md border px-3 text-sm"
-              defaultValue={contactsFilter}
-              name="contacts"
+        <FacilitiesListOverlay>
+          {facilityCards.length === 0 ? (
+            <div className="text-muted-foreground rounded-lg border border-dashed p-8 text-sm">
+              No facilities found.
+            </div>
+          ) : (
+            <VirtualScrollContainer
+              className="min-h-0 flex-1"
+              heightClassName="h-full"
+              viewportClassName="facilities-scroll-viewport"
             >
-              <option value="all">All facilities</option>
-              <option value="with">With contacts</option>
-              <option value="without">Without contacts</option>
-            </select>
-          </label>
-
-          <label className="space-y-1">
-            <span className="text-muted-foreground text-xs uppercase">Search facilities</span>
-            <input
-              className="bg-background h-9 w-full rounded-md border px-3 text-sm"
-              defaultValue={search}
-              name="search"
-              placeholder="Search by name, state, email, address"
-              type="search"
-            />
-          </label>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Button type="submit" variant="outline">
-            Apply
-          </Button>
-          <Button asChild variant="outline">
-            <Link href="/facilities">Reset</Link>
-          </Button>
-          {isSuperAdmin ? <AddFacilityDialog /> : null}
-        </div>
-      </form>
-
-      {facilityCards.length === 0 ? (
-        <div className="text-muted-foreground rounded-lg border border-dashed p-8 text-sm">
-          No facilities found.
-        </div>
-      ) : (
-        <VirtualScrollContainer
-          className="min-h-0 flex-1"
-          heightClassName="h-full"
-          viewportClassName="facilities-scroll-viewport"
-        >
           <div className="space-y-4 p-4">
             {facilityCards.map((card) => {
               const { facility, contacts, credentials, primaryContact, workflowCount } = card;
@@ -577,7 +494,9 @@ export default async function FacilitiesPage(props: {
             </div>
           </div>
         </VirtualScrollContainer>
-      )}
-    </div>
+          )}
+        </FacilitiesListOverlay>
+      </div>
+    </FacilitiesPendingProvider>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { CommLogCard } from "./CommLogCard";
+import { StandardEmptyState } from "./StandardEmptyState";
 
 interface CommLog {
   id: string;
@@ -15,14 +16,12 @@ interface CommLog {
 interface CommLogFeedProps {
   logs: CommLog[];
   isLoading?: boolean;
-  onNewLog?: () => void;
   onSelectLog?: (log: CommLog) => void;
 }
 
 export function CommLogFeed({
   logs,
   isLoading = false,
-  onNewLog,
   onSelectLog,
 }: CommLogFeedProps) {
   if (isLoading) {
@@ -36,19 +35,7 @@ export function CommLogFeed({
   }
 
   if (logs.length === 0) {
-    return (
-      <div className="text-center py-12 border-2 border-dashed border-border rounded-xl">
-        <p className="text-muted-foreground mb-4 font-medium italic">No activity logs recorded yet</p>
-        {onNewLog && (
-          <button
-            onClick={onNewLog}
-            className="inline-flex items-center px-4 py-2 bg-primary text-primary-foreground text-sm font-semibold rounded-md hover:bg-primary/90 transition-all shadow-sm"
-          >
-            + Log Interaction
-          </button>
-        )}
-      </div>
-    );
+    return <StandardEmptyState message="No activity logs recorded yet" />;
   }
 
   return (

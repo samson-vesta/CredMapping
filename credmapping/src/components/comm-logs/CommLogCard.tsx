@@ -2,6 +2,12 @@
 
 import { format } from "date-fns";
 import { FileText, Link as LinkIcon, Mail, Package, Phone, Users, Clock } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "~/components/ui/tooltip";
 
 interface CommLogCardProps {
   id: string;
@@ -34,6 +40,7 @@ export function CommLogCard({
   onClick,
 }: CommLogCardProps) {
   const icon = commTypeIcons[commType ?? ""] ?? <FileText className="w-4 h-4" />;
+  const commTypeLabel = commType ?? "Note";
 
   return (
     <button
@@ -42,10 +49,6 @@ export function CommLogCard({
       type="button"
     >
       <div className="flex items-start gap-4">
-        <div className="mt-1 flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors">
-          {icon}
-        </div>
-
         <div className="min-w-0 flex-1">
           <div className="mb-2 flex items-start justify-between gap-2">
             <div className="flex-1">
@@ -57,11 +60,20 @@ export function CommLogCard({
                 {format(new Date(createdAt ?? new Date()), "MMM d, yyyy · p")}
               </div>
             </div>
-            
+
             <div className="shrink-0">
-              <span className="text-[10px] font-bold px-2 py-1 rounded bg-secondary text-secondary-foreground border border-border uppercase tracking-tighter">
-                {commType ?? "Note"}
-              </span>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="mt-1 flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground transition-colors group-hover:bg-primary/10 group-hover:text-primary">
+                      {icon}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="left" align="start">
+                    {commTypeLabel}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           </div>
 
@@ -82,8 +94,8 @@ export function CommLogCard({
 
             <div className="flex items-center gap-2">
               {lastUpdatedByName && (
-                <span className="rounded-full bg-primary/5 px-2 py-0.5 text-primary border border-primary/10 font-bold uppercase tracking-tighter">
-                  Updated
+                <span className="font-semibold text-muted-foreground/60">
+                  Last updated by: <span className="text-foreground">{lastUpdatedByName}</span>
                 </span>
               )}
             </div>

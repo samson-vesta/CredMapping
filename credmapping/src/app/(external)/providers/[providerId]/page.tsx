@@ -1,28 +1,21 @@
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   Activity,
   AlertTriangle,
   Building2,
-  CalendarClock,
   ShieldCheck,
   Stethoscope,
 } from "lucide-react";
-import { WorkflowPhaseDrawer } from "~/components/providers/workflow-phase-drawer";
+import { ActivityTimeline } from "~/components/audit-log/ActivityTimeline";
 import {
   EditProviderDialog,
   DeleteProviderDialog,
-  AddLicenseDialog,
-  EditLicenseDialog,
-  DeleteLicenseButton,
-  AddPrivilegeDialog,
-  EditPrivilegeDialog,
-  DeletePrivilegeButton,
 } from "~/components/providers/provider-actions";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
+import { CollapsibleSection } from "~/components/ui/collapsible-section";
 import { db } from "~/server/db";
 import {
   agents,
@@ -189,54 +182,9 @@ export default async function ProviderProfilePage({
     workflowsByCredential.set(workflow.relatedId, current);
   }
 
-  async function updateWorkflowPhaseAction(formData: FormData) {
-    "use server";
-
-    const getText = (key: string) => {
-      const value = formData.get(key);
-      return typeof value === "string" ? value.trim() : "";
-    };
-
-    const workflowId = getText("workflowId");
-    const credentialId = getText("providerCredentialId");
-    const phaseName = getText("phaseName");
-    const status = getText("status");
-    const startDate = getText("startDate");
-    const dueDate = getText("dueDate");
-    const completedAt = getText("completedAt");
-
-    if (!workflowId || !credentialId || !phaseName || !startDate || !dueDate) return;
-
-    const [workflow] = await db
-      .select({
-        id: workflowPhases.id,
-        workflowType: workflowPhases.workflowType,
-      })
-      .from(workflowPhases)
-      .where(and(eq(workflowPhases.id, workflowId), eq(workflowPhases.relatedId, credentialId)))
-      .limit(1);
-
-    if (workflow?.workflowType !== "pfc") return;
-
-    await db
-      .update(workflowPhases)
-      .set({
-        phaseName,
-        status: status || "Pending",
-        startDate,
-        dueDate,
-        completedAt: completedAt || null,
-        updatedAt: new Date(),
-      })
-      .where(eq(workflowPhases.id, workflowId));
-
-    revalidatePath(`/providers/${providerId}`);
-    revalidatePath("/providers");
-  }
-
   return (
-    <div className="space-y-6 pb-4">
-      <section className="rounded-xl border bg-gradient-to-r from-blue-950/20 via-background to-emerald-950/20 p-5">
+    <div className="space-y-4 pb-4">
+      <section className="rounded-xl border   p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-2">
             <p className="text-muted-foreground flex items-center gap-2 text-xs uppercase tracking-wide">
@@ -254,7 +202,20 @@ export default async function ProviderProfilePage({
           </div>
         </div>
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        {/* Inline details */}
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          <span>Created {formatDate(provider.createdAt)}</span>
+          <span>·</span>
+          <span>Updated {formatDate(provider.updatedAt)}</span>
+          {provider.notes && (
+            <>
+              <span>·</span>
+              <span className="max-w-xs truncate" title={provider.notes}>{provider.notes}</span>
+            </>
+          )}
+        </div>
+
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
           <div className="rounded-md border border-blue-500/40 bg-blue-500/10 p-3">
             <p className="text-xs text-blue-700 dark:text-blue-300">State licenses</p>
             <p className="text-xl font-semibold">{licenseRows.length}</p>
@@ -270,93 +231,50 @@ export default async function ProviderProfilePage({
         </div>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-3">
-        <article className="rounded-lg border p-4 lg:col-span-2">
-          <div className="mb-2 flex items-center justify-between">
-            <p className="text-muted-foreground flex items-center gap-2 text-xs uppercase">
-              <ShieldCheck className="size-4" /> State licenses
-            </p>
-            <AddLicenseDialog providerId={providerId} />
-          </div>
-          {licenseRows.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No state licenses found.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="text-muted-foreground text-xs uppercase">
-                  <tr>
-                    <th className="py-1 pr-3">State</th>
-                    <th className="py-1 pr-3">Status</th>
-                    <th className="py-1 pr-3">Number</th>
-                    <th className="py-1 pr-3">Starts</th>
-                    <th className="py-1 pr-3">Expires</th>
-                    <th className="py-1">Actions</th>
+      {/* ── State licenses ────────────────────────────────────── */}
+      <CollapsibleSection
+        title={<span className="flex items-center gap-2"><ShieldCheck className="size-4" /> State licenses</span>}
+        badge={licenseRows.length}
+        maxHeight="20rem"
+      >
+        {licenseRows.length === 0 ? (
+          <p className="text-muted-foreground text-sm">No state licenses found.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="text-muted-foreground text-xs uppercase">
+                <tr>
+                  <th className="py-1 pr-3">State</th>
+                  <th className="py-1 pr-3">Status</th>
+                  <th className="py-1 pr-3">Number</th>
+                  <th className="py-1 pr-3">Starts</th>
+                  <th className="py-1 pr-3">Expires</th>
+                </tr>
+              </thead>
+              <tbody>
+                {licenseRows.map((license) => (
+                  <tr key={license.id} className="border-t">
+                    <td className="py-1 pr-3">{license.state ?? "—"}</td>
+                    <td className="py-1 pr-3">{license.status ?? "—"}</td>
+                    <td className="py-1 pr-3">{license.number ?? "—"}</td>
+                    <td className="py-1 pr-3">{formatDate(license.startsAt)}</td>
+                    <td className={`py-1 pr-3 ${getLicenseStatusTone(license.expiresAt)}`}>
+                      {formatDate(license.expiresAt)}
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {licenseRows.map((license) => (
-                    <tr key={license.id} className="border-t">
-                      <td className="py-1 pr-3">{license.state ?? "—"}</td>
-                      <td className="py-1 pr-3">{license.status ?? "—"}</td>
-                      <td className="py-1 pr-3">{license.number ?? "—"}</td>
-                      <td className="py-1 pr-3">{formatDate(license.startsAt)}</td>
-                      <td className={`py-1 pr-3 ${getLicenseStatusTone(license.expiresAt)}`}>
-                        {formatDate(license.expiresAt)}
-                      </td>
-                      <td className="py-1">
-                        <div className="flex items-center gap-1">
-                          <EditLicenseDialog
-                            license={{
-                              id: license.id,
-                              state: license.state,
-                              status: license.status,
-                              path: license.path,
-                              priority: license.priority,
-                              initialOrRenewal: license.initialOrRenewal,
-                              expiresAt: asDateInput(license.expiresAt),
-                              startsAt: asDateInput(license.startsAt),
-                              number: license.number,
-                            }}
-                          />
-                          <DeleteLicenseButton licenseId={license.id} state={license.state} />
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </article>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CollapsibleSection>
 
-        <article className="rounded-lg border p-4">
-          <p className="text-muted-foreground mb-2 flex items-center gap-2 text-xs uppercase">
-            <CalendarClock className="size-4" /> Provider details
-          </p>
-          <dl className="space-y-2 text-sm">
-            <div className="flex justify-between gap-3">
-              <dt>Created</dt>
-              <dd>{formatDate(provider.createdAt)}</dd>
-            </div>
-            <div className="flex justify-between gap-3">
-              <dt>Updated</dt>
-              <dd>{formatDate(provider.updatedAt)}</dd>
-            </div>
-            <div className="border-t pt-2">
-              <dt className="text-muted-foreground">Notes</dt>
-              <dd>{provider.notes ?? "—"}</dd>
-            </div>
-          </dl>
-        </article>
-      </section>
-
-      <section className="rounded-lg border p-4">
-        <div className="mb-2 flex items-center justify-between">
-          <p className="text-muted-foreground flex items-center gap-2 text-xs uppercase">
-            <Activity className="size-4" /> Vesta privileges history
-          </p>
-          <AddPrivilegeDialog providerId={providerId} />
-        </div>
+      {/* ── Vesta privileges ────────────────────────────────── */}
+      <CollapsibleSection
+        title={<span className="flex items-center gap-2"><Activity className="size-4" /> Vesta privileges history</span>}
+        badge={privilegeRows.length}
+        maxHeight="20rem"
+      >
         {privilegeRows.length === 0 ? (
           <p className="text-muted-foreground text-sm">No Vesta privilege records found.</p>
         ) : (
@@ -369,7 +287,6 @@ export default async function ProviderProfilePage({
                   <th className="py-1 pr-3">Exp date</th>
                   <th className="py-1 pr-3">Term date</th>
                   <th className="py-1 pr-3">Term reason</th>
-                  <th className="py-1">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -386,115 +303,98 @@ export default async function ProviderProfilePage({
                     </td>
                     <td className="py-1 pr-3">{formatDate(privilege.termDate)}</td>
                     <td className="py-1 pr-3">{privilege.termReason ?? "—"}</td>
-                    <td className="py-1">
-                      <div className="flex items-center gap-1">
-                        <EditPrivilegeDialog
-                          privilege={{
-                            id: privilege.id,
-                            privilegeTier: privilege.privilegeTier,
-                            currentPrivInitDate: asDateInput(privilege.currentPrivInitDate),
-                            currentPrivEndDate: asDateInput(privilege.currentPrivEndDate),
-                            termDate: asDateInput(privilege.termDate),
-                            termReason: privilege.termReason,
-                          }}
-                        />
-                        <DeletePrivilegeButton privilegeId={privilege.id} tier={privilege.privilegeTier} />
-                      </div>
-                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
-      </section>
+      </CollapsibleSection>
 
-      <section className="space-y-3">
-        <p className="text-muted-foreground flex items-center gap-2 text-xs uppercase">
-          <Building2 className="size-4" /> Sub-workflows by facility
-        </p>
+      {/* ── Sub-workflows by facility ─────────────────────── */}
+      <CollapsibleSection
+        title={<span className="flex items-center gap-2"><Building2 className="size-4" /> Sub-workflows by facility</span>}
+        badge={credentials.length}
+        maxHeight="32rem"
+      >
         {credentials.length === 0 ? (
-          <div className="text-muted-foreground rounded-lg border border-dashed p-4 text-sm">
+          <p className="text-muted-foreground text-sm">
             No provider facility credentials exist for this provider.
-          </div>
+          </p>
         ) : (
-          credentials.map((credential) => {
-            const workflowList = workflowsByCredential.get(credential.id) ?? [];
-            const isHighPriority = (credential.priority ?? "").toLowerCase().includes("high");
+          <div className="space-y-2">
+            {credentials.map((credential) => {
+              const workflowList = workflowsByCredential.get(credential.id) ?? [];
+              const isHighPriority = (credential.priority ?? "").toLowerCase().includes("high");
 
-            return (
-              <article
-                key={credential.id}
-                className={`rounded-lg border p-4 ${
-                  isHighPriority ? "border-amber-400/60 bg-amber-500/5" : "border-border"
-                }`}
-              >
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-lg font-semibold">{credential.facilityName ?? "Unknown facility"}</h2>
-                    <p className="text-muted-foreground text-sm">
-                      Priority: {credential.priority ?? "—"} · Decision: {credential.decision ?? "—"}
-                    </p>
+              return (
+                <div
+                  key={credential.id}
+                  className={`rounded-lg border p-3 ${
+                    isHighPriority ? "border-amber-400/60 bg-amber-500/5" : "border-border"
+                  }`}
+                >
+                  {/* ── Compact horizontal header ── */}
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <h3 className="text-sm font-semibold leading-tight">{credential.facilityName ?? "Unknown facility"}</h3>
+                    <Badge variant="outline" className="text-[11px] px-1.5 py-0">{credential.priority ?? "—"}</Badge>
+                    <Badge variant="outline" className="text-[11px] px-1.5 py-0">{credential.decision ?? "—"}</Badge>
+                    {isHighPriority && (
+                      <span className="flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-300 font-medium">
+                        <AlertTriangle className="size-3" /> High
+                      </span>
+                    )}
+                    {credential.notes && (
+                      <span className="text-muted-foreground text-[11px] max-w-xs truncate" title={credential.notes}>{credential.notes}</span>
+                    )}
+                    <span className="text-muted-foreground text-[11px] ml-auto shrink-0">Updated {formatDate(credential.updatedAt)}</span>
                   </div>
-                  <div className="text-right text-sm">
-                    {isHighPriority ? (
-                      <p className="flex items-center gap-1 text-amber-600 dark:text-amber-300">
-                        <AlertTriangle className="size-4" /> High priority
-                      </p>
-                    ) : null}
-                    <p className="text-muted-foreground">Updated {formatDate(credential.updatedAt)}</p>
-                  </div>
-                </div>
 
-                <p className="text-muted-foreground mt-2 text-sm">{credential.notes ?? "No notes"}</p>
-
-                {workflowList.length === 0 ? (
-                  <p className="text-muted-foreground mt-3 text-sm">No workflow phases linked.</p>
-                ) : (
-                  <div className="mt-3 overflow-x-auto">
-                    <table className="w-full text-left text-sm">
-                      <thead className="text-muted-foreground text-xs uppercase">
-                        <tr>
-                          <th className="py-1 pr-3">Phase</th>
-                          <th className="py-1 pr-3">Status</th>
-                          <th className="py-1 pr-3">Start</th>
-                          <th className="py-1 pr-3">Due</th>
-                          <th className="py-1 pr-3">Completed</th>
-                          <th className="py-1">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {workflowList.map((workflow) => (
-                          <tr key={workflow.id} className="border-t">
-                            <td className="py-1 pr-3">{workflow.phaseName}</td>
-                            <td className="py-1 pr-3">{workflow.status ?? "—"}</td>
-                            <td className="py-1 pr-3">{workflow.startDate ?? "—"}</td>
-                            <td className={`py-1 pr-3 ${getLicenseStatusTone(workflow.dueDate)}`}>
-                              {workflow.dueDate ?? "—"}
-                            </td>
-                            <td className="py-1 pr-3">{workflow.completedAt ?? "—"}</td>
-                            <td className="py-1">
-                              <WorkflowPhaseDrawer
-                                timeline={workflowList}
-                                updateAction={updateWorkflowPhaseAction}
-                                workflow={{
-                                  ...workflow,
-                                  facilityName: credential.facilityName ?? "Unknown facility",
-                                  providerCredentialId: credential.id,
-                                }}
-                              />
-                            </td>
+                  {/* ── Workflow table ── */}
+                  {workflowList.length === 0 ? (
+                    <p className="text-muted-foreground text-xs mt-1">No workflow phases linked.</p>
+                  ) : (
+                    <div className="overflow-x-auto mt-2">
+                      <table className="w-full text-left text-xs">
+                        <thead className="text-muted-foreground uppercase">
+                          <tr>
+                            <th className="py-1 pr-3 font-medium">Phase</th>
+                            <th className="py-1 pr-3 font-medium">Status</th>
+                            <th className="py-1 pr-3 font-medium">Start</th>
+                            <th className="py-1 pr-3 font-medium">Due</th>
+                            <th className="py-1 pr-3 font-medium">Completed</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </article>
-            );
-          })
+                        </thead>
+                        <tbody className="text-sm">
+                          {workflowList.map((workflow) => (
+                            <tr key={workflow.id} className="border-t">
+                              <td className="py-1 pr-3">{workflow.phaseName}</td>
+                              <td className="py-1 pr-3">{workflow.status ?? "—"}</td>
+                              <td className="py-1 pr-3">{workflow.startDate ?? "—"}</td>
+                              <td className={`py-1 pr-3 ${getLicenseStatusTone(workflow.dueDate)}`}>
+                                {workflow.dueDate ?? "—"}
+                              </td>
+                              <td className="py-1 pr-3">{workflow.completedAt ?? "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         )}
-      </section>
+      </CollapsibleSection>
+
+      {/* ── Activity Timeline ─────────────────────────────────── */}
+      <CollapsibleSection
+        title={<span className="flex items-center gap-2"><Activity className="size-5" /> Activity Log</span>}
+        defaultOpen={false}
+      >
+        <ActivityTimeline entityType="provider" entityId={providerId} />
+      </CollapsibleSection>
     </div>
   );
 }

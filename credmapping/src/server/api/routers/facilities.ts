@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, sql, ilike, and, desc, asc, count, inArray } from "drizzle-orm";
+import { eq, ilike, and, desc, asc, count, inArray, or } from "drizzle-orm";
 
 import { createTRPCRouter, protectedProcedure, superAdminProcedure } from "~/server/api/trpc";
 import {
@@ -42,13 +42,13 @@ export const facilitiesRouter = createTRPCRouter({
       const conditions = [];
       if (search) {
         conditions.push(
-          sql`(
-            ${ilike(facilities.name, `%${search}%`)}
-            OR ${ilike(facilities.state, `%${search}%`)}
-            OR ${ilike(facilities.email, `%${search}%`)}
-            OR ${ilike(facilities.address, `%${search}%`)}
-            OR ${ilike(facilities.proxy, `%${search}%`)}
-          )`,
+          or(
+            ilike(facilities.name, `%${search}%`),
+            ilike(facilities.state, `%${search}%`),
+            ilike(facilities.email, `%${search}%`),
+            ilike(facilities.address, `%${search}%`),
+            ilike(facilities.proxy, `%${search}%`),
+          ),
         );
       }
       if (activeOnly) {

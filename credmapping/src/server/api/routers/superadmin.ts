@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { eq, sql } from "drizzle-orm";
+import { eq, ilike, isNotNull } from "drizzle-orm";
 
 import {
   createTRPCRouter,
@@ -51,7 +51,7 @@ export const superadminRouter = createTRPCRouter({
           createdAt: authUsers.createdAt,
         })
         .from(authUsers)
-        .where(sql`${authUsers.email} is not null`)
+        .where(isNotNull(authUsers.email))
         .orderBy(authUsers.email);
 
       // Get all agent emails to exclude already-assigned users
@@ -100,7 +100,7 @@ export const superadminRouter = createTRPCRouter({
       const existing = await ctx.db
         .select({ id: agents.id })
         .from(agents)
-        .where(eq(sql`lower(${agents.email})`, input.email.toLowerCase()))
+        .where(ilike(agents.email, input.email))
         .limit(1);
 
       if (existing.length > 0) {

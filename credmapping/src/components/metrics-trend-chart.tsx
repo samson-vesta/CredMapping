@@ -13,9 +13,8 @@ type TrendPoint = {
   tertiary: number;
 };
 
-type ViewMode = "daily" | "monthly" | "yearly";
-type ChartMode = "line" | "bar";
-type MetricKey = "primary" | "secondary" | "tertiary";
+export type ViewMode = "daily" | "monthly" | "yearly";
+export type ChartMode = "line" | "bar";
 
 type AggregatedPoint = {
   label: string;
@@ -25,8 +24,8 @@ type AggregatedPoint = {
   tertiary: number;
 };
 
-const viewModes: ViewMode[] = ["daily", "monthly", "yearly"];
-const chartModes: ChartMode[] = ["line", "bar"];
+export const VIEW_MODES: ViewMode[] = ["daily", "monthly", "yearly"];
+export const CHART_MODES: ChartMode[] = ["line", "bar"];
 
 const defaultChartConfig = {
   primary: { label: "Primary", color: "#22c55e" },
@@ -88,8 +87,6 @@ const aggregatePoints = (points: TrendPoint[], mode: ViewMode): AggregatedPoint[
       .slice(-12);
   }
 
-  // Daily and monthly views both show day-level breakdown,
-  // with different time windows for readability.
   const latestDate = validPoints.reduce(
     (latest, entry) => (entry.date.getTime() > latest.getTime() ? entry.date : latest),
     validPoints[0]!.date,
@@ -97,8 +94,8 @@ const aggregatePoints = (points: TrendPoint[], mode: ViewMode): AggregatedPoint[
 
   const rangeStart =
     mode === "daily"
-      ? subtractDays(latestDate, 13) // last 14 days
-      : subtractDays(latestDate, 29); // last 30 days (daily breakdown)
+      ? subtractDays(latestDate, 13)
+      : subtractDays(latestDate, 29);
 
   const groupedByDay = new Map<string, AggregatedPoint>();
 
@@ -148,6 +145,13 @@ export function MetricsTrendChart({
   title,
   points,
   labels,
+  onOpenChange,
+  defaultOpen = false,
+  viewMode,
+  chartMode,
+  onViewModeChange,
+  onChartModeChange,
+  showGraphFilters = true,
 }: {
   title: string;
   points: TrendPoint[];
@@ -156,9 +160,29 @@ export function MetricsTrendChart({
     secondary: string;
     tertiary: string;
   };
+  onOpenChange?: (isOpen: boolean) => void;
+  defaultOpen?: boolean;
+  viewMode?: ViewMode;
+  chartMode?: ChartMode;
+  onViewModeChange?: (mode: ViewMode) => void;
+  onChartModeChange?: (mode: ChartMode) => void;
+  showGraphFilters?: boolean;
 }) {
-  const [viewMode, setViewMode] = useState<ViewMode>("monthly");
-  const [chartMode, setChartMode] = useState<ChartMode>("line");
+  const [internalViewMode, setInternalViewMode] = useState<ViewMode>("monthly");
+  const [internalChartMode, setInternalChartMode] = useState<ChartMode>("line");
+
+  const activeViewMode = viewMode ?? internalViewMode;
+  const activeChartMode = chartMode ?? internalChartMode;
+
+  const setViewMode = (mode: ViewMode) => {
+    onViewModeChange?.(mode);
+    if (viewMode === undefined) setInternalViewMode(mode);
+  };
+
+  const setChartMode = (mode: ChartMode) => {
+    onChartModeChange?.(mode);
+    if (chartMode === undefined) setInternalChartMode(mode);
+  };
 
   const chartConfig = {
     primary: { ...defaultChartConfig.primary, label: labels.primary },
@@ -166,108 +190,96 @@ export function MetricsTrendChart({
     tertiary: { ...defaultChartConfig.tertiary, label: labels.tertiary },
   } satisfies ChartConfig;
 
-  const chartData = useMemo(() => aggregatePoints(points, viewMode), [points, viewMode]);
+  const chartData = useMemo(() => aggregatePoints(points, activeViewMode), [points, activeViewMode]);
 
-  const metricCards: { key: MetricKey; label: string }[] = [
-    { key: "primary", label: labels.primary },
-    { key: "secondary", label: labels.secondary },
-    { key: "tertiary", label: labels.tertiary },
-  ];
+  const metricKeys = ["primary", "secondary", "tertiary"] as const;
 
   return (
-    <section className="bg-card rounded-lg border p-4">
-      <details className="group" open>
+    <section className="bg-card h-full rounded-lg border p-4">
+      <details
+        className="group"
+        open={defaultOpen || undefined}
+        onToggle={(e) => onOpenChange?.((e.currentTarget as HTMLDetailsElement).open)}
+      >
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
           <h2 className="text-base font-semibold">{title}</h2>
           <ChevronDown className="text-muted-foreground size-4 transition-transform group-open:rotate-180" />
         </summary>
 
         <div className="mt-3 border-t pt-3">
-          <div className="flex flex-wrap gap-2">
-            <div className="flex gap-1 rounded-md border p-1">
-              {viewModes.map((option) => (
-                <Button
-                  key={option}
-                  onClick={() => setViewMode(option)}
-                  size="sm"
-                  type="button"
-                  variant={viewMode === option ? "default" : "ghost"}
-                >
-                  {option}
-                </Button>
-              ))}
+          {showGraphFilters && (
+            <div className="space-y-2">
+              <h3 className="text-base font-semibold">Graph filters</h3>
+              <div className="space-y-2">
+                <div className="grid grid-cols-3 gap-1 rounded-md border p-1">
+                  {VIEW_MODES.map((option) => (
+                    <Button
+                      className="w-full justify-center"
+                      key={option}
+                      onClick={() => setViewMode(option)}
+                      size="sm"
+                      type="button"
+                      variant={activeViewMode === option ? "default" : "ghost"}
+                    >
+                      {option}
+                    </Button>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-1 rounded-md border p-1">
+                  {CHART_MODES.map((option) => (
+                    <Button
+                      className="w-full justify-center"
+                      key={option}
+                      onClick={() => setChartMode(option)}
+                      size="sm"
+                      type="button"
+                      variant={activeChartMode === option ? "default" : "ghost"}
+                    >
+                      {option}
+                    </Button>
+                  ))}
+                </div>
+              </div>
             </div>
-            <div className="flex gap-1 rounded-md border p-1">
-              {chartModes.map((option) => (
-                <Button
-                  key={option}
-                  onClick={() => setChartMode(option)}
-                  size="sm"
-                  type="button"
-                  variant={chartMode === option ? "default" : "ghost"}
-                >
-                  {option}
-                </Button>
-              ))}
-            </div>
-          </div>
+          )}
 
           {chartData.length === 0 ? (
             <p className="text-muted-foreground py-6 text-sm">No historical trend data available.</p>
           ) : (
-            <div className="mt-4 grid gap-4 lg:grid-cols-3">
-              {metricCards.map((metric) => (
-                <div className="rounded-md border p-3" key={metric.key}>
-                  <p className="text-muted-foreground mb-2 text-xs uppercase">{metric.label}</p>
-                  <ChartContainer className="h-[180px] w-full" config={chartConfig}>
-                    {chartMode === "line" ? (
-                      <LineChart data={chartData} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
-                        <CartesianGrid vertical={false} />
-                        <XAxis axisLine={false} dataKey="label" tickLine={false} tickMargin={8} minTickGap={24} />
-                        <ChartTooltip
-                          content={
-                            <ChartTooltipContent
-                              formatter={(value) => (
-                                <span className="text-foreground font-medium">
-                                  {`${metric.label}: ${Number(value).toLocaleString()}`}
-                                </span>
-                              )}
-                              hideLabel
-                              nameKey={metric.key}
-                            />
-                          }
-                        />
-                        <Line
-                          dataKey={metric.key}
-                          stroke={`var(--color-${metric.key})`}
-                          strokeWidth={2}
-                          type="monotone"
-                          dot={false}
-                        />
-                      </LineChart>
-                    ) : (
-                      <BarChart data={chartData} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
-                        <CartesianGrid vertical={false} />
-                        <XAxis axisLine={false} dataKey="label" tickLine={false} tickMargin={8} minTickGap={24} />
-                        <ChartTooltip
-                          content={
-                            <ChartTooltipContent
-                              formatter={(value) => (
-                                <span className="text-foreground font-medium">
-                                  {`${metric.label}: ${Number(value).toLocaleString()}`}
-                                </span>
-                              )}
-                              hideLabel
-                              nameKey={metric.key}
-                            />
-                          }
-                        />
-                        <Bar dataKey={metric.key} fill={`var(--color-${metric.key})`} radius={3} />
-                      </BarChart>
-                    )}
-                  </ChartContainer>
-                </div>
-              ))}
+            <div className={showGraphFilters ? "mt-4" : "mt-1"}>
+              <ChartContainer className="h-[300px] w-full" config={chartConfig}>
+                {activeChartMode === "line" ? (
+                  <LineChart data={chartData} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
+                    <CartesianGrid vertical={false} />
+                    <XAxis axisLine={false} dataKey="label" tickLine={false} tickMargin={8} minTickGap={28} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    {metricKeys.map((metricKey) => (
+                      <Line
+                        key={metricKey}
+                        dataKey={metricKey}
+                        stroke={`var(--color-${metricKey})`}
+                        strokeWidth={2}
+                        type="monotone"
+                        dot={false}
+                      />
+                    ))}
+                  </LineChart>
+                ) : (
+                  <BarChart data={chartData} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
+                    <CartesianGrid vertical={false} />
+                    <XAxis axisLine={false} dataKey="label" tickLine={false} tickMargin={8} minTickGap={28} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    {metricKeys.map((metricKey) => (
+                      <Bar
+                        key={metricKey}
+                        dataKey={metricKey}
+                        fill={`var(--color-${metricKey})`}
+                        radius={3}
+                      />
+                    ))}
+                  </BarChart>
+                )}
+              </ChartContainer>
             </div>
           )}
         </div>

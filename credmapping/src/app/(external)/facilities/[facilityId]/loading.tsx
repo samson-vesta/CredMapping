@@ -1,59 +1,68 @@
-export default function LoadingFacilityProfile() {
+function SkeletonSection({ lines = 3 }: { lines?: number }) {
   return (
-    <div className="animate-in fade-in-0 duration-300 space-y-6">
-      {/* Hero / back button skeleton */}
-      <div className="flex items-center justify-between">
-        <div className="space-y-2">
-          <div className="h-8 w-64 animate-pulse rounded-md bg-muted" />
-          <div className="h-4 w-48 animate-pulse rounded-md bg-muted/60" />
+    <div className="rounded-lg border bg-card">
+      <div className="flex items-center justify-between px-4 py-3">
+        <div className="flex items-center gap-2">
+          <div className="h-3 w-32 animate-pulse rounded bg-muted/60" />
+          <div className="h-5 w-8 animate-pulse rounded-full bg-muted/40" />
         </div>
-        <div className="flex gap-2">
-          <div className="h-9 w-20 animate-pulse rounded-md bg-muted" />
-          <div className="h-9 w-20 animate-pulse rounded-md bg-muted" />
-          <div className="h-9 w-32 animate-pulse rounded-md bg-muted" />
-        </div>
+        <div className="h-4 w-4 animate-pulse rounded bg-muted/30" />
       </div>
-
-      {/* Stat cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="rounded-md border p-3">
-            <div className="mb-2 h-3 w-24 animate-pulse rounded bg-muted/60" />
-            <div className="h-6 w-12 animate-pulse rounded bg-muted" />
+      <div className="border-t px-4 pb-4 pt-3 space-y-2">
+        {Array.from({ length: lines }, (_, i) => (
+          <div key={i} className="flex gap-4">
+            <div className="h-4 w-24 animate-pulse rounded bg-muted/40" />
+            <div className="h-4 w-20 animate-pulse rounded bg-muted/30" />
+            <div className="h-4 w-28 animate-pulse rounded bg-muted/40" />
+            <div className="h-4 w-16 animate-pulse rounded bg-muted/30" />
           </div>
         ))}
       </div>
+    </div>
+  );
+}
 
-      {/* Two-column content */}
-      <div className="grid gap-4 lg:grid-cols-3">
-        {/* Details card */}
-        <div className="rounded-lg border p-4">
-          <div className="mb-3 h-4 w-28 animate-pulse rounded bg-muted/60" />
-          <div className="space-y-3">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div key={i} className="space-y-1">
-                <div className="h-3 w-16 animate-pulse rounded bg-muted/40" />
-                <div className="h-4 w-full animate-pulse rounded bg-muted/50" />
-              </div>
-            ))}
+export default function LoadingFacilityProfile() {
+  return (
+    <div className="animate-in fade-in-0 duration-300 space-y-4">
+      {/* Hero header skeleton */}
+      <div className="rounded-xl border p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="space-y-2">
+            <div className="h-3 w-28 animate-pulse rounded bg-muted/40" />
+            <div className="h-7 w-56 animate-pulse rounded bg-muted" />
+            <div className="h-4 w-44 animate-pulse rounded bg-muted/50" />
+          </div>
+          <div className="flex gap-2">
+            <div className="h-9 w-16 animate-pulse rounded-md bg-muted" />
+            <div className="h-9 w-16 animate-pulse rounded-md bg-muted" />
+            <div className="h-9 w-28 animate-pulse rounded-md bg-muted" />
           </div>
         </div>
-
-        {/* Table */}
-        <div className="rounded-lg border p-4 lg:col-span-2">
-          <div className="mb-3 h-4 w-32 animate-pulse rounded bg-muted/60" />
-          <div className="space-y-2">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="flex gap-4">
-                <div className="h-4 w-32 animate-pulse rounded bg-muted/40" />
-                <div className="h-4 w-20 animate-pulse rounded bg-muted/50" />
-                <div className="h-4 w-24 animate-pulse rounded bg-muted/40" />
-                <div className="h-4 w-16 animate-pulse rounded bg-muted/30" />
-              </div>
-            ))}
-          </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="rounded-md border p-3">
+              <div className="mb-2 h-3 w-24 animate-pulse rounded bg-muted/60" />
+              <div className="h-6 w-10 animate-pulse rounded bg-muted" />
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 flex gap-4">
+          <div className="h-3 w-20 animate-pulse rounded bg-muted/40" />
+          <div className="h-3 w-28 animate-pulse rounded bg-muted/40" />
+          <div className="h-3 w-20 animate-pulse rounded bg-muted/40" />
+          <div className="h-3 w-24 animate-pulse rounded bg-muted/30" />
         </div>
       </div>
+
+      {/* Contacts */}
+      <SkeletonSection lines={3} />
+
+      {/* Pre-live */}
+      <SkeletonSection lines={2} />
+
+      {/* Credential sub-workflows */}
+      <SkeletonSection lines={4} />
     </div>
   );
 }

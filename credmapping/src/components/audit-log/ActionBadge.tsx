@@ -11,12 +11,12 @@ export function ActionBadge({ action, className }: ActionBadgeProps) {
   const badgeConfig = {
     insert: {
       bg: "bg-green-500/15",
-      text: "text-green-400",
+      text: "text-green-600 dark:text-green-400",
       border: "border-green-500/20",
     },
     update: {
       bg: "bg-yellow-500/15",
-      text: "text-yellow-400",
+      text: "text-yellow-600 dark:text-yellow-400",
       border: "border-yellow-500/20",
     },
     delete: {
@@ -32,7 +32,7 @@ export function ActionBadge({ action, className }: ActionBadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded border px-2 py-1 font-mono text-xs uppercase",
+        "inline-flex w-fit items-center justify-center rounded border px-2 py-1 font-mono text-xs uppercase",
         config.bg,
         config.text,
         config.border,

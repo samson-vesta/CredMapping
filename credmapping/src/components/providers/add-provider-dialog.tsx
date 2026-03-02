@@ -36,7 +36,7 @@ const initialFormState: AddProviderForm = {
   notes: "",
 };
 
-export function AddProviderDialog() {
+export function AddProviderDialog({ triggerClassName }: { triggerClassName?: string }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<AddProviderForm>(initialFormState);
 
@@ -88,7 +88,7 @@ export function AddProviderDialog() {
       }}
     >
       <DialogTrigger asChild>
-        <Button className="gap-2 h-8.5" size="sm">
+        <Button className={`h-8.5 gap-2 ${triggerClassName ?? ""}`.trim()} size="sm">
           <Plus className="h-6 w-4" />
           Add Provider
         </Button>

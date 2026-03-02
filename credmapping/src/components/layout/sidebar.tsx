@@ -62,17 +62,18 @@ const sidebarItems = [
     icon: Workflow,
     roles: ["admin", "superadmin"],
   },
-  {
-    name: "Agent Management",
-    href: "/agent-management",
-    icon: ShieldCheck,
-    roles: ["superadmin"],
-  },
+ 
   {
     name: "Audit Log",
     href: "/audit-log",
     icon: FileText,
     roles: ["admin", "superadmin"],
+  },
+   {
+    name: "Agent Management",
+    href: "/agent-management",
+    icon: ShieldCheck,
+    roles: ["superadmin"],
   },
 ];
 
