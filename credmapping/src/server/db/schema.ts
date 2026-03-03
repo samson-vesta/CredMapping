@@ -64,7 +64,9 @@ export const agents = pgTable("agents", {
   teamNumber: bigint("team_num", { mode: "number" }),
   role: agentRoleEnum("role").default("user").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });
 
 export const auditLog = pgTable("audit_log", {
@@ -89,7 +91,9 @@ export const facilities = pgTable("facilities", {
   modalities: text("modalities").array(),
   tatSla: text("tat_sla"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date()),
   email: text("email"),
   address: text("address"),
 });
@@ -103,7 +107,9 @@ export const providers = pgTable("providers", {
   email: text("email"),
   phone: text("phone"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date()),
   notes: text("notes"),
 });
 
@@ -120,7 +126,9 @@ export const workflowPhases = pgTable("workflow_phases", {
   dueDate: date("due_date"),
   completedAt: date("completed_at"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });
 
 export const missingDocs = pgTable("missing_docs", {
@@ -135,7 +143,9 @@ export const missingDocs = pgTable("missing_docs", {
   lastFollowUpIn: date("last_follow_up_in"),  
   followUpStatus: followUpStatus("follow_up_status"),  
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });
 
 export const pendingPSV = pgTable("pending_psv", {
@@ -152,7 +162,9 @@ export const pendingPSV = pgTable("pending_psv", {
   dateReceived: date("date_received"), 
   notes: text("notes"), 
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });
 
 export const commLogs = pgTable("comm_logs", {
@@ -165,7 +177,9 @@ export const commLogs = pgTable("comm_logs", {
   createdBy: uuid("created_by").references(() => agents.id),
   lastUpdatedBy: uuid("last_updated_by").references(() => agents.id),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });
 
 export const facilityContacts = pgTable("facility_contacts", {
@@ -179,7 +193,9 @@ export const facilityContacts = pgTable("facility_contacts", {
   phone: text("phone"),
   isPrimary: boolean("is_primary").default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });
 
 export const incidentLogs = pgTable("incident_logs", {
@@ -203,7 +219,9 @@ export const incidentLogs = pgTable("incident_logs", {
   finalNotes: text("final_notes"), 
   discussed: boolean("discussed").default(false).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });
 
 export const providerFacilityCredentials = pgTable("provider_facility_credentials", {
@@ -218,7 +236,9 @@ export const providerFacilityCredentials = pgTable("provider_facility_credential
   formSize: formSizes("form_size"),  
   applicationRequired: boolean("application_required"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });
 
 export const facilityPreliveInfo = pgTable("facility_prelive_info", {
@@ -235,7 +255,9 @@ export const facilityPreliveInfo = pgTable("facility_prelive_info", {
   rolesNeeded: jsonb("roles_needed"),
   payorEnrollmentRequired: boolean("payor_enrollment_required"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });
 
 export const providerVestaPrivileges = pgTable("provider_vesta_privileges", {
@@ -248,7 +270,9 @@ export const providerVestaPrivileges = pgTable("provider_vesta_privileges", {
   termReason: text("term_reason"),
   pastPrivileges: jsonb("past_privileges"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });
 
 export const providerStateLicenses = pgTable("provider_state_licenses", {
@@ -266,7 +290,9 @@ export const providerStateLicenses = pgTable("provider_state_licenses", {
   number: text("number"),
   requestedAt: timestamp("requested_at", { withTimezone: true}), 
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });
 
 export const nowSql = sql`now()`;
