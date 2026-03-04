@@ -137,11 +137,11 @@ export function LeftPanel({
             </SheetHeader>
             <div className="border-border space-y-4 border-t px-4 py-3">
               <div className="space-y-1">
-                <label className="text-xs text-zinc-500">Filter</label>
+                <label className="text-xs text-muted-foreground">Filter</label>
                 <select
                   value={filter}
                   onChange={(event) => onFilterChange?.(event.target.value)}
-                  className="w-full rounded border border-zinc-700 bg-zinc-900 px-2.5 py-2 text-sm text-zinc-300"
+                  className="w-full rounded border border-border bg-background px-2.5 py-2 text-sm text-foreground"
                 >
                   {filters.map((option) => (
                     <option key={option} value={option}>
@@ -151,11 +151,11 @@ export function LeftPanel({
                 </select>
               </div>
               <div className="space-y-1">
-                <label className="text-xs text-zinc-500">Sort Order</label>
+                <label className="text-xs text-muted-foreground">Sort Order</label>
                 <select
                   value={sort}
                   onChange={(event) => onSortChange?.(event.target.value as SortOption)}
-                  className="w-full rounded border border-zinc-700 bg-zinc-900 px-2.5 py-2 text-sm text-zinc-300"
+                  className="w-full rounded border border-border bg-background px-2.5 py-2 text-sm text-foreground"
                 >
                   <option value="alpha-asc">Alphabetical (A → Z)</option>
                   <option value="alpha-desc">Alphabetical (Z → A)</option>
@@ -184,11 +184,11 @@ export function LeftPanel({
         {isLoading ? (
           <div className="space-y-2 p-4">
             {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="h-14 animate-pulse rounded bg-zinc-800" />
+              <div key={i} className="h-14 animate-pulse rounded bg-muted" />
             ))}
           </div>
         ) : filteredItems.length === 0 ? (
-          <div className="p-4 text-center text-sm text-zinc-400">
+          <div className="p-4 text-center text-sm text-muted-foreground">
             No {mode === "facility" ? "facilities" : "providers"} found
           </div>
         ) : (
@@ -208,10 +208,10 @@ export function LeftPanel({
                     <TruncatedTooltip
                       text={item.name}
                       as="h4"
-                      className="font-medium text-white"
+                      className="font-medium text-foreground"
                     />
                     {item.subText && (
-                      <p className="truncate text-xs text-zinc-400">{item.subText}</p>
+                      <p className="truncate text-xs text-muted-foreground">{item.subText}</p>
                     )}
                   </div>
                   <div className="flex shrink-0 flex-col items-center justify-center gap-1">

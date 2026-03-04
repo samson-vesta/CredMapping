@@ -192,11 +192,11 @@ export function FacilityDetail({ facilityId, facility }: FacilityDetailProps) {
           <div className="min-w-0 flex-1">
             <div className="space-y-2">
               <div className="flex items-center gap-3">
-                <h2 className="truncate text-2xl font-bold text-white">
+                <h2 className="truncate text-2xl font-bold text-foreground">
                   {facility.name}
                 </h2>
               </div>
-              <p className="text-sm text-zinc-400">
+              <p className="text-sm text-muted-foreground">
                 {facility.email ?? "No facility email listed"}
               </p>
             </div>
@@ -209,9 +209,9 @@ export function FacilityDetail({ facilityId, facility }: FacilityDetailProps) {
         <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2 xl:grid-cols-4 xl:gap-x-6">
           <div className="min-w-0">
             <div className="flex items-baseline gap-1.5">
-              <p className="text-zinc-400">Missing Docs:</p>
+              <p className="text-muted-foreground">Missing Docs:</p>
               <p
-                className={`font-medium ${summary?.activeRoadblocks ? "text-rose-400" : "text-white"}`}
+                className={`font-medium ${summary?.activeRoadblocks ? "text-rose-400" : "text-foreground"}`}
               >
                 {summary?.activeRoadblocks ?? 0}
               </p>
@@ -219,24 +219,24 @@ export function FacilityDetail({ facilityId, facility }: FacilityDetailProps) {
           </div>
           <div className="min-w-0">
             <div className="flex items-baseline gap-1.5">
-              <p className="text-zinc-400">Total Activity:</p>
-              <p className="font-medium text-white">
+              <p className="text-muted-foreground">Total Activity:</p>
+              <p className="font-medium text-foreground">
                 {summary?.totalLogs ?? 0} Logs
               </p>
             </div>
           </div>
           <div className="min-w-0">
             <div className="flex items-baseline gap-1.5">
-              <p className="text-zinc-400">Proxy Entity:</p>
-              <p className="truncate font-medium text-white">
+              <p className="text-muted-foreground">Proxy Entity:</p>
+              <p className="truncate font-medium text-foreground">
                 {contactData?.facilityInfo?.proxy ?? "—"}
               </p>
             </div>
           </div>
           <div className="min-w-0 xl:justify-self-end">
             <div className="flex items-baseline gap-1.5 xl:justify-end">
-              <p className="text-zinc-400">Status:</p>
-              <p className="font-medium text-white">
+              <p className="text-muted-foreground">Status:</p>
+              <p className="font-medium text-foreground">
                 {facility.status ?? "Unknown"}
               </p>
             </div>
@@ -263,10 +263,10 @@ export function FacilityDetail({ facilityId, facility }: FacilityDetailProps) {
               onClick={() =>
                 setActiveTab(tab.id as "logs" | "missing-docs" | "contacts")
               }
-              className={`border-border bg-muted/20 hover:bg-muted/30 w-full border px-4 py-2.5 text-center text-sm font-medium transition-colors ${shapeClass} ${
+              className={`border-border bg-muted/20 w-full border px-4 py-2.5 text-center text-sm font-medium transition-colors ${shapeClass} ${
                 activeTab === tab.id
-                  ? "border-primary text-white"
-                  : "text-zinc-400 hover:text-white"
+                  ? "border-primary bg-primary text-primary-foreground hover:bg-primary/90"
+                  : "text-muted-foreground hover:bg-muted/30 hover:text-foreground"
               }`}
             >
            
@@ -411,21 +411,21 @@ export function FacilityDetail({ facilityId, facility }: FacilityDetailProps) {
                   {contactData.contacts.map((contact) => (
                     <div
                       key={contact.id}
-                      className="rounded-lg border border-zinc-700 bg-zinc-900/50 p-4"
+                      className="rounded-lg border border-border bg-secondary/20 p-4"
                     >
-                      <p className="mb-2 text-[10px] font-bold tracking-widest text-zinc-500 uppercase">
+                      <p className="mb-2 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
                         {contact.isPrimary
                           ? "Primary Contact"
                           : (contact.title ?? "Facility Contact")}
                       </p>
-                      <p className="text-lg font-medium text-white">
+                      <p className="text-lg font-medium text-foreground">
                         {contact.name}
                       </p>
                       {contact.email && (
                         <p className="text-primary text-sm">{contact.email}</p>
                       )}
                       {contact.phone && (
-                        <p className="mt-1 text-sm text-zinc-400">
+                        <p className="mt-1 text-sm text-muted-foreground">
                           {contact.phone}
                         </p>
                       )}
@@ -435,11 +435,11 @@ export function FacilityDetail({ facilityId, facility }: FacilityDetailProps) {
               ) : (
                 <StandardEmptyState message="No facility contacts recorded yet." />
               )}
-              <div className="bg-muted/10 rounded-lg border border-zinc-700 p-6">
-                <h4 className="mb-3 flex items-center gap-2 text-xs font-bold tracking-widest text-zinc-500 uppercase">
+              <div className="bg-muted/10 rounded-lg border border-border p-6">
+                <h4 className="mb-3 flex items-center gap-2 text-xs font-bold tracking-widest text-muted-foreground uppercase">
                   <Info className="h-4 w-4" /> Physical Address
                 </h4>
-                <p className="leading-relaxed text-zinc-200">
+                <p className="leading-relaxed text-foreground">
                   {contactData?.facilityInfo?.address ?? "No address recorded"}
                 </p>
               </div>

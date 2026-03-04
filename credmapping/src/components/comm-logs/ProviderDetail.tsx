@@ -201,10 +201,10 @@ export function ProviderDetail({ providerId, provider }: ProviderDetailProps) {
         <div className="mb-4 flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="space-y-2">
-              <h2 className="truncate text-2xl font-bold text-white">
+              <h2 className="truncate text-2xl font-bold text-foreground">
                 {fullName}
               </h2>
-              <p className="text-sm text-zinc-400">
+              <p className="text-sm text-muted-foreground">
                 {provider.email ?? "No provider email listed"}
               </p>
             </div>
@@ -218,15 +218,15 @@ export function ProviderDetail({ providerId, provider }: ProviderDetailProps) {
         <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2 xl:grid-cols-4 xl:gap-x-6">
           <div className="min-w-0">
             <div className="flex items-baseline gap-1.5">
-              <p className="text-zinc-400">Total Activity:</p>
-              <p className="font-medium text-white">
+              <p className="text-muted-foreground">Total Activity:</p>
+              <p className="font-medium text-foreground">
                 {summary?.totalLogs ?? 0} Logs
               </p>
             </div>
           </div>
           <div className="min-w-0">
             <div className="flex items-baseline gap-1.5">
-              <p className="text-zinc-400">Missing Docs:</p>
+              <p className="text-muted-foreground">Missing Docs:</p>
               <p
                 className={`font-medium ${summary?.activeRoadblocks ? "text-rose-400" : "text-emerald-400"}`}
               >
@@ -236,16 +236,16 @@ export function ProviderDetail({ providerId, provider }: ProviderDetailProps) {
           </div>
           <div className="min-w-0">
             <div className="flex items-baseline gap-1.5">
-              <p className="text-zinc-400">PSV Progress:</p>
-              <p className="font-medium text-white">
+              <p className="text-muted-foreground">PSV Progress:</p>
+              <p className="font-medium text-foreground">
                 {pendingPSVs?.length ?? 0} Tasks
               </p>
             </div>
           </div>
           <div className="min-w-0 xl:justify-self-end">
             <div className="flex items-baseline gap-1.5 xl:justify-end">
-              <p className="text-zinc-400">Vesta Privileges Tier:</p>
-              <p className="font-medium text-white">
+              <p className="text-muted-foreground">Vesta Privileges Tier:</p>
+              <p className="font-medium text-foreground">
                 {provider.privilegeTier ?? "—"}
               </p>
             </div>
@@ -271,10 +271,10 @@ export function ProviderDetail({ providerId, provider }: ProviderDetailProps) {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as typeof activeTab)}
-              className={`border-border bg-muted/20 hover:bg-muted/30 w-full border px-4 py-2.5 text-center text-sm font-medium transition-colors ${shapeClass} ${
+              className={`border-border bg-muted/20 w-full border px-4 py-2.5 text-center text-sm font-medium transition-colors ${shapeClass} ${
                 activeTab === tab.id
-                  ? "border-primary text-white"
-                  : "text-zinc-400 hover:text-white"
+                  ? "border-primary bg-primary text-primary-foreground hover:bg-primary/90"
+                  : "text-muted-foreground hover:bg-muted/30 hover:text-foreground"
               }`}
             >
               
@@ -310,7 +310,7 @@ export function ProviderDetail({ providerId, provider }: ProviderDetailProps) {
                       </SheetHeader>
                       <div className="border-border space-y-4 border-t px-4 py-3">
                         <div className="space-y-1">
-                          <label className="text-xs text-zinc-500">
+                          <label className="text-xs text-muted-foreground">
                             Method
                           </label>
                           <select
@@ -318,7 +318,7 @@ export function ProviderDetail({ providerId, provider }: ProviderDetailProps) {
                             onChange={(e) =>
                               setSelectedCommType(e.target.value)
                             }
-                            className="w-full rounded border border-zinc-700 bg-zinc-900 px-2.5 py-2 text-sm text-zinc-300"
+                            className="w-full rounded border border-border bg-background px-2.5 py-2 text-sm text-foreground"
                           >
                             <option value="all">All Methods</option>
                             {commTypeOptions.map((commType) => (
@@ -329,13 +329,13 @@ export function ProviderDetail({ providerId, provider }: ProviderDetailProps) {
                           </select>
                         </div>
                         <div className="space-y-1">
-                          <label className="text-xs text-zinc-500">
+                          <label className="text-xs text-muted-foreground">
                             Team Member
                           </label>
                           <select
                             value={selectedAgent}
                             onChange={(e) => setSelectedAgent(e.target.value)}
-                            className="w-full rounded border border-zinc-700 bg-zinc-900 px-2.5 py-2 text-sm text-zinc-300"
+                            className="w-full rounded border border-border bg-background px-2.5 py-2 text-sm text-foreground"
                           >
                             <option value="all">All Members</option>
                             {uniqueAgents.map((agent) => (

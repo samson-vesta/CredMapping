@@ -167,7 +167,7 @@ export function MissingDocsManager({
                 </SheetHeader>
                 <div className="border-border space-y-4 border-t px-4 py-3">
                   <div className="space-y-1">
-                    <label className="text-xs text-zinc-500">Status</label>
+                    <label className="text-xs text-muted-foreground">Status</label>
                     <select
                       value={statusFilter}
                       onChange={(e) =>
@@ -175,7 +175,7 @@ export function MissingDocsManager({
                           e.target.value as "active" | "completed" | "all",
                         )
                       }
-                      className="w-full rounded border border-zinc-700 bg-zinc-900 px-2.5 py-2 text-sm text-zinc-300"
+                      className="w-full rounded border border-border bg-background px-2.5 py-2 text-sm text-foreground"
                     >
                       <option value="active">Active</option>
                       <option value="completed">Archived</option>
@@ -183,13 +183,13 @@ export function MissingDocsManager({
                     </select>
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs text-zinc-500">Sort</label>
+                    <label className="text-xs text-muted-foreground">Sort</label>
                     <select
                       value={sortOrder}
                       onChange={(e) =>
                         setSortOrder(e.target.value as "soonest" | "latest")
                       }
-                      className="w-full rounded border border-zinc-700 bg-zinc-900 px-2.5 py-2 text-sm text-zinc-300"
+                      className="w-full rounded border border-border bg-background px-2.5 py-2 text-sm text-foreground"
                     >
                       <option value="soonest">Next Follow-up (Soonest)</option>
                       <option value="latest">Next Follow-up (Latest)</option>
@@ -220,9 +220,9 @@ export function MissingDocsManager({
 
       <div className="flex min-h-0 flex-1 flex-col px-6 py-4">
         {isCreating && (
-          <div className="mb-4 grid gap-3 rounded-lg border border-zinc-700 bg-zinc-900/40 p-4 md:grid-cols-4">
+          <div className="mb-4 grid gap-3 rounded-lg border border-border bg-muted/20 p-4 md:grid-cols-4">
             <div className="space-y-1">
-              <label className="text-xs text-zinc-400">Information</label>
+              <label className="text-xs text-muted-foreground">Information</label>
               <Input
                 placeholder="e.g. State License Copy"
                 value={form.information}
@@ -232,7 +232,7 @@ export function MissingDocsManager({
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-zinc-400">
+              <label className="text-xs text-muted-foreground">
                 Next Follow-up Date (US)
               </label>
               <Input
@@ -244,7 +244,7 @@ export function MissingDocsManager({
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-zinc-400">
+              <label className="text-xs text-muted-foreground">
                 Next Follow-up Date (IN)
               </label>
               <Input
@@ -256,11 +256,11 @@ export function MissingDocsManager({
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-zinc-400">Record Status</label>
+              <label className="text-xs text-muted-foreground">Record Status</label>
               <Input value="Not Completed" disabled />
             </div>
             <div className="space-y-1 md:col-span-4">
-              <label className="text-xs text-zinc-400">Roadblocks</label>
+              <label className="text-xs text-muted-foreground">Roadblocks</label>
               <Textarea
                 rows={3}
                 placeholder="Describe missing details and blockers"
@@ -285,10 +285,10 @@ export function MissingDocsManager({
         )}
 
         {isLoading ? (
-          <div className="h-12 w-full animate-pulse rounded bg-zinc-800" />
+          <div className="h-12 w-full animate-pulse rounded bg-muted" />
         ) : filteredDocs.length > 0 ? (
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-zinc-700">
-            <div className="hide-scrollbar overflow-x-auto border-b border-zinc-700">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border">
+            <div className="hide-scrollbar overflow-x-auto border-b border-border">
               <table className="w-full min-w-[980px] table-fixed text-sm">
                 <colgroup>
                   <col className="w-[19%]" />
@@ -299,7 +299,7 @@ export function MissingDocsManager({
                   <col className="w-[8%]" />
                 </colgroup>
                 <thead>
-                  <tr className="bg-muted/50 text-zinc-400">
+                  <tr className="bg-muted/50 text-muted-foreground">
                     <th className="px-4 py-3 text-left font-medium">
                       Information
                     </th>
@@ -328,10 +328,10 @@ export function MissingDocsManager({
                   <col className="w-[14%]" />
                   <col className="w-[8%]" />
                 </colgroup>
-                <tbody className="divide-y divide-zinc-800">
+                <tbody className="divide-y divide-border">
                 {filteredDocs.map((doc) =>
                   editingId === doc.id ? (
-                    <tr key={doc.id} className="bg-zinc-900/40">
+                    <tr key={doc.id} className="bg-muted/20">
                       <td className="px-4 py-3 align-top">
                         <Input
                           placeholder="e.g. State License Copy"
@@ -360,7 +360,7 @@ export function MissingDocsManager({
                               followUpStatus: e.target.value as MissingDocStatus,
                             }))
                           }
-                          className="w-full rounded border border-zinc-700 bg-zinc-900 px-2.5 py-2 text-sm text-zinc-300"
+                          className="w-full rounded border border-border bg-background px-2.5 py-2 text-sm text-foreground"
                         >
                           <option value="Not Completed">Not Completed</option>
                           <option value="Pending Response">Pending Response</option>
@@ -401,11 +401,11 @@ export function MissingDocsManager({
                       </td>
                     </tr>
                   ) : (
-                    <tr key={doc.id} className="hover:bg-zinc-900/50">
-                      <td className="px-4 py-3 font-medium text-zinc-200">
+                    <tr key={doc.id} className="hover:bg-muted/30">
+                      <td className="px-4 py-3 font-medium text-foreground">
                         {doc.information}
                       </td>
-                      <td className="px-4 py-3 text-zinc-400 italic">
+                      <td className="px-4 py-3 text-muted-foreground italic">
                         <TruncatedTooltip
                           as="p"
                           text={doc.roadblocks ?? "—"}
@@ -413,15 +413,15 @@ export function MissingDocsManager({
                           tooltipClassName="max-w-sm whitespace-pre-wrap break-words"
                         />
                       </td>
-                      <td className="px-4 py-3 text-zinc-400">
+                      <td className="px-4 py-3 text-muted-foreground">
                         {doc.followUpStatus ?? "Not Completed"}
                       </td>
-                      <td className="px-4 py-3 text-zinc-400">
+                      <td className="px-4 py-3 text-muted-foreground">
                         {doc.nextFollowUpUS
                           ? format(new Date(doc.nextFollowUpUS), "MMM d, yyyy")
                           : "—"}
                       </td>
-                      <td className="px-4 py-3 text-zinc-400">
+                      <td className="px-4 py-3 text-muted-foreground">
                         {doc.nextFollowUpIn
                           ? format(new Date(doc.nextFollowUpIn), "MMM d, yyyy")
                           : "—"}

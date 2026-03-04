@@ -211,7 +211,7 @@ export function PendingPsvManager({
                 </SheetHeader>
                 <div className="border-border space-y-4 border-t px-4 py-3">
                   <div className="space-y-1">
-                    <label className="text-xs text-zinc-500">Status</label>
+                    <label className="text-xs text-muted-foreground">Status</label>
                     <select
                       value={statusFilter}
                       onChange={(e) =>
@@ -219,7 +219,7 @@ export function PendingPsvManager({
                           e.target.value as "active" | "closed" | "all",
                         )
                       }
-                      className="w-full rounded border border-zinc-700 bg-zinc-900 px-2.5 py-2 text-sm text-zinc-300"
+                      className="w-full rounded border border-border bg-background px-2.5 py-2 text-sm text-foreground"
                     >
                       <option value="active">Active</option>
                       <option value="closed">Archived</option>
@@ -227,7 +227,7 @@ export function PendingPsvManager({
                     </select>
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs text-zinc-500">Type</label>
+                    <label className="text-xs text-muted-foreground">Type</label>
                     <select
                       value={typeFilter}
                       onChange={(e) =>
@@ -235,7 +235,7 @@ export function PendingPsvManager({
                           e.target.value as "all" | PendingPsv["type"],
                         )
                       }
-                      className="w-full rounded border border-zinc-700 bg-zinc-900 px-2.5 py-2 text-sm text-zinc-300"
+                      className="w-full rounded border border-border bg-background px-2.5 py-2 text-sm text-foreground"
                     >
                       <option value="all">All Types</option>
                       {PSV_TYPES.map((type) => (
@@ -246,13 +246,13 @@ export function PendingPsvManager({
                     </select>
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs text-zinc-500">Sort</label>
+                    <label className="text-xs text-muted-foreground">Sort</label>
                     <select
                       value={sortOrder}
                       onChange={(e) =>
                         setSortOrder(e.target.value as "newest" | "oldest")
                       }
-                      className="w-full rounded border border-zinc-700 bg-zinc-900 px-2.5 py-2 text-sm text-zinc-300"
+                      className="w-full rounded border border-border bg-background px-2.5 py-2 text-sm text-foreground"
                     >
                       <option value="newest">Requested Date (Newest)</option>
                       <option value="oldest">Requested Date (Oldest)</option>
@@ -284,13 +284,13 @@ export function PendingPsvManager({
 
       <div className="flex min-h-0 flex-1 flex-col px-6 py-4">
         {isCreating && (
-          <div className="mb-4 grid gap-3 rounded-lg border border-zinc-700 bg-zinc-900/40 p-4 md:grid-cols-3">
+          <div className="mb-4 grid gap-3 rounded-lg border border-border bg-muted/20 p-4 md:grid-cols-3">
             <div className="space-y-1">
-              <label className="text-xs text-zinc-400">
+              <label className="text-xs text-muted-foreground">
                 PSV Verification Type
               </label>
               <select
-                className="w-full rounded border border-zinc-700 bg-zinc-900 px-2.5 py-2 text-sm text-zinc-300"
+                className="w-full rounded border border-border bg-background px-2.5 py-2 text-sm text-foreground"
                 value={form.type}
                 onChange={(e) =>
                   setForm((s) => ({
@@ -307,9 +307,9 @@ export function PendingPsvManager({
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-zinc-400">PSV Status</label>
+              <label className="text-xs text-muted-foreground">PSV Status</label>
               <select
-                className="w-full rounded border border-zinc-700 bg-zinc-900 px-2.5 py-2 text-sm text-zinc-300"
+                className="w-full rounded border border-border bg-background px-2.5 py-2 text-sm text-foreground"
                 value={form.status}
                 onChange={(e) =>
                   setForm((s) => ({
@@ -329,7 +329,7 @@ export function PendingPsvManager({
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-zinc-400">Date Requested</label>
+              <label className="text-xs text-muted-foreground">Date Requested</label>
               <Input
                 type="date"
                 value={form.dateRequested}
@@ -339,7 +339,7 @@ export function PendingPsvManager({
               />
             </div>
             <div className="space-y-1 md:col-span-2">
-              <label className="text-xs text-zinc-400">
+              <label className="text-xs text-muted-foreground">
                 Verification Target / Contact Name
               </label>
               <Input
@@ -351,7 +351,7 @@ export function PendingPsvManager({
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-zinc-400">
+              <label className="text-xs text-muted-foreground">
                 Next Follow-up Date
               </label>
               <Input
@@ -363,7 +363,7 @@ export function PendingPsvManager({
               />
             </div>
             <div className="space-y-1 md:col-span-3">
-              <label className="text-xs text-zinc-400">Notes</label>
+              <label className="text-xs text-muted-foreground">Notes</label>
               <Textarea
                 rows={3}
                 placeholder="Follow-up details, outcomes, blockers"
@@ -392,12 +392,12 @@ export function PendingPsvManager({
         {isLoading ? (
           <div className="space-y-2">
             {[1, 2].map((i) => (
-              <div key={i} className="h-12 animate-pulse rounded bg-zinc-800" />
+              <div key={i} className="h-12 animate-pulse rounded bg-muted" />
             ))}
           </div>
         ) : filteredPsvs.length > 0 ? (
-          <div className="bg-card flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-zinc-700">
-            <div className="hide-scrollbar overflow-x-auto border-b border-zinc-700">
+          <div className="bg-card flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border">
+            <div className="hide-scrollbar overflow-x-auto border-b border-border">
               <table className="w-full min-w-[920px] table-fixed text-sm">
                 <colgroup>
                   <col className="w-[18%]" />
@@ -408,7 +408,7 @@ export function PendingPsvManager({
                   <col className="w-[8%]" />
                 </colgroup>
                 <thead>
-                  <tr className="bg-muted/50 text-zinc-400">
+                  <tr className="bg-muted/50 text-muted-foreground">
                     <th className="px-4 py-3 text-left font-medium">
                       Verification Type
                     </th>
@@ -433,13 +433,13 @@ export function PendingPsvManager({
                   <col className="w-[10%]" />
                   <col className="w-[8%]" />
                 </colgroup>
-                <tbody className="divide-y divide-zinc-800">
+                <tbody className="divide-y divide-border">
                 {filteredPsvs.map((psv) =>
                   editingId === psv.id ? (
-                    <tr key={psv.id} className="bg-zinc-900/40">
+                    <tr key={psv.id} className="bg-muted/20">
                       <td className="px-4 py-3 align-top">
                         <select
-                          className="w-full rounded border border-zinc-700 bg-zinc-900 px-2.5 py-2 text-sm text-zinc-300"
+                          className="w-full rounded border border-border bg-background px-2.5 py-2 text-sm text-foreground"
                           value={form.type}
                           onChange={(e) =>
                             setForm((s) => ({
@@ -473,7 +473,7 @@ export function PendingPsvManager({
                       </td>
                       <td className="px-4 py-3 align-top">
                         <select
-                          className="w-full rounded border border-zinc-700 bg-zinc-900 px-2.5 py-2 text-sm text-zinc-300"
+                          className="w-full rounded border border-border bg-background px-2.5 py-2 text-sm text-foreground"
                           value={form.status}
                           onChange={(e) =>
                             setForm((s) => ({
@@ -529,16 +529,16 @@ export function PendingPsvManager({
                       </td>
                     </tr>
                   ) : (
-                    <tr key={psv.id} className="hover:bg-zinc-900/50">
-                      <td className="px-4 py-3 font-medium text-zinc-200">
+                    <tr key={psv.id} className="hover:bg-muted/30">
+                      <td className="px-4 py-3 font-medium text-foreground">
                         {psv.type}
                       </td>
-                      <td className="px-4 py-3 text-zinc-300">{psv.name}</td>
-                      <td className="px-4 py-3 text-zinc-400">{psv.status}</td>
-                      <td className="px-4 py-3 text-zinc-400">
+                      <td className="px-4 py-3 text-foreground">{psv.name}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{psv.status}</td>
+                      <td className="px-4 py-3 text-muted-foreground">
                         {format(new Date(psv.dateRequested), "MMM d, yyyy")}
                       </td>
-                      <td className="px-4 py-3 text-zinc-500">
+                      <td className="px-4 py-3 text-muted-foreground">
                         <TruncatedTooltip
                           as="p"
                           text={psv.notes ?? "—"}

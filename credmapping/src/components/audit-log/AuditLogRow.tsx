@@ -122,11 +122,11 @@ function RecordIdCell({ recordId }: { recordId: string | null }) {
           side="top"
           className="font-mono text-xs max-w-xs break-all"
         >
-          <p className="text-muted-foreground text-[10px] mb-0.5">
+          <p className="text-muted text-[10px] mb-0.5">
             Record ID
           </p>
           <p>{recordId}</p>
-          <p className="text-muted-foreground/60 text-[10px] mt-1">
+          <p className="text-muted text-[10px] mt-1">
             {copied ? "✓ Copied!" : "Click icon to copy"}
           </p>
         </TooltipContent>
