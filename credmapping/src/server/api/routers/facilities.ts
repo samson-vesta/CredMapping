@@ -214,9 +214,38 @@ export const facilitiesRouter = createTRPCRouter({
 
       if (!existing) throw new Error("Facility not found.");
 
+      const actor = await resolveAgentId(ctx.db, ctx.user.id);
+
       // Clean up child records first
-      await ctx.db.delete(facilityContacts).where(eq(facilityContacts.facilityId, input.id));
-      await ctx.db.delete(facilityPreliveInfo).where(eq(facilityPreliveInfo.facilityId, input.id));
+      const deletedContacts = await ctx.db
+        .delete(facilityContacts)
+        .where(eq(facilityContacts.facilityId, input.id))
+        .returning();
+      for (const deletedContact of deletedContacts) {
+        await writeAuditLog(ctx.db, {
+          tableName: "facility_contacts",
+          recordId: deletedContact.id,
+          action: "delete",
+          actorId: actor?.id ?? null,
+          actorEmail: actor?.email ?? ctx.user.email ?? null,
+          oldData: deletedContact as unknown as Record<string, unknown>,
+        });
+      }
+
+      const deletedPreliveRows = await ctx.db
+        .delete(facilityPreliveInfo)
+        .where(eq(facilityPreliveInfo.facilityId, input.id))
+        .returning();
+      for (const deletedPrelive of deletedPreliveRows) {
+        await writeAuditLog(ctx.db, {
+          tableName: "facility_prelive_info",
+          recordId: deletedPrelive.id,
+          action: "delete",
+          actorId: actor?.id ?? null,
+          actorEmail: actor?.email ?? ctx.user.email ?? null,
+          oldData: deletedPrelive as unknown as Record<string, unknown>,
+        });
+      }
 
       // Delete PFC-linked workflow phases
       const pfcRows = await ctx.db
@@ -226,17 +255,40 @@ export const facilitiesRouter = createTRPCRouter({
 
       if (pfcRows.length > 0) {
         const pfcIds = pfcRows.map((r) => r.id);
-        await ctx.db
+        const deletedPhases = await ctx.db
           .delete(workflowPhases)
           .where(
             and(
               eq(workflowPhases.workflowType, "pfc"),
               inArray(workflowPhases.relatedId, pfcIds),
             ),
-          );
-        await ctx.db
+          )
+          .returning();
+        for (const deletedPhase of deletedPhases) {
+          await writeAuditLog(ctx.db, {
+            tableName: "workflow_phases",
+            recordId: deletedPhase.id,
+            action: "delete",
+            actorId: actor?.id ?? null,
+            actorEmail: actor?.email ?? ctx.user.email ?? null,
+            oldData: deletedPhase as unknown as Record<string, unknown>,
+          });
+        }
+
+        const deletedPfcRows = await ctx.db
           .delete(providerFacilityCredentials)
-          .where(eq(providerFacilityCredentials.facilityId, input.id));
+          .where(eq(providerFacilityCredentials.facilityId, input.id))
+          .returning();
+        for (const deletedPfc of deletedPfcRows) {
+          await writeAuditLog(ctx.db, {
+            tableName: "provider_facility_credentials",
+            recordId: deletedPfc.id,
+            action: "delete",
+            actorId: actor?.id ?? null,
+            actorEmail: actor?.email ?? ctx.user.email ?? null,
+            oldData: deletedPfc as unknown as Record<string, unknown>,
+          });
+        }
       }
 
       const [deleted] = await ctx.db
@@ -244,7 +296,6 @@ export const facilitiesRouter = createTRPCRouter({
         .where(eq(facilities.id, input.id))
         .returning();
 
-      const actor = await resolveAgentId(ctx.db, ctx.user.id);
       await writeAuditLog(ctx.db, {
         tableName: "facilities",
         recordId: input.id,
@@ -643,21 +694,33 @@ export const facilitiesRouter = createTRPCRouter({
 
       if (!existing) throw new Error("PFC record not found.");
 
+      const actor = await resolveAgentId(ctx.db, ctx.user.id);
+
       // Delete linked workflow phases first
-      await ctx.db
+      const deletedPhases = await ctx.db
         .delete(workflowPhases)
         .where(
           and(
             eq(workflowPhases.workflowType, "pfc"),
             eq(workflowPhases.relatedId, input.id),
           ),
-        );
+        )
+        .returning();
+      for (const deletedPhase of deletedPhases) {
+        await writeAuditLog(ctx.db, {
+          tableName: "workflow_phases",
+          recordId: deletedPhase.id,
+          action: "delete",
+          actorId: actor?.id ?? null,
+          actorEmail: actor?.email ?? ctx.user.email ?? null,
+          oldData: deletedPhase as unknown as Record<string, unknown>,
+        });
+      }
 
       await ctx.db
         .delete(providerFacilityCredentials)
         .where(eq(providerFacilityCredentials.id, input.id));
 
-      const actor = await resolveAgentId(ctx.db, ctx.user.id);
       await writeAuditLog(ctx.db, {
         tableName: "provider_facility_credentials",
         recordId: input.id,

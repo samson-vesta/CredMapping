@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { eq, desc, count, and, inArray } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
+import { resolveAgentId, writeAuditLog } from "~/server/api/audit";
 import {
   commLogs,
   providers,
@@ -127,7 +128,20 @@ export const commLogsRouter = createTRPCRouter({
         })
         .returning();
 
-      return result[0];
+      const [created] = result;
+      if (!created) throw new Error("Failed to create comm log.");
+
+      const actor = await resolveAgentId(ctx.db, ctx.user.id);
+      await writeAuditLog(ctx.db, {
+        tableName: "comm_logs",
+        recordId: created.id,
+        action: "create",
+        actorId: actor?.id ?? null,
+        actorEmail: actor?.email ?? ctx.user.email ?? null,
+        newData: { ...created, subject: null, notes: null } as unknown as Record<string, unknown>,
+      });
+
+      return created;
     }),
 
   // getMissingDocs: Fetches active roadblocks for the right panel
@@ -191,7 +205,20 @@ export const commLogsRouter = createTRPCRouter({
         })
         .returning();
 
-      return result[0];
+      const [created] = result;
+      if (!created) throw new Error("Failed to create missing doc.");
+
+      const actor = await resolveAgentId(ctx.db, ctx.user.id);
+      await writeAuditLog(ctx.db, {
+        tableName: "missing_docs",
+        recordId: created.id,
+        action: "create",
+        actorId: actor?.id ?? null,
+        actorEmail: actor?.email ?? ctx.user.email ?? null,
+        newData: created as unknown as Record<string, unknown>,
+      });
+
+      return created;
     }),
 
   updateMissingDoc: protectedProcedure
@@ -210,6 +237,12 @@ export const commLogsRouter = createTRPCRouter({
       const nextFollowUpUS = input.nextFollowUpUS ?? input.nextFollowUp ?? null;
       const nextFollowUpIn = input.nextFollowUpIn ?? input.nextFollowUp ?? null;
 
+      const [existing] = await ctx.db
+        .select()
+        .from(missingDocs)
+        .where(eq(missingDocs.id, input.id))
+        .limit(1);
+
       const result = await ctx.db
         .update(missingDocs)
         .set({
@@ -223,7 +256,21 @@ export const commLogsRouter = createTRPCRouter({
         .where(eq(missingDocs.id, input.id))
         .returning();
 
-      return result[0];
+      const [updated] = result;
+      if (!updated) throw new Error("Missing doc not found.");
+
+      const actor = await resolveAgentId(ctx.db, ctx.user.id);
+      await writeAuditLog(ctx.db, {
+        tableName: "missing_docs",
+        recordId: input.id,
+        action: "update",
+        actorId: actor?.id ?? null,
+        actorEmail: actor?.email ?? ctx.user.email ?? null,
+        oldData: existing as unknown as Record<string, unknown>,
+        newData: updated as unknown as Record<string, unknown>,
+      });
+
+      return updated;
     }),
 
   deleteMissingDoc: protectedProcedure
@@ -232,9 +279,22 @@ export const commLogsRouter = createTRPCRouter({
       const result = await ctx.db
         .delete(missingDocs)
         .where(eq(missingDocs.id, input.id))
-        .returning({ id: missingDocs.id });
+        .returning();
 
-      return result[0] ?? null;
+      const actor = await resolveAgentId(ctx.db, ctx.user.id);
+      const deleted = result[0] ?? null;
+      if (deleted) {
+        await writeAuditLog(ctx.db, {
+          tableName: "missing_docs",
+          recordId: deleted.id,
+          action: "delete",
+          actorId: actor?.id ?? null,
+          actorEmail: actor?.email ?? ctx.user.email ?? null,
+          oldData: deleted as unknown as Record<string, unknown>,
+        });
+      }
+
+      return deleted;
     }),
 
   createPendingPSV: protectedProcedure
@@ -274,7 +334,20 @@ export const commLogsRouter = createTRPCRouter({
         })
         .returning();
 
-      return result[0];
+      const [created] = result;
+      if (!created) throw new Error("Failed to create pending PSV.");
+
+      const actor = await resolveAgentId(ctx.db, ctx.user.id);
+      await writeAuditLog(ctx.db, {
+        tableName: "pending_psv",
+        recordId: created.id,
+        action: "create",
+        actorId: actor?.id ?? null,
+        actorEmail: actor?.email ?? ctx.user.email ?? null,
+        newData: created as unknown as Record<string, unknown>,
+      });
+
+      return created;
     }),
 
   updatePendingPSV: protectedProcedure
@@ -290,6 +363,12 @@ export const commLogsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      const [existing] = await ctx.db
+        .select()
+        .from(pendingPSV)
+        .where(eq(pendingPSV.id, input.id))
+        .limit(1);
+
       const result = await ctx.db
         .update(pendingPSV)
         .set({
@@ -304,7 +383,21 @@ export const commLogsRouter = createTRPCRouter({
         .where(eq(pendingPSV.id, input.id))
         .returning();
 
-      return result[0];
+      const [updated] = result;
+      if (!updated) throw new Error("Pending PSV not found.");
+
+      const actor = await resolveAgentId(ctx.db, ctx.user.id);
+      await writeAuditLog(ctx.db, {
+        tableName: "pending_psv",
+        recordId: input.id,
+        action: "update",
+        actorId: actor?.id ?? null,
+        actorEmail: actor?.email ?? ctx.user.email ?? null,
+        oldData: existing as unknown as Record<string, unknown>,
+        newData: updated as unknown as Record<string, unknown>,
+      });
+
+      return updated;
     }),
 
   deletePendingPSV: protectedProcedure
@@ -313,9 +406,22 @@ export const commLogsRouter = createTRPCRouter({
       const result = await ctx.db
         .delete(pendingPSV)
         .where(eq(pendingPSV.id, input.id))
-        .returning({ id: pendingPSV.id });
+        .returning();
 
-      return result[0] ?? null;
+      const actor = await resolveAgentId(ctx.db, ctx.user.id);
+      const deleted = result[0] ?? null;
+      if (deleted) {
+        await writeAuditLog(ctx.db, {
+          tableName: "pending_psv",
+          recordId: deleted.id,
+          action: "delete",
+          actorId: actor?.id ?? null,
+          actorEmail: actor?.email ?? ctx.user.email ?? null,
+          oldData: deleted as unknown as Record<string, unknown>,
+        });
+      }
+
+      return deleted;
     }),
 
   // getSummary: A quick stats overview for the top of the detail panel
@@ -401,6 +507,12 @@ export const commLogsRouter = createTRPCRouter({
         ? await ctx.db.select({ id: agents.id }).from(agents).where(eq(agents.userId, parsedUserId.data)).limit(1)
         : [];
 
+      const [existing] = await ctx.db
+        .select()
+        .from(commLogs)
+        .where(eq(commLogs.id, input.id))
+        .limit(1);
+
       const result = await ctx.db
         .update(commLogs)
         .set({
@@ -413,7 +525,23 @@ export const commLogsRouter = createTRPCRouter({
         .where(eq(commLogs.id, input.id))
         .returning();
 
-      return result[0];
+      const [updated] = result;
+      if (!updated) throw new Error("Comm log not found.");
+
+      const actor = await resolveAgentId(ctx.db, ctx.user.id);
+      await writeAuditLog(ctx.db, {
+        tableName: "comm_logs",
+        recordId: input.id,
+        action: "update",
+        actorId: actor?.id ?? null,
+        actorEmail: actor?.email ?? ctx.user.email ?? null,
+        oldData: existing
+          ? ({ ...existing, subject: null, notes: null } as unknown as Record<string, unknown>)
+          : undefined,
+        newData: { ...updated, subject: null, notes: null } as unknown as Record<string, unknown>,
+      });
+
+      return updated;
     }),
 
   // getContactsAndFacilityInfo: Fetches specific facility details for the right panel

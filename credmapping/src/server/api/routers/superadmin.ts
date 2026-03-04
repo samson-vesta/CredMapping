@@ -120,6 +120,18 @@ export const superadminRouter = createTRPCRouter({
         })
         .returning();
 
+      if (!newAgent) throw new Error("Failed to create agent.");
+
+      const actor = await resolveAgentId(ctx.db, ctx.user.id);
+      await writeAuditLog(ctx.db, {
+        tableName: "agents",
+        recordId: newAgent.id,
+        action: "create",
+        actorId: actor?.id ?? null,
+        actorEmail: actor?.email ?? ctx.user.email ?? null,
+        newData: newAgent as unknown as Record<string, unknown>,
+      });
+
       return newAgent;
     }),
 
@@ -137,7 +149,7 @@ export const superadminRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const [targetAgent] = await ctx.db
-        .select({ userId: agents.userId })
+        .select()
         .from(agents)
         .where(eq(agents.id, input.agentId))
         .limit(1);
@@ -168,6 +180,17 @@ export const superadminRouter = createTRPCRouter({
         throw new Error("Agent not found.");
       }
 
+      const actor = await resolveAgentId(ctx.db, ctx.user.id);
+      await writeAuditLog(ctx.db, {
+        tableName: "agents",
+        recordId: input.agentId,
+        action: "update",
+        actorId: actor?.id ?? null,
+        actorEmail: actor?.email ?? ctx.user.email ?? null,
+        oldData: targetAgent as unknown as Record<string, unknown>,
+        newData: updated as unknown as Record<string, unknown>,
+      });
+
       return updated;
     }),
 
@@ -178,7 +201,7 @@ export const superadminRouter = createTRPCRouter({
     .input(z.object({ agentId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const [targetAgent] = await ctx.db
-        .select({ userId: agents.userId })
+        .select()
         .from(agents)
         .where(eq(agents.id, input.agentId))
         .limit(1);
@@ -202,6 +225,16 @@ export const superadminRouter = createTRPCRouter({
       if (!deleted) {
         throw new Error("Agent not found.");
       }
+
+      const actor = await resolveAgentId(ctx.db, ctx.user.id);
+      await writeAuditLog(ctx.db, {
+        tableName: "agents",
+        recordId: input.agentId,
+        action: "delete",
+        actorId: actor?.id ?? null,
+        actorEmail: actor?.email ?? ctx.user.email ?? null,
+        oldData: targetAgent as unknown as Record<string, unknown>,
+      });
 
       return { success: true };
     }),
