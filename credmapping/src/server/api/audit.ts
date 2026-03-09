@@ -1,14 +1,12 @@
 import { eq } from "drizzle-orm";
-import type { db as dbType, DbTx } from "~/server/db";
+import type { DbClient } from "~/server/db";
 import { agents, auditLog } from "~/server/db/schema";
-
-type Db = typeof dbType | DbTx;
 
 /**
  * Resolve the internal agent ID from a Supabase auth user ID.
  * Returns null if the user is not an agent.
  */
-export async function resolveAgentId(db: Db, userId: string) {
+export async function resolveAgentId(db: DbClient, userId: string) {
   const [row] = await db
     .select({ id: agents.id, email: agents.email })
     .from(agents)
@@ -24,7 +22,7 @@ export async function resolveAgentId(db: Db, userId: string) {
  * @param params   – audit fields
  */
 export async function writeAuditLog(
-  db: Db,
+  db: DbClient,
   params: {
     tableName: string;
     recordId: string;

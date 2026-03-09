@@ -1,9 +1,6 @@
 import { redirect } from "next/navigation";
-import { createClient } from "~/utils/supabase/server";
-import { getAppRole, type AppRole } from "~/server/auth/domain";
-import { db } from "~/server/db";
-import { agents } from "~/server/db/schema";
-import { ilike } from "drizzle-orm";
+import { type AppRole } from "~/server/auth/domain";
+import { requireRequestAuthContext } from "~/server/auth/request-context";
 
 /**
  * Single source of truth: route prefix → allowed roles.
@@ -27,24 +24,7 @@ export const routeRoles: Record<string, AppRole[]> = {
  *   }
  */
 export async function requireRole(allowedRoles: AppRole[]): Promise<AppRole> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) redirect("/");
-
-  const normalizedEmail = user.email?.toLowerCase();
-
-  const agentRecord = normalizedEmail
-    ? await db
-        .select({ role: agents.role })
-        .from(agents)
-        .where(ilike(agents.email, normalizedEmail))
-        .limit(1)
-    : [];
-
-  const userRole = getAppRole({ agentRole: agentRecord[0]?.role });
+  const { appRole: userRole } = await requireRequestAuthContext();
 
   if (!allowedRoles.includes(userRole)) {
     redirect("/dashboard");

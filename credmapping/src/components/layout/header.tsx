@@ -20,7 +20,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { GlobalSearch } from "~/components/layout/global-search";
 
 import { type User as UserType } from "@supabase/supabase-js";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useTransition } from "react";
 
 function formatSegmentLabel(segment: string) {
   const decodedSegment = decodeURIComponent(segment).replace(/[-_]+/g, " ").trim();
@@ -37,50 +37,33 @@ const isLikelyUuid = (value: string) =>
 
 type AppRole = "user" | "admin" | "superadmin";
 
-export function Header({ user, userRole }: { user: UserType; userRole: AppRole }) {
+type BreadcrumbLabels = Partial<Record<"facilities" | "providers", string>>;
+
+export function Header({
+  user,
+  userRole,
+  breadcrumbLabels,
+}: {
+  user: UserType;
+  userRole: AppRole;
+  breadcrumbLabels?: BreadcrumbLabels;
+}) {
   const [isPending, startTransition] = useTransition();
-  const [providerBreadcrumbLabel, setProviderBreadcrumbLabel] = useState<string | null>(null);
 
   const pathname = usePathname();
   const segments = useMemo(() => pathname.split("/").filter(Boolean), [pathname]);
 
-  useEffect(() => {
-    const providerId = segments[0] === "providers" ? segments[1] : undefined;
-
-    if (!providerId || !isLikelyUuid(providerId)) {
-      setProviderBreadcrumbLabel(null);
-      return;
-    }
-
-    let mounted = true;
-    void fetch(`/api/providers/${providerId}/breadcrumb`, { cache: "no-store" })
-      .then(async (response) => {
-        if (!response.ok) return null;
-        const data: unknown = await response.json();
-        if (!data || typeof data !== "object" || !("label" in data)) return null;
-        const label = data.label;
-        return typeof label === "string" ? label : null;
-      })
-      .then((label) => {
-        if (!mounted) return;
-        setProviderBreadcrumbLabel(label);
-      })
-      .catch(() => {
-        if (!mounted) return;
-        setProviderBreadcrumbLabel(null);
-      });
-
-    return () => {
-      mounted = false;
-    };
-  }, [segments]);
-
   const breadcrumbItems = segments.map((segment, index) => {
-    const isProviderProfileSegment = index === 1 && segments[0] === "providers" && isLikelyUuid(segment);
+    const routeRoot = segments[0];
+    const isEntityProfileSegment = index === 1 && isLikelyUuid(segment);
+    const entityLabel =
+      routeRoot === "providers"
+        ? breadcrumbLabels?.providers ?? "Provider Profile"
+        : routeRoot === "facilities"
+          ? breadcrumbLabels?.facilities ?? "Facility Profile"
+          : formatSegmentLabel(segment);
 
-    const label = isProviderProfileSegment
-      ? providerBreadcrumbLabel ?? "Provider Profile"
-      : formatSegmentLabel(segment);
+    const label = isEntityProfileSegment ? entityLabel : formatSegmentLabel(segment);
 
     return {
       href: `/${segments.slice(0, index + 1).join("/")}`,

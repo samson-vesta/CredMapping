@@ -1,6 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import { DashboardClient } from "~/app/(external)/dashboard/dashboard-client";
-import { db } from "~/server/db";
+import { requireRequestAuthContext } from "~/server/auth/request-context";
+import { withUserDb } from "~/server/db";
 import {
   facilities,
   facilityPreliveInfo,
@@ -9,6 +10,8 @@ import {
   providers,
   providerVestaPrivileges
 } from "~/server/db/schema";
+
+const DASHBOARD_ROW_LIMIT = 250;
 
 const formatProviderName = (provider: {
   firstName: string | null;
@@ -46,88 +49,98 @@ const parseRoles = (value: unknown): string[] => {
 };
 
 export default async function DashboardPage() {
+  const { user } = await requireRequestAuthContext();
+
   const [providerFacilityRowsRaw, facilityPreliveRowsRaw, providerLicenseRowsRaw, providerVestaPrivilegesRowsRaw] =
-    await Promise.all([
-      db
-        .select({
-          id: providerFacilityCredentials.id,
-          providerId: providerFacilityCredentials.providerId,
-          providerFirstName: providers.firstName,
-          providerMiddleName: providers.middleName,
-          providerLastName: providers.lastName,
-          providerDegree: providers.degree,
-          facilityId: providerFacilityCredentials.facilityId,
-          facilityName: facilities.name,
-          facilityState: facilities.state,
-          priority: providerFacilityCredentials.priority,
-          privileges: providerFacilityCredentials.privileges,
-          decision: providerFacilityCredentials.decision,
-          facilityType: providerFacilityCredentials.facilityType,
-          applicationRequired: providerFacilityCredentials.applicationRequired,
-          updatedAt: providerFacilityCredentials.updatedAt,
-        })
-        .from(providerFacilityCredentials)
-        .leftJoin(providers, eq(providerFacilityCredentials.providerId, providers.id))
-        .leftJoin(facilities, eq(providerFacilityCredentials.facilityId, facilities.id))
-        .orderBy(desc(providerFacilityCredentials.updatedAt)),
-      db
-        .select({
-          id: facilityPreliveInfo.id,
-          facilityId: facilityPreliveInfo.facilityId,
-          facilityName: facilities.name,
-          facilityState: facilities.state,
-          priority: facilityPreliveInfo.priority,
-          goLiveDate: facilityPreliveInfo.goLiveDate,
-          credentialingDueDate: facilityPreliveInfo.credentialingDueDate,
-          boardMeetingDate: facilityPreliveInfo.boardMeetingDate,
-          tempsPossible: facilityPreliveInfo.tempsPossible,
-          payorEnrollmentRequired: facilityPreliveInfo.payorEnrollmentRequired,
-          rolesNeeded: facilityPreliveInfo.rolesNeeded,
-          updatedAt: facilityPreliveInfo.updatedAt,
-        })
-        .from(facilityPreliveInfo)
-        .leftJoin(facilities, eq(facilityPreliveInfo.facilityId, facilities.id))
-        .orderBy(desc(facilityPreliveInfo.updatedAt)),
-      db
-        .select({
-          id: providerStateLicenses.id,
-          providerId: providerStateLicenses.providerId,
-          providerFirstName: providers.firstName,
-          providerMiddleName: providers.middleName,
-          providerLastName: providers.lastName,
-          providerDegree: providers.degree,
-          state: providerStateLicenses.state,
-          priority: providerStateLicenses.priority,
-          status: providerStateLicenses.status,
-          path: providerStateLicenses.path,
-          initialOrRenewal: providerStateLicenses.initialOrRenewal,
-          startsAt: providerStateLicenses.startsAt,
-          expiresAt: providerStateLicenses.expiresAt,
-          updatedAt: providerStateLicenses.updatedAt,
-        })
-        .from(providerStateLicenses)
-        .leftJoin(providers, eq(providerStateLicenses.providerId, providers.id))
-        .orderBy(desc(providerStateLicenses.updatedAt)),
-      db
-        .select({
-          id: providerVestaPrivileges.id,
-          providerId: providerVestaPrivileges.providerId,
-          providerFirstName: providers.firstName,
-          providerMiddleName: providers.middleName,
-          providerLastName: providers.lastName,
-          providerDegree: providers.degree,
-          privilegeTier: providerVestaPrivileges.privilegeTier,
-          currentPrivInitDate: providerVestaPrivileges.currentPrivInitDate,
-          currentPrivEndDate: providerVestaPrivileges.currentPrivEndDate,
-          termDate: providerVestaPrivileges.termDate,
-          termReason: providerVestaPrivileges.termReason,
-          pastPrivileges: providerVestaPrivileges.pastPrivileges,
-          updatedAt: providerVestaPrivileges.updatedAt,
-        })
-        .from(providerVestaPrivileges)
-        .leftJoin(providers, eq(providerVestaPrivileges.providerId, providers.id))
-        .orderBy(desc(providerVestaPrivileges.updatedAt)),
-    ]);
+    await withUserDb({
+      user,
+      run: (db) =>
+        Promise.all([
+          db
+            .select({
+              id: providerFacilityCredentials.id,
+              providerId: providerFacilityCredentials.providerId,
+              providerFirstName: providers.firstName,
+              providerMiddleName: providers.middleName,
+              providerLastName: providers.lastName,
+              providerDegree: providers.degree,
+              facilityId: providerFacilityCredentials.facilityId,
+              facilityName: facilities.name,
+              facilityState: facilities.state,
+              priority: providerFacilityCredentials.priority,
+              privileges: providerFacilityCredentials.privileges,
+              decision: providerFacilityCredentials.decision,
+              facilityType: providerFacilityCredentials.facilityType,
+              applicationRequired: providerFacilityCredentials.applicationRequired,
+              updatedAt: providerFacilityCredentials.updatedAt,
+            })
+            .from(providerFacilityCredentials)
+            .leftJoin(providers, eq(providerFacilityCredentials.providerId, providers.id))
+            .leftJoin(facilities, eq(providerFacilityCredentials.facilityId, facilities.id))
+            .orderBy(desc(providerFacilityCredentials.updatedAt))
+            .limit(DASHBOARD_ROW_LIMIT),
+          db
+            .select({
+              id: facilityPreliveInfo.id,
+              facilityId: facilityPreliveInfo.facilityId,
+              facilityName: facilities.name,
+              facilityState: facilities.state,
+              priority: facilityPreliveInfo.priority,
+              goLiveDate: facilityPreliveInfo.goLiveDate,
+              credentialingDueDate: facilityPreliveInfo.credentialingDueDate,
+              boardMeetingDate: facilityPreliveInfo.boardMeetingDate,
+              tempsPossible: facilityPreliveInfo.tempsPossible,
+              payorEnrollmentRequired: facilityPreliveInfo.payorEnrollmentRequired,
+              rolesNeeded: facilityPreliveInfo.rolesNeeded,
+              updatedAt: facilityPreliveInfo.updatedAt,
+            })
+            .from(facilityPreliveInfo)
+            .leftJoin(facilities, eq(facilityPreliveInfo.facilityId, facilities.id))
+            .orderBy(desc(facilityPreliveInfo.updatedAt))
+            .limit(DASHBOARD_ROW_LIMIT),
+          db
+            .select({
+              id: providerStateLicenses.id,
+              providerId: providerStateLicenses.providerId,
+              providerFirstName: providers.firstName,
+              providerMiddleName: providers.middleName,
+              providerLastName: providers.lastName,
+              providerDegree: providers.degree,
+              state: providerStateLicenses.state,
+              priority: providerStateLicenses.priority,
+              status: providerStateLicenses.status,
+              path: providerStateLicenses.path,
+              initialOrRenewal: providerStateLicenses.initialOrRenewal,
+              startsAt: providerStateLicenses.startsAt,
+              expiresAt: providerStateLicenses.expiresAt,
+              updatedAt: providerStateLicenses.updatedAt,
+            })
+            .from(providerStateLicenses)
+            .leftJoin(providers, eq(providerStateLicenses.providerId, providers.id))
+            .orderBy(desc(providerStateLicenses.updatedAt))
+            .limit(DASHBOARD_ROW_LIMIT),
+          db
+            .select({
+              id: providerVestaPrivileges.id,
+              providerId: providerVestaPrivileges.providerId,
+              providerFirstName: providers.firstName,
+              providerMiddleName: providers.middleName,
+              providerLastName: providers.lastName,
+              providerDegree: providers.degree,
+              privilegeTier: providerVestaPrivileges.privilegeTier,
+              currentPrivInitDate: providerVestaPrivileges.currentPrivInitDate,
+              currentPrivEndDate: providerVestaPrivileges.currentPrivEndDate,
+              termDate: providerVestaPrivileges.termDate,
+              termReason: providerVestaPrivileges.termReason,
+              pastPrivileges: providerVestaPrivileges.pastPrivileges,
+              updatedAt: providerVestaPrivileges.updatedAt,
+            })
+            .from(providerVestaPrivileges)
+            .leftJoin(providers, eq(providerVestaPrivileges.providerId, providers.id))
+            .orderBy(desc(providerVestaPrivileges.updatedAt))
+            .limit(DASHBOARD_ROW_LIMIT),
+        ]),
+    });
 
   const providerFacilityRows = providerFacilityRowsRaw.map((row) => ({
     id: row.id,

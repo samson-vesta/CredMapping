@@ -110,6 +110,34 @@ export const providersRouter = createTRPCRouter({
       const actor = await resolveAgentId(ctx.db, ctx.user.id);
 
       const deleted = await ctx.db.transaction(async (tx) => {
+        const licenseRows = await tx
+          .select({ id: providerStateLicenses.id })
+          .from(providerStateLicenses)
+          .where(eq(providerStateLicenses.providerId, input.id));
+
+        if (licenseRows.length > 0) {
+          const licenseIds = licenseRows.map((r) => r.id);
+          const deletedLicensePhases = await tx
+            .delete(workflowPhases)
+            .where(
+              and(
+                eq(workflowPhases.workflowType, "state_licenses"),
+                inArray(workflowPhases.relatedId, licenseIds),
+              ),
+            )
+            .returning();
+          for (const deletedPhase of deletedLicensePhases) {
+            await writeAuditLog(tx, {
+              tableName: "workflow_phases",
+              recordId: deletedPhase.id,
+              action: "delete",
+              actorId: actor?.id ?? null,
+              actorEmail: actor?.email ?? ctx.user.email ?? null,
+              oldData: deletedPhase as unknown as Record<string, unknown>,
+            });
+          }
+        }
+
         // Delete state licenses
         const deletedLicenses = await tx
           .delete(providerStateLicenses)
@@ -124,6 +152,34 @@ export const providersRouter = createTRPCRouter({
             actorEmail: actor?.email ?? ctx.user.email ?? null,
             oldData: deletedLicense as unknown as Record<string, unknown>,
           });
+        }
+
+        const privilegeRows = await tx
+          .select({ id: providerVestaPrivileges.id })
+          .from(providerVestaPrivileges)
+          .where(eq(providerVestaPrivileges.providerId, input.id));
+
+        if (privilegeRows.length > 0) {
+          const privilegeIds = privilegeRows.map((r) => r.id);
+          const deletedVestaPhases = await tx
+            .delete(workflowPhases)
+            .where(
+              and(
+                eq(workflowPhases.workflowType, "provider_vesta_privileges"),
+                inArray(workflowPhases.relatedId, privilegeIds),
+              ),
+            )
+            .returning();
+          for (const deletedPhase of deletedVestaPhases) {
+            await writeAuditLog(tx, {
+              tableName: "workflow_phases",
+              recordId: deletedPhase.id,
+              action: "delete",
+              actorId: actor?.id ?? null,
+              actorEmail: actor?.email ?? ctx.user.email ?? null,
+              oldData: deletedPhase as unknown as Record<string, unknown>,
+            });
+          }
         }
 
         // Delete vesta privileges

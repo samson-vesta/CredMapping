@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, asc, desc, eq, exists, ilike, inArray, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, exists, ilike, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { resolveAgentId, writeAuditLog } from "~/server/api/audit";
 import {
@@ -473,7 +473,10 @@ export const workflowsRouter = createTRPCRouter({
             .where(
               and(
                 eq(providerVestaPrivileges.providerId, input.providerId!),
-                ne(providerVestaPrivileges.privilegeTier, "Inactive"),
+                or(
+                  ne(providerVestaPrivileges.privilegeTier, "Inactive"),
+                  isNull(providerVestaPrivileges.privilegeTier),
+                ),
               ),
             )
             .limit(1);

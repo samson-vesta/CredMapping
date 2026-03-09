@@ -1,12 +1,7 @@
-import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
-import { eq } from "drizzle-orm";
 import { Header } from "~/components/layout/header";
 import { Sidebar } from "~/components/layout/sidebar";
-import { getAppRole } from "~/server/auth/domain";
-import { db } from "~/server/db";
-import { agents } from "~/server/db/schema";
-import { createClient } from "~/utils/supabase/server";
+import { requireRequestAuthContext } from "~/server/auth/request-context";
 
 type SidebarMode = "expanded" | "collapsed" | "hover";
 
@@ -18,33 +13,26 @@ function parseSidebarMode(value: string | undefined): SidebarMode {
   return "expanded";
 }
 
-export async function AppShell({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient();
+export async function AppShell({
+  breadcrumbLabels,
+  children,
+}: {
+  breadcrumbLabels?: Partial<Record<"facilities" | "providers", string>>;
+  children: React.ReactNode;
+}) {
   const cookieStore = await cookies();
-
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-
-  if (error || !user) redirect("/");
-
-  const agentRecord = await db
-    .select({ role: agents.role })
-    .from(agents)
-    .where(eq(agents.userId, user.id))
-    .limit(1);
-
-  const dbRole = agentRecord[0]?.role;
-
-  const userRole = getAppRole({ agentRole: dbRole });
+  const { appRole: userRole, user } = await requireRequestAuthContext();
   const initialSidebarMode = parseSidebarMode(
     cookieStore.get("sidebar-mode")?.value
   );
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background">
-      <Header user={user} userRole={userRole} />
+      <Header
+        breadcrumbLabels={breadcrumbLabels}
+        user={user}
+        userRole={userRole}
+      />
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <Sidebar userRole={userRole} initialSidebarMode={initialSidebarMode} />
