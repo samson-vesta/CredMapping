@@ -1,4 +1,4 @@
-import { and, count, desc, eq, ilike, inArray, or } from "drizzle-orm";
+import { and, count, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { Mail, Phone } from "lucide-react";
 import Link from "next/link";
 import { FacilitiesPendingProvider, FacilitiesListOverlay } from "~/app/(external)/facilities/facilities-pending-context";
@@ -6,17 +6,15 @@ import { FacilitiesTopSection } from "~/app/(external)/facilities/facilities-top
 import { ProvidersAutoAdvance } from "~/components/providers-auto-advance";
 import { Badge } from "~/components/ui/badge";
 import { VirtualScrollContainer } from "~/components/ui/virtual-scroll-container";
-import { getAppRole } from "~/server/auth/domain";
-import { db } from "~/server/db";
+import { requireRequestAuthContext } from "~/server/auth/request-context";
+import { withUserDb } from "~/server/db";
 import {
-  agents,
   facilities,
   facilityContacts,
   providerFacilityCredentials,
   providers,
   workflowPhases,
 } from "~/server/db/schema";
-import { createClient } from "~/utils/supabase/server";
 
 const formatDate = (value: Date | string | null) => {
   if (!value) return "—";
@@ -45,23 +43,46 @@ const isFacilitySort = (value: string): value is FacilitySort =>
 const isActivityFilter = (value: string): value is ActivityFilter =>
   ["all", "active", "inactive", "in_progress"].includes(value);
 
+const buildWhereClause = (...conditions: Array<Parameters<typeof and>[number] | undefined>) => {
+  const definedConditions = conditions.filter((condition) => condition !== undefined);
+  return definedConditions.length > 0 ? and(...definedConditions) : undefined;
+};
+
+type TrendRow = {
+  count: number;
+  date: string | null;
+};
+
+const buildTrendPoints = (params: {
+  primary: TrendRow[];
+  secondary: TrendRow[];
+  tertiary: TrendRow[];
+}) => {
+  const trendMap = new Map<string, { primary: number; secondary: number; tertiary: number }>();
+
+  const addRows = (rows: TrendRow[], metric: "primary" | "secondary" | "tertiary") => {
+    for (const row of rows) {
+      if (!row.date) continue;
+      const current = trendMap.get(row.date) ?? { primary: 0, secondary: 0, tertiary: 0 };
+      current[metric] += Number(row.count);
+      trendMap.set(row.date, current);
+    }
+  };
+
+  addRows(params.primary, "primary");
+  addRows(params.secondary, "secondary");
+  addRows(params.tertiary, "tertiary");
+
+  return Array.from(trendMap.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([date, values]) => ({ date, ...values }));
+};
+
 export default async function FacilitiesPage(props: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const agentRoleRow = user
-    ? await db
-        .select({ role: agents.role })
-        .from(agents)
-        .where(eq(agents.userId, user.id))
-        .limit(1)
-    : [];
-
-  const isSuperAdmin = getAppRole({ agentRole: agentRoleRow[0]?.role }) === "superadmin";
+  const { appRole, user } = await requireRequestAuthContext();
+  const isSuperAdmin = appRole === "superadmin";
 
   const searchParams = await props.searchParams;
 
@@ -80,39 +101,6 @@ export default async function FacilitiesPage(props: {
     ? Math.max(pageSize, Number.parseInt(rawLimit, 10) || pageSize)
     : pageSize;
 
-  const [facilityCreatedRows, credentialCreatedRows, workflowIncidentRows] =
-    await Promise.all([
-      db.select({ createdAt: facilities.createdAt }).from(facilities),
-      db.select({ createdAt: providerFacilityCredentials.createdAt }).from(providerFacilityCredentials),
-      db
-        .select({ createdAt: workflowPhases.createdAt })
-        .from(workflowPhases)
-        .where(eq(workflowPhases.workflowType, "pfc")),
-    ]);
-
-  const facilityTimeline = new Map<string, { primary: number; secondary: number; tertiary: number }>();
-
-  const addToTimeline = (
-    dateValue: Date | string | null,
-    metric: "primary" | "secondary" | "tertiary",
-  ) => {
-    if (!dateValue) return;
-    const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
-    if (Number.isNaN(date.getTime())) return;
-    const key = date.toISOString().slice(0, 10);
-    const current = facilityTimeline.get(key) ?? { primary: 0, secondary: 0, tertiary: 0 };
-    current[metric] += 1;
-    facilityTimeline.set(key, current);
-  };
-
-  for (const row of facilityCreatedRows) addToTimeline(row.createdAt, "primary");
-  for (const row of credentialCreatedRows) addToTimeline(row.createdAt, "secondary");
-  for (const row of workflowIncidentRows) addToTimeline(row.createdAt, "tertiary");
-
-  const facilityTrendPoints = Array.from(facilityTimeline.entries())
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([date, values]) => ({ date, ...values }));
-
   const searchWhere = hasSearch
     ? or(
         ilike(facilities.name, `%${search}%`),
@@ -123,7 +111,7 @@ export default async function FacilitiesPage(props: {
       )
     : undefined;
 
-  const activityWhere =
+  const activityCondition =
     activityFilter === "all"
       ? undefined
       : eq(
@@ -135,10 +123,6 @@ export default async function FacilitiesPage(props: {
               : "In Progress",
         );
 
-  const whereClause = and(searchWhere, activityWhere);
-
-  const totalVisibleRow = await db.select({ count: count() }).from(facilities).where(whereClause);
-
   const orderByClause =
     sort === "name_desc"
       ? [desc(facilities.name), desc(facilities.updatedAt)]
@@ -148,61 +132,122 @@ export default async function FacilitiesPage(props: {
           ? [facilities.updatedAt, facilities.name]
           : [facilities.name, desc(facilities.updatedAt)];
 
-  const visibleLimit = Math.min(requestedLimit, totalVisibleRow[0]?.count ?? 0);
+  const {
+    contactRows,
+    credentialRows,
+    facilityRows,
+    providerRows,
+    totalVisibleCount,
+    workflowRows,
+    facilityTrendPoints,
+  } = await withUserDb({
+    user,
+    run: async (db) => {
+      const whereClause = buildWhereClause(searchWhere, activityCondition);
+      const facilityDate = sql<string>`to_char(${facilities.createdAt}::date, 'YYYY-MM-DD')`;
+      const credentialDate = sql<string>`to_char(${providerFacilityCredentials.createdAt}::date, 'YYYY-MM-DD')`;
+      const workflowDate = sql<string>`to_char(${workflowPhases.createdAt}::date, 'YYYY-MM-DD')`;
 
-  const facilityRows = await db
-    .select()
-    .from(facilities)
-    .where(whereClause)
-    .orderBy(...orderByClause)
-    .limit(visibleLimit);
-
-  const facilityIds = facilityRows.map((row) => row.id);
-
-  const [contactRows, credentialRows] =
-    facilityIds.length > 0
-      ? await Promise.all([
+      const [facilityTrendRows, credentialTrendRows, workflowTrendRows, totalVisibleRow] =
+        await Promise.all([
           db
-            .select()
-            .from(facilityContacts)
-            .where(inArray(facilityContacts.facilityId, facilityIds))
-            .orderBy(desc(facilityContacts.isPrimary), facilityContacts.name),
+            .select({ count: count(), date: facilityDate })
+            .from(facilities)
+            .groupBy(facilityDate)
+            .orderBy(facilityDate),
           db
-            .select()
+            .select({ count: count(), date: credentialDate })
             .from(providerFacilityCredentials)
-            .where(inArray(providerFacilityCredentials.facilityId, facilityIds))
-            .orderBy(desc(providerFacilityCredentials.updatedAt)),
-        ])
-      : [[], []];
+            .groupBy(credentialDate)
+            .orderBy(credentialDate),
+          db
+            .select({ count: count(), date: workflowDate })
+            .from(workflowPhases)
+            .where(eq(workflowPhases.workflowType, "pfc"))
+            .groupBy(workflowDate)
+            .orderBy(workflowDate),
+          db.select({ count: count() }).from(facilities).where(whereClause),
+        ]);
 
-  const providerIds = credentialRows
-    .map((credential) => credential.providerId)
-    .filter((id): id is string => Boolean(id));
+      const totalVisibleCount = totalVisibleRow[0]?.count ?? 0;
+      const visibleLimit = Math.min(requestedLimit, totalVisibleCount);
+      const facilityRows = await db
+        .select()
+        .from(facilities)
+        .where(whereClause)
+        .orderBy(...orderByClause)
+        .limit(visibleLimit);
 
-  const providerRows =
-    providerIds.length > 0
-      ? await db
-          .select({
-            id: providers.id,
-            firstName: providers.firstName,
-            middleName: providers.middleName,
-            lastName: providers.lastName,
-            degree: providers.degree,
-          })
-          .from(providers)
-          .where(inArray(providers.id, providerIds))
-      : [];
+      const facilityIds = facilityRows.map((row) => row.id);
 
-  const credentialIds = credentialRows.map((credential) => credential.id);
+      const [contactRows, credentialRows] =
+        facilityIds.length > 0
+          ? await Promise.all([
+              db
+                .select()
+                .from(facilityContacts)
+                .where(inArray(facilityContacts.facilityId, facilityIds))
+                .orderBy(desc(facilityContacts.isPrimary), facilityContacts.name),
+              db
+                .select()
+                .from(providerFacilityCredentials)
+                .where(inArray(providerFacilityCredentials.facilityId, facilityIds))
+                .orderBy(desc(providerFacilityCredentials.updatedAt)),
+            ])
+          : [[], []];
 
-  const workflowRows =
-    credentialIds.length > 0
-      ? await db
-          .select()
-          .from(workflowPhases)
-          .where(and(eq(workflowPhases.workflowType, "pfc"), inArray(workflowPhases.relatedId, credentialIds)))
-          .orderBy(desc(workflowPhases.updatedAt))
-      : [];
+      const providerIds = Array.from(
+        new Set(
+          credentialRows
+            .map((credential) => credential.providerId)
+            .filter((id): id is string => Boolean(id)),
+        ),
+      );
+
+      const credentialIds = credentialRows.map((credential) => credential.id);
+
+      const [providerRows, workflowRows] = await Promise.all([
+        providerIds.length > 0
+          ? db
+              .select({
+                id: providers.id,
+                firstName: providers.firstName,
+                middleName: providers.middleName,
+                lastName: providers.lastName,
+                degree: providers.degree,
+              })
+              .from(providers)
+              .where(inArray(providers.id, providerIds))
+          : Promise.resolve([]),
+        credentialIds.length > 0
+          ? db
+              .select()
+              .from(workflowPhases)
+              .where(
+                and(
+                  eq(workflowPhases.workflowType, "pfc"),
+                  inArray(workflowPhases.relatedId, credentialIds),
+                ),
+              )
+              .orderBy(desc(workflowPhases.updatedAt))
+          : Promise.resolve([]),
+      ]);
+
+      return {
+        contactRows,
+        credentialRows,
+        facilityRows,
+        providerRows,
+        totalVisibleCount,
+        workflowRows,
+        facilityTrendPoints: buildTrendPoints({
+          primary: facilityTrendRows,
+          secondary: credentialTrendRows,
+          tertiary: workflowTrendRows,
+        }),
+      };
+    },
+  });
 
   const contactsByFacility = new Map<string, typeof contactRows>();
   for (const contact of contactRows) {
@@ -247,7 +292,7 @@ export default async function FacilitiesPage(props: {
     };
   });
 
-  const hasMoreFacilities = visibleLimit < (totalVisibleRow[0]?.count ?? 0);
+  const hasMoreFacilities = facilityRows.length < totalVisibleCount;
   const queryParams = new URLSearchParams();
   if (search) queryParams.set("search", search);
   if (sort !== "name_asc") queryParams.set("sort", sort);
@@ -482,14 +527,14 @@ export default async function FacilitiesPage(props: {
             <ProvidersAutoAdvance
               enabled={hasMoreFacilities}
               nextHref={createLimitHref(
-                Math.min(requestedLimit + pageSize, totalVisibleRow[0]?.count ?? 0),
+                Math.min(requestedLimit + pageSize, totalVisibleCount),
               )}
               rootSelector=".facilities-scroll-viewport"
             />
 
             <div className="border-t pt-3 text-sm">
               <p className="text-muted-foreground">
-                Showing {facilityCards.length} of {totalVisibleRow[0]?.count ?? 0} facilities
+                Showing {facilityCards.length} of {totalVisibleCount} facilities
               </p>
             </div>
           </div>

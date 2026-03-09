@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, desc, count, and, inArray } from "drizzle-orm";
+import { and, count, desc, eq, exists, ilike, inArray, max, ne, or } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { resolveAgentId, writeAuditLog } from "~/server/api/audit";
 import {
@@ -579,63 +579,126 @@ export const providersWithCommLogsRouter = createTRPCRouter({
   listWithCommLogStatus: protectedProcedure
     .input(z.object({ search: z.string().optional(), filter: z.string().optional() }))
     .query(async ({ ctx, input }) => {
-      const [providerRows, missingDocRows, pendingPsvRows, providerLogRows, providerPrivilegeRows] = await Promise.all([
-        ctx.db.select({
-          id: providers.id,
-          firstName: providers.firstName,
-          lastName: providers.lastName,
+      const normalizedSearch = input.search?.trim();
+      const providerSearchCondition = normalizedSearch
+        ? or(
+            ilike(providers.firstName, `%${normalizedSearch}%`),
+            ilike(providers.lastName, `%${normalizedSearch}%`),
+            ilike(providers.email, `%${normalizedSearch}%`),
+            ilike(providers.degree, `%${normalizedSearch}%`),
+          )
+        : undefined;
+
+      const hasMissingDocsCondition = exists(
+        ctx.db
+          .select({ id: missingDocs.id })
+          .from(missingDocs)
+          .where(
+            and(
+              eq(missingDocs.relatedType, "provider"),
+              eq(missingDocs.relatedId, providers.id),
+              eq(missingDocs.followUpStatus, "Not Completed"),
+            ),
+          ),
+      );
+
+      const hasPendingPsvCondition = exists(
+        ctx.db
+          .select({ id: pendingPSV.id })
+          .from(pendingPSV)
+          .where(
+            and(
+              eq(pendingPSV.providerId, providers.id),
+              ne(pendingPSV.status, "Closed"),
+            ),
+          ),
+      );
+
+      const providerFilterCondition =
+        input.filter === "psv"
+          ? hasPendingPsvCondition
+          : input.filter === "missing"
+            ? hasMissingDocsCondition
+            : undefined;
+
+      const providerWhere =
+        providerSearchCondition && providerFilterCondition
+          ? and(providerSearchCondition, providerFilterCondition)
+          : providerSearchCondition ?? providerFilterCondition;
+
+      const providerRows = await ctx.db
+        .select({
           degree: providers.degree,
           email: providers.email,
-        }).from(providers),
-        ctx.db
-          .select({
-            relatedId: missingDocs.relatedId,
-            nextFollowUpUS: missingDocs.nextFollowUpUS,
-            nextFollowUpIn: missingDocs.nextFollowUpIn,
-            followUpStatus: missingDocs.followUpStatus,
-            createdAt: missingDocs.createdAt,
-            updatedAt: missingDocs.updatedAt,
-          })
-          .from(missingDocs)
-          .where(eq(missingDocs.relatedType, "provider")),
-        ctx.db
-          .select({
-            providerId: pendingPSV.providerId,
-            status: pendingPSV.status,
-            nextFollowUp: pendingPSV.nextFollowUp,
-            createdAt: pendingPSV.createdAt,
-            updatedAt: pendingPSV.updatedAt,
-          })
-          .from(pendingPSV)
-          .orderBy(desc(pendingPSV.updatedAt), desc(pendingPSV.createdAt)),
-        ctx.db
-          .select({
-            relatedId: commLogs.relatedId,
-            subject: commLogs.subject,
-            createdAt: commLogs.createdAt,
-            updatedAt: commLogs.updatedAt,
-          })
-          .from(commLogs)
-          .where(eq(commLogs.relatedType, "provider"))
-          .orderBy(desc(commLogs.createdAt)),
-        ctx.db
-          .select({
-            providerId: providerVestaPrivileges.providerId,
-            privilegeTier: providerVestaPrivileges.privilegeTier,
-            updatedAt: providerVestaPrivileges.updatedAt,
-            createdAt: providerVestaPrivileges.createdAt,
-          })
-          .from(providerVestaPrivileges)
-          .orderBy(
-            desc(providerVestaPrivileges.updatedAt),
-            desc(providerVestaPrivileges.createdAt),
-          ),
-      ]);
+          firstName: providers.firstName,
+          id: providers.id,
+          lastName: providers.lastName,
+        })
+        .from(providers)
+        .where(providerWhere);
+
+      const providerIds = providerRows.map((provider) => provider.id);
+
+      if (providerIds.length === 0) {
+        return [];
+      }
+
+      const [missingDocRows, pendingPsvRows, providerLogRows, providerPrivilegeRows] =
+        await Promise.all([
+          ctx.db
+            .select({
+              createdAt: missingDocs.createdAt,
+              nextFollowUpIn: missingDocs.nextFollowUpIn,
+              nextFollowUpUS: missingDocs.nextFollowUpUS,
+              relatedId: missingDocs.relatedId,
+              updatedAt: missingDocs.updatedAt,
+            })
+            .from(missingDocs)
+            .where(
+              and(
+                eq(missingDocs.relatedType, "provider"),
+                eq(missingDocs.followUpStatus, "Not Completed"),
+                inArray(missingDocs.relatedId, providerIds),
+              ),
+            ),
+          ctx.db
+            .select({
+              createdAt: pendingPSV.createdAt,
+              nextFollowUp: pendingPSV.nextFollowUp,
+              providerId: pendingPSV.providerId,
+              status: pendingPSV.status,
+              updatedAt: pendingPSV.updatedAt,
+            })
+            .from(pendingPSV)
+            .where(and(inArray(pendingPSV.providerId, providerIds), ne(pendingPSV.status, "Closed")))
+            .orderBy(desc(pendingPSV.updatedAt), desc(pendingPSV.createdAt)),
+          ctx.db
+            .select({
+              lastUpdatedAt: max(commLogs.updatedAt),
+              relatedId: commLogs.relatedId,
+            })
+            .from(commLogs)
+            .where(and(eq(commLogs.relatedType, "provider"), inArray(commLogs.relatedId, providerIds)))
+            .groupBy(commLogs.relatedId),
+          ctx.db
+            .select({
+              createdAt: providerVestaPrivileges.createdAt,
+              privilegeTier: providerVestaPrivileges.privilegeTier,
+              providerId: providerVestaPrivileges.providerId,
+              updatedAt: providerVestaPrivileges.updatedAt,
+            })
+            .from(providerVestaPrivileges)
+            .where(inArray(providerVestaPrivileges.providerId, providerIds))
+            .orderBy(
+              desc(providerVestaPrivileges.updatedAt),
+              desc(providerVestaPrivileges.createdAt),
+            ),
+        ]);
 
       const missingDocsByProvider = new Map<string, string | null>();
       const latestMissingDocActivityByProvider = new Map<string, Date>();
       for (const row of missingDocRows) {
-        if (!row.relatedId || row.followUpStatus !== "Not Completed") continue;
+        if (!row.relatedId) continue;
         const current = missingDocsByProvider.get(row.relatedId);
         const nextFollowUp = getEarliestFollowUp(
           row.nextFollowUpUS,
@@ -663,7 +726,7 @@ export const providersWithCommLogsRouter = createTRPCRouter({
         { status: string; nextFollowUp: string | null; latestActivity: Date | null }
       >();
       for (const row of pendingPsvRows) {
-        if (row.status === "Closed") continue;
+        if (!row.providerId || row.status === "Closed") continue;
         const rowLatestActivity = getLatestActivityDate(row.updatedAt, row.createdAt);
         const existing = psvByProvider.get(row.providerId);
         if (!existing) {
@@ -687,13 +750,10 @@ export const providersWithCommLogsRouter = createTRPCRouter({
         }
       }
 
-      const latestSubjectByProvider = new Map<string, string | null>();
       const latestCommLogActivityByProvider = new Map<string, Date>();
       for (const row of providerLogRows) {
-        if (!row.relatedId || latestSubjectByProvider.has(row.relatedId)) continue;
-        latestSubjectByProvider.set(row.relatedId, row.subject);
-
-        const latestLogActivity = getLatestActivityDate(row.updatedAt, row.createdAt);
+        if (!row.relatedId || !row.lastUpdatedAt) continue;
+        const latestLogActivity = getLatestActivityDate(row.lastUpdatedAt);
         const existingLatestLogActivity = latestCommLogActivityByProvider.get(row.relatedId);
         if (
           latestLogActivity &&
@@ -727,7 +787,7 @@ export const providersWithCommLogsRouter = createTRPCRouter({
           ? "Missing Docs"
           : hasPSV
             ? `PSV: ${psv?.status ?? ""}`
-            : latestSubjectByProvider.get(provider.id) ?? null;
+            : null;
 
         const lastUpdatedAt = getLatestActivityDate(
           latestCommLogActivityByProvider.get(provider.id),
@@ -772,41 +832,81 @@ export const facilitiesWithCommLogsRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      const [facilityRows, missingDocRows, facilityLogRows] = await Promise.all([
+      const normalizedSearch = input.search?.trim();
+      const facilitySearchCondition = normalizedSearch
+        ? or(
+            ilike(facilities.name, `%${normalizedSearch}%`),
+            ilike(facilities.state, `%${normalizedSearch}%`),
+          )
+        : undefined;
+
+      const hasMissingDocsCondition = exists(
+        ctx.db
+          .select({ id: missingDocs.id })
+          .from(missingDocs)
+          .where(
+            and(
+              eq(missingDocs.relatedType, "facility"),
+              eq(missingDocs.relatedId, facilities.id),
+              eq(missingDocs.followUpStatus, "Not Completed"),
+            ),
+          ),
+      );
+
+      const facilityWhere =
+        input.filter === "missing"
+          ? facilitySearchCondition
+            ? and(facilitySearchCondition, hasMissingDocsCondition)
+            : hasMissingDocsCondition
+          : facilitySearchCondition;
+
+      const facilityRows = await ctx.db
+        .select({
+          id: facilities.id,
+          name: facilities.name,
+          state: facilities.state,
+          status: facilities.status,
+        })
+        .from(facilities)
+        .where(facilityWhere);
+
+      const facilityIds = facilityRows.map((facility) => facility.id);
+
+      if (facilityIds.length === 0) {
+        return [];
+      }
+
+      const [missingDocRows, facilityLogRows] = await Promise.all([
         ctx.db
           .select({
-            id: facilities.id,
-            name: facilities.name,
-            state: facilities.state,
-            status: facilities.status,
-          })
-          .from(facilities),
-        ctx.db
-          .select({
-            relatedId: missingDocs.relatedId,
-            nextFollowUpUS: missingDocs.nextFollowUpUS,
-            nextFollowUpIn: missingDocs.nextFollowUpIn,
-            followUpStatus: missingDocs.followUpStatus,
             createdAt: missingDocs.createdAt,
+            nextFollowUpIn: missingDocs.nextFollowUpIn,
+            nextFollowUpUS: missingDocs.nextFollowUpUS,
+            relatedId: missingDocs.relatedId,
             updatedAt: missingDocs.updatedAt,
           })
           .from(missingDocs)
-          .where(eq(missingDocs.relatedType, "facility")),
+          .where(
+            and(
+              eq(missingDocs.relatedType, "facility"),
+              eq(missingDocs.followUpStatus, "Not Completed"),
+              inArray(missingDocs.relatedId, facilityIds),
+            ),
+          ),
         ctx.db
           .select({
+            lastUpdatedAt: max(commLogs.updatedAt),
             relatedId: commLogs.relatedId,
-            createdAt: commLogs.createdAt,
-            updatedAt: commLogs.updatedAt,
           })
           .from(commLogs)
-          .where(eq(commLogs.relatedType, "facility"))
-          .orderBy(desc(commLogs.createdAt)),
+          .where(and(eq(commLogs.relatedType, "facility"), inArray(commLogs.relatedId, facilityIds)))
+          .groupBy(commLogs.relatedId),
       ]);
 
       const missingDocsByFacility = new Map<string, string | null>();
       const latestMissingDocActivityByFacility = new Map<string, Date>();
       for (const row of missingDocRows) {
-        if (!row.relatedId || row.followUpStatus !== "Not Completed") continue;
+        if (!row.relatedId) continue;
         const current = missingDocsByFacility.get(row.relatedId);
         const nextFollowUp = getEarliestFollowUp(
           row.nextFollowUpUS,
@@ -830,8 +930,8 @@ export const facilitiesWithCommLogsRouter = createTRPCRouter({
 
       const latestCommLogActivityByFacility = new Map<string, Date>();
       for (const row of facilityLogRows) {
-        if (!row.relatedId) continue;
-        const latestLogActivity = getLatestActivityDate(row.updatedAt, row.createdAt);
+        if (!row.relatedId || !row.lastUpdatedAt) continue;
+        const latestLogActivity = getLatestActivityDate(row.lastUpdatedAt);
         const existingLatestLogActivity = latestCommLogActivityByFacility.get(row.relatedId);
         if (
           latestLogActivity &&
@@ -842,7 +942,7 @@ export const facilitiesWithCommLogsRouter = createTRPCRouter({
         }
       }
 
-      let filteredRows = facilityRows.map((facility) => {
+      const filteredRows = facilityRows.map((facility) => {
         const hasMissingDocs = missingDocsByFacility.has(facility.id);
 
         return {
@@ -856,21 +956,6 @@ export const facilitiesWithCommLogsRouter = createTRPCRouter({
           ),
         };
       });
-
-      if (input.filter === "missing") {
-        filteredRows = filteredRows.filter((facility) => facility.hasMissingDocs);
-      }
-
-      if (input.search) {
-        const q = input.search.toLowerCase();
-        filteredRows = filteredRows.filter(
-          (facility) => {
-            const matchesName = facility.name?.toLowerCase().includes(q) ?? false;
-            const matchesState = facility.state?.toLowerCase().includes(q) ?? false;
-            return matchesName || matchesState;
-          },
-        );
-      }
 
       return filteredRows;
     }),

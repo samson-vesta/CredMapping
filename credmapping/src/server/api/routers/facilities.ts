@@ -232,6 +232,34 @@ export const facilitiesRouter = createTRPCRouter({
         });
       }
 
+      const preliveRows = await ctx.db
+        .select({ id: facilityPreliveInfo.id })
+        .from(facilityPreliveInfo)
+        .where(eq(facilityPreliveInfo.facilityId, input.id));
+
+      if (preliveRows.length > 0) {
+        const preliveIds = preliveRows.map((r) => r.id);
+        const deletedPrelivePhases = await ctx.db
+          .delete(workflowPhases)
+          .where(
+            and(
+              eq(workflowPhases.workflowType, "prelive_pipeline"),
+              inArray(workflowPhases.relatedId, preliveIds),
+            ),
+          )
+          .returning();
+        for (const deletedPhase of deletedPrelivePhases) {
+          await writeAuditLog(ctx.db, {
+            tableName: "workflow_phases",
+            recordId: deletedPhase.id,
+            action: "delete",
+            actorId: actor?.id ?? null,
+            actorEmail: actor?.email ?? ctx.user.email ?? null,
+            oldData: deletedPhase as unknown as Record<string, unknown>,
+          });
+        }
+      }
+
       const deletedPreliveRows = await ctx.db
         .delete(facilityPreliveInfo)
         .where(eq(facilityPreliveInfo.facilityId, input.id))

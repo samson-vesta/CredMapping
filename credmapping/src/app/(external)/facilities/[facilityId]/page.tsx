@@ -1,6 +1,4 @@
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
-import Link from "next/link";
-import { notFound } from "next/navigation";
 import {
   Activity,
   AlertTriangle,
@@ -12,11 +10,19 @@ import {
   Stethoscope,
   User,
 } from "lucide-react";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+
 import { ActivityTimeline } from "~/components/audit-log/ActivityTimeline";
+import {
+  DeleteFacilityDialog,
+  EditFacilityDialog,
+} from "~/components/facilities/facility-actions";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { CollapsibleSection } from "~/components/ui/collapsible-section";
-import { db } from "~/server/db";
+import { requireRequestAuthContext } from "~/server/auth/request-context";
+import { withUserDb } from "~/server/db";
 import {
   agents,
   facilities,
@@ -26,17 +32,11 @@ import {
   providers,
   workflowPhases,
 } from "~/server/db/schema";
-import {
-  EditFacilityDialog,
-  DeleteFacilityDialog,
-} from "~/components/facilities/facility-actions";
-
-/* ─── Helpers ──────────────────────────────────────────────────── */
 
 const formatDate = (value: Date | string | null) => {
-  if (!value) return "—";
+  if (!value) return "-";
   const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
+  if (Number.isNaN(date.getTime())) return "-";
   return date.toLocaleDateString();
 };
 
@@ -48,10 +48,10 @@ const asDateInput = (value: Date | string | null) => {
 };
 
 const formatProviderName = (provider: {
-  firstName: string | null;
-  middleName: string | null;
-  lastName: string | null;
   degree: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  middleName: string | null;
 }) => {
   const fullName = [provider.firstName, provider.middleName, provider.lastName]
     .filter(Boolean)
@@ -64,10 +64,12 @@ const sanitizePhoneForHref = (value: string) => value.replace(/[^\d+]/g, "");
 
 const getStatusTone = (status: string | null) => {
   const normalized = status?.toLowerCase() ?? "";
-  if (normalized === "inactive")
+  if (normalized === "inactive") {
     return "border-zinc-500/60 bg-zinc-500/10 text-zinc-700 dark:text-zinc-300";
-  if (normalized === "in progress")
+  }
+  if (normalized === "in progress") {
     return "border-blue-500/60 bg-blue-500/10 text-blue-700 dark:text-blue-300";
+  }
   return "border-emerald-500/60 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
 };
 
@@ -94,103 +96,105 @@ const parseRoles = (value: unknown): string[] => {
   return [];
 };
 
-/* ─── Page ─────────────────────────────────────────────────────── */
-
 export default async function FacilityProfilePage({
   params,
 }: {
   params: Promise<{ facilityId: string }>;
 }) {
   const { facilityId } = await params;
+  const { user } = await requireRequestAuthContext();
 
-  const facilityRow = await db
-    .select()
-    .from(facilities)
-    .where(eq(facilities.id, facilityId))
-    .limit(1);
+  const { contactRows, credentialRows, facility, preliveRows, workflowRows } =
+    await withUserDb({
+      user,
+      run: async (db) => {
+        const [facilityRow, contactRows, preliveRows, credentialRows] = await Promise.all([
+          db.select().from(facilities).where(eq(facilities.id, facilityId)).limit(1),
+          db
+            .select()
+            .from(facilityContacts)
+            .where(eq(facilityContacts.facilityId, facilityId))
+            .orderBy(desc(facilityContacts.isPrimary), facilityContacts.name),
+          db
+            .select()
+            .from(facilityPreliveInfo)
+            .where(eq(facilityPreliveInfo.facilityId, facilityId))
+            .orderBy(desc(facilityPreliveInfo.updatedAt)),
+          db
+            .select({
+              applicationRequired: providerFacilityCredentials.applicationRequired,
+              decision: providerFacilityCredentials.decision,
+              facilityType: providerFacilityCredentials.facilityType,
+              formSize: providerFacilityCredentials.formSize,
+              id: providerFacilityCredentials.id,
+              notes: providerFacilityCredentials.notes,
+              privileges: providerFacilityCredentials.privileges,
+              priority: providerFacilityCredentials.priority,
+              providerDegree: providers.degree,
+              providerFirstName: providers.firstName,
+              providerId: providerFacilityCredentials.providerId,
+              providerLastName: providers.lastName,
+              providerMiddleName: providers.middleName,
+              updatedAt: providerFacilityCredentials.updatedAt,
+            })
+            .from(providerFacilityCredentials)
+            .leftJoin(providers, eq(providerFacilityCredentials.providerId, providers.id))
+            .where(eq(providerFacilityCredentials.facilityId, facilityId))
+            .orderBy(desc(providerFacilityCredentials.updatedAt)),
+        ]);
 
-  const facility = facilityRow[0];
+        const credentialIds = credentialRows.map((row) => row.id);
+        const workflowRows =
+          credentialIds.length === 0
+            ? []
+            : await db
+                .select({
+                  agentFirstName: agents.firstName,
+                  agentLastName: agents.lastName,
+                  completedAt: workflowPhases.completedAt,
+                  dueDate: workflowPhases.dueDate,
+                  id: workflowPhases.id,
+                  phaseName: workflowPhases.phaseName,
+                  relatedId: workflowPhases.relatedId,
+                  startDate: workflowPhases.startDate,
+                  status: workflowPhases.status,
+                  updatedAt: workflowPhases.updatedAt,
+                })
+                .from(workflowPhases)
+                .leftJoin(agents, eq(workflowPhases.agentAssigned, agents.id))
+                .where(
+                  and(
+                    eq(workflowPhases.workflowType, "pfc"),
+                    inArray(workflowPhases.relatedId, credentialIds),
+                  ),
+                )
+                .orderBy(asc(workflowPhases.phaseName), desc(workflowPhases.updatedAt));
+
+        return {
+          contactRows,
+          credentialRows,
+          facility: facilityRow[0] ?? null,
+          preliveRows,
+          workflowRows,
+        };
+      },
+    });
+
   if (!facility) notFound();
 
-  /* ── Parallel data loads ──────────────────────────────────── */
-
-  const [contactRows, preliveRows, credentialRows] = await Promise.all([
-    db
-      .select()
-      .from(facilityContacts)
-      .where(eq(facilityContacts.facilityId, facilityId))
-      .orderBy(desc(facilityContacts.isPrimary), facilityContacts.name),
-    db
-      .select()
-      .from(facilityPreliveInfo)
-      .where(eq(facilityPreliveInfo.facilityId, facilityId))
-      .orderBy(desc(facilityPreliveInfo.updatedAt)),
-    db
-      .select({
-        id: providerFacilityCredentials.id,
-        providerId: providerFacilityCredentials.providerId,
-        providerFirstName: providers.firstName,
-        providerMiddleName: providers.middleName,
-        providerLastName: providers.lastName,
-        providerDegree: providers.degree,
-        facilityType: providerFacilityCredentials.facilityType,
-        priority: providerFacilityCredentials.priority,
-        decision: providerFacilityCredentials.decision,
-        privileges: providerFacilityCredentials.privileges,
-        notes: providerFacilityCredentials.notes,
-        formSize: providerFacilityCredentials.formSize,
-        applicationRequired: providerFacilityCredentials.applicationRequired,
-        updatedAt: providerFacilityCredentials.updatedAt,
-      })
-      .from(providerFacilityCredentials)
-      .leftJoin(providers, eq(providerFacilityCredentials.providerId, providers.id))
-      .where(eq(providerFacilityCredentials.facilityId, facilityId))
-      .orderBy(desc(providerFacilityCredentials.updatedAt)),
-  ]);
-
-  /* ── Workflow phases for credentials ──────────────────────── */
-
-  const credentialIds = credentialRows.map((row) => row.id);
-
-  const workflowRows =
-    credentialIds.length === 0
-      ? []
-      : await db
-          .select({
-            id: workflowPhases.id,
-            relatedId: workflowPhases.relatedId,
-            phaseName: workflowPhases.phaseName,
-            status: workflowPhases.status,
-            startDate: workflowPhases.startDate,
-            dueDate: workflowPhases.dueDate,
-            completedAt: workflowPhases.completedAt,
-            updatedAt: workflowPhases.updatedAt,
-            agentFirstName: agents.firstName,
-            agentLastName: agents.lastName,
-          })
-          .from(workflowPhases)
-          .leftJoin(agents, eq(workflowPhases.agentAssigned, agents.id))
-          .where(
-            and(
-              eq(workflowPhases.workflowType, "pfc"),
-              inArray(workflowPhases.relatedId, credentialIds),
-            ),
-          )
-          .orderBy(asc(workflowPhases.phaseName), desc(workflowPhases.updatedAt));
-
   const normalizedWorkflowRows = workflowRows.map((row) => ({
-    id: row.id,
-    relatedId: row.relatedId,
-    phaseName: row.phaseName,
-    status: row.status,
-    startDate: asDateInput(row.startDate),
-    dueDate: asDateInput(row.dueDate),
-    completedAt: asDateInput(row.completedAt),
-    updatedAt: formatDate(row.updatedAt),
     agentName:
       row.agentFirstName || row.agentLastName
         ? `${row.agentFirstName ?? ""} ${row.agentLastName ?? ""}`.trim()
         : null,
+    completedAt: asDateInput(row.completedAt),
+    dueDate: asDateInput(row.dueDate),
+    id: row.id,
+    phaseName: row.phaseName,
+    relatedId: row.relatedId,
+    startDate: asDateInput(row.startDate),
+    status: row.status,
+    updatedAt: formatDate(row.updatedAt),
   }));
 
   const workflowsByCredential = new Map<string, typeof normalizedWorkflowRows>();
@@ -200,19 +204,14 @@ export default async function FacilityProfilePage({
     workflowsByCredential.set(workflow.relatedId, current);
   }
 
-  /* ── Derived data ─────────────────────────────────────────── */
-
-  const totalWorkflowPhases = credentialIds.reduce(
-    (sum, id) => sum + (workflowsByCredential.get(id)?.length ?? 0),
+  const totalWorkflowPhases = credentialRows.reduce(
+    (sum, row) => sum + (workflowsByCredential.get(row.id)?.length ?? 0),
     0,
   );
 
-  /* ── Render ───────────────────────────────────────────────── */
-
   return (
     <div className="space-y-4 pb-4">
-      {/* ── Hero header ───────────────────────────────────────── */}
-      <section className="rounded-xl border  p-5">
+      <section className="rounded-xl border p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-2">
             <p className="text-muted-foreground flex items-center gap-2 text-xs uppercase tracking-wide">
@@ -238,23 +237,27 @@ export default async function FacilityProfilePage({
                 </span>
               )}
             </div>
-            <Badge className={`${getStatusTone(facility.status)}`} variant="outline">
+            <Badge className={getStatusTone(facility.status)} variant="outline">
               {facility.status ?? "Unknown"}
             </Badge>
           </div>
           <div className="flex items-center gap-2">
             <EditFacilityDialog facility={facility} />
-            <DeleteFacilityDialog facilityId={facility.id} facilityName={facility.name ?? "Unnamed"} />
+            <DeleteFacilityDialog
+              facilityId={facility.id}
+              facilityName={facility.name ?? "Unnamed"}
+            />
             <Button asChild variant="outline">
               <Link href="/facilities">Back to facilities</Link>
             </Button>
           </div>
         </div>
 
-        {/* Inline details */}
         <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
           {facility.proxy && <span>Proxy: {facility.proxy}</span>}
-          {facility.yearlyVolume !== null && <span>Volume: {facility.yearlyVolume?.toLocaleString()}</span>}
+          {facility.yearlyVolume !== null && (
+            <span>Volume: {facility.yearlyVolume?.toLocaleString()}</span>
+          )}
           {facility.tatSla && <span>TAT/SLA: {facility.tatSla}</span>}
           {facility.modalities && facility.modalities.length > 0 && (
             <span>Modalities: {facility.modalities.join(", ")}</span>
@@ -284,71 +287,83 @@ export default async function FacilityProfilePage({
         </div>
       </section>
 
-      {/* ── Contacts ──────────────────────────────────────────── */}
       <CollapsibleSection
-        title={<span className="flex items-center gap-2"><User className="size-4" /> Facility contacts</span>}
         badge={contactRows.length}
         maxHeight="20rem"
+        title={
+          <span className="flex items-center gap-2">
+            <User className="size-4" /> Facility contacts
+          </span>
+        }
       >
         {contactRows.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No contacts found for this facility.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="text-muted-foreground text-xs uppercase">
-                  <tr>
-                    <th className="py-1 pr-3">Name</th>
-                    <th className="py-1 pr-3">Title</th>
-                    <th className="py-1 pr-3">Email</th>
-                    <th className="py-1 pr-3">Phone</th>
-                    <th className="py-1 pr-3">Primary</th>
+          <p className="text-muted-foreground text-sm">No contacts found for this facility.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="text-muted-foreground text-xs uppercase">
+                <tr>
+                  <th className="py-1 pr-3">Name</th>
+                  <th className="py-1 pr-3">Title</th>
+                  <th className="py-1 pr-3">Email</th>
+                  <th className="py-1 pr-3">Phone</th>
+                  <th className="py-1 pr-3">Primary</th>
+                </tr>
+              </thead>
+              <tbody>
+                {contactRows.map((contact) => (
+                  <tr key={contact.id} className="border-t">
+                    <td className="py-1 pr-3 font-medium">{contact.name}</td>
+                    <td className="py-1 pr-3">{contact.title ?? "-"}</td>
+                    <td className="py-1 pr-3">
+                      {contact.email ? (
+                        <a className="flex items-center gap-1 hover:underline" href={`mailto:${contact.email}`}>
+                          <Mail className="size-3" /> {contact.email}
+                        </a>
+                      ) : (
+                        "-"
+                      )}
+                    </td>
+                    <td className="py-1 pr-3">
+                      {contact.phone ? (
+                        <a
+                          className="flex items-center gap-1 hover:underline"
+                          href={`tel:${sanitizePhoneForHref(contact.phone)}`}
+                        >
+                          <Phone className="size-3" /> {contact.phone}
+                        </a>
+                      ) : (
+                        "-"
+                      )}
+                    </td>
+                    <td className="py-1 pr-3">
+                      {contact.isPrimary ? (
+                        <Badge
+                          className="border-emerald-500/60 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                          variant="outline"
+                        >
+                          Primary
+                        </Badge>
+                      ) : (
+                        "-"
+                      )}
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {contactRows.map((contact) => (
-                    <tr key={contact.id} className="border-t">
-                      <td className="py-1 pr-3 font-medium">{contact.name}</td>
-                      <td className="py-1 pr-3">{contact.title ?? "—"}</td>
-                      <td className="py-1 pr-3">
-                        {contact.email ? (
-                          <a className="flex items-center gap-1 hover:underline" href={`mailto:${contact.email}`}>
-                            <Mail className="size-3" /> {contact.email}
-                          </a>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                      <td className="py-1 pr-3">
-                        {contact.phone ? (
-                          <a className="flex items-center gap-1 hover:underline" href={`tel:${sanitizePhoneForHref(contact.phone)}`}>
-                            <Phone className="size-3" /> {contact.phone}
-                          </a>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                      <td className="py-1 pr-3">
-                        {contact.isPrimary ? (
-                          <Badge className="border-emerald-500/60 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" variant="outline">
-                            Primary
-                          </Badge>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </CollapsibleSection>
 
-      {/* ── Pre-live info ─────────────────────────────────────── */}
       <CollapsibleSection
-        title={<span className="flex items-center gap-2"><Rocket className="size-4" /> Pre-live pipeline</span>}
         badge={preliveRows.length}
         maxHeight="24rem"
+        title={
+          <span className="flex items-center gap-2">
+            <Rocket className="size-4" /> Pre-live pipeline
+          </span>
+        }
       >
         {preliveRows.length === 0 ? (
           <p className="text-muted-foreground text-sm">No pre-live records found for this facility.</p>
@@ -361,7 +376,7 @@ export default async function FacilityProfilePage({
                   <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
                     <div>
                       <p className="text-muted-foreground text-xs">Priority</p>
-                      <p className="text-sm font-medium">{prelive.priority ?? "—"}</p>
+                      <p className="text-sm font-medium">{prelive.priority ?? "-"}</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground text-xs">Go-live date</p>
@@ -371,7 +386,9 @@ export default async function FacilityProfilePage({
                     </div>
                     <div>
                       <p className="text-muted-foreground text-xs">Credentialing due</p>
-                      <p className={`text-sm font-medium ${getDueDateTone(prelive.credentialingDueDate)}`}>
+                      <p
+                        className={`text-sm font-medium ${getDueDateTone(prelive.credentialingDueDate)}`}
+                      >
                         {formatDate(prelive.credentialingDueDate)}
                       </p>
                     </div>
@@ -382,14 +399,14 @@ export default async function FacilityProfilePage({
                     <div>
                       <p className="text-muted-foreground text-xs">Temps possible</p>
                       <p className="text-sm font-medium">
-                        {prelive.tempsPossible === null ? "—" : prelive.tempsPossible ? "Yes" : "No"}
+                        {prelive.tempsPossible === null ? "-" : prelive.tempsPossible ? "Yes" : "No"}
                       </p>
                     </div>
                     <div>
                       <p className="text-muted-foreground text-xs">Payor enrollment</p>
                       <p className="text-sm font-medium">
                         {prelive.payorEnrollmentRequired === null
-                          ? "—"
+                          ? "-"
                           : prelive.payorEnrollmentRequired
                             ? "Required"
                             : "Not required"}
@@ -401,7 +418,7 @@ export default async function FacilityProfilePage({
                       <p className="text-muted-foreground text-xs">Roles needed</p>
                       <div className="mt-1 flex flex-wrap gap-1">
                         {roles.map((role) => (
-                          <Badge key={role} variant="outline" className="text-xs">
+                          <Badge key={role} className="text-xs" variant="outline">
                             {role}
                           </Badge>
                         ))}
@@ -415,11 +432,14 @@ export default async function FacilityProfilePage({
         )}
       </CollapsibleSection>
 
-      {/* ── Provider credential sub-workflows ─────────────────── */}
       <CollapsibleSection
-        title={<span className="flex items-center gap-2"><Stethoscope className="size-4" /> Provider credential sub-workflows</span>}
         badge={credentialRows.length}
         maxHeight="32rem"
+        title={
+          <span className="flex items-center gap-2">
+            <Stethoscope className="size-4" /> Provider credential sub-workflows
+          </span>
+        }
       >
         {credentialRows.length === 0 ? (
           <p className="text-muted-foreground text-sm">
@@ -430,10 +450,10 @@ export default async function FacilityProfilePage({
             {credentialRows.map((credential) => {
               const workflowList = workflowsByCredential.get(credential.id) ?? [];
               const providerName = formatProviderName({
-                firstName: credential.providerFirstName,
-                middleName: credential.providerMiddleName,
-                lastName: credential.providerLastName,
                 degree: credential.providerDegree,
+                firstName: credential.providerFirstName,
+                lastName: credential.providerLastName,
+                middleName: credential.providerMiddleName,
               });
               const isHighPriority = (credential.priority ?? "").toLowerCase().includes("high");
 
@@ -444,7 +464,6 @@ export default async function FacilityProfilePage({
                     isHighPriority ? "border-amber-400/60 bg-amber-500/5" : "border-border"
                   }`}
                 >
-                  {/* ── Compact horizontal header ── */}
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                     <h3 className="text-sm font-semibold leading-tight">
                       {credential.providerId ? (
@@ -455,33 +474,44 @@ export default async function FacilityProfilePage({
                         providerName
                       )}
                     </h3>
-                    <Badge variant="outline" className="text-[11px] px-1.5 py-0">{credential.priority ?? "—"}</Badge>
-                    <Badge variant="outline" className="text-[11px] px-1.5 py-0">{credential.decision ?? "—"}</Badge>
+                    <Badge className="text-[11px] px-1.5 py-0" variant="outline">
+                      {credential.priority ?? "-"}
+                    </Badge>
+                    <Badge className="text-[11px] px-1.5 py-0" variant="outline">
+                      {credential.decision ?? "-"}
+                    </Badge>
                     {credential.privileges && (
-                      <Badge variant="outline" className="text-[11px] px-1.5 py-0">{credential.privileges}</Badge>
+                      <Badge className="text-[11px] px-1.5 py-0" variant="outline">
+                        {credential.privileges}
+                      </Badge>
                     )}
                     {credential.facilityType && (
                       <span className="text-muted-foreground text-[11px]">{credential.facilityType}</span>
                     )}
                     {credential.applicationRequired !== null && (
-                      <span className="text-muted-foreground text-[11px]">App: {credential.applicationRequired ? "Yes" : "No"}</span>
+                      <span className="text-muted-foreground text-[11px]">
+                        App: {credential.applicationRequired ? "Yes" : "No"}
+                      </span>
                     )}
                     {isHighPriority && (
-                      <span className="flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-300 font-medium">
+                      <span className="flex items-center gap-1 text-[11px] font-medium text-amber-600 dark:text-amber-300">
                         <AlertTriangle className="size-3" /> High
                       </span>
                     )}
                     {credential.notes && (
-                      <span className="text-muted-foreground text-[11px] max-w-xs truncate" title={credential.notes}>{credential.notes}</span>
+                      <span className="text-muted-foreground max-w-xs truncate text-[11px]" title={credential.notes}>
+                        {credential.notes}
+                      </span>
                     )}
-                    <span className="text-muted-foreground text-[11px] ml-auto shrink-0">Updated {formatDate(credential.updatedAt)}</span>
+                    <span className="text-muted-foreground ml-auto shrink-0 text-[11px]">
+                      Updated {formatDate(credential.updatedAt)}
+                    </span>
                   </div>
 
-                  {/* ── Workflow table ── */}
                   {workflowList.length === 0 ? (
-                    <p className="text-muted-foreground text-xs mt-1">No workflow phases linked.</p>
+                    <p className="text-muted-foreground mt-1 text-xs">No workflow phases linked.</p>
                   ) : (
-                    <div className="overflow-x-auto mt-2">
+                    <div className="mt-2 overflow-x-auto">
                       <table className="w-full text-left text-xs">
                         <thead className="text-muted-foreground uppercase">
                           <tr>
@@ -496,12 +526,12 @@ export default async function FacilityProfilePage({
                           {workflowList.map((workflow) => (
                             <tr key={workflow.id} className="border-t">
                               <td className="py-1 pr-3">{workflow.phaseName}</td>
-                              <td className="py-1 pr-3">{workflow.status ?? "—"}</td>
-                              <td className="py-1 pr-3">{workflow.startDate ?? "—"}</td>
+                              <td className="py-1 pr-3">{workflow.status ?? "-"}</td>
+                              <td className="py-1 pr-3">{workflow.startDate ?? "-"}</td>
                               <td className={`py-1 pr-3 ${getDueDateTone(workflow.dueDate)}`}>
-                                {workflow.dueDate ?? "—"}
+                                {workflow.dueDate ?? "-"}
                               </td>
-                              <td className="py-1 pr-3">{workflow.completedAt ?? "—"}</td>
+                              <td className="py-1 pr-3">{workflow.completedAt ?? "-"}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -515,12 +545,15 @@ export default async function FacilityProfilePage({
         )}
       </CollapsibleSection>
 
-      {/* ── Activity Timeline ─────────────────────────────────── */}
       <CollapsibleSection
-        title={<span className="flex items-center gap-2"><Activity className="size-5" /> Activity Log</span>}
         defaultOpen={false}
+        title={
+          <span className="flex items-center gap-2">
+            <Activity className="size-5" /> Activity Log
+          </span>
+        }
       >
-        <ActivityTimeline entityType="facility" entityId={facilityId} />
+        <ActivityTimeline entityId={facilityId} entityType="facility" />
       </CollapsibleSection>
     </div>
   );

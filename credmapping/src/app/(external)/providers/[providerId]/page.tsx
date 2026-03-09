@@ -16,7 +16,8 @@ import {
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { CollapsibleSection } from "~/components/ui/collapsible-section";
-import { db } from "~/server/db";
+import { requireRequestAuthContext } from "~/server/auth/request-context";
+import { withUserDb } from "~/server/db";
 import {
   agents,
   facilities,
@@ -83,82 +84,93 @@ export default async function ProviderProfilePage({
   params: Promise<{ providerId: string }>;
 }) {
   const { providerId } = await params;
+  const { user } = await requireRequestAuthContext();
 
-  const providerRow = await db
-    .select({
-      id: providers.id,
-      firstName: providers.firstName,
-      middleName: providers.middleName,
-      lastName: providers.lastName,
-      degree: providers.degree,
-      email: providers.email,
-      phone: providers.phone,
-      createdAt: providers.createdAt,
-      updatedAt: providers.updatedAt,
-      notes: providers.notes,
-    })
-    .from(providers)
-    .where(eq(providers.id, providerId))
-    .limit(1);
-
-  const provider = providerRow[0];
-  if (!provider) notFound();
-
-  const [licenseRows, privilegeRows, credentials] = await Promise.all([
-    db
-      .select()
-      .from(providerStateLicenses)
-      .where(eq(providerStateLicenses.providerId, providerId))
-      .orderBy(desc(providerStateLicenses.expiresAt), desc(providerStateLicenses.createdAt)),
-    db
-      .select()
-      .from(providerVestaPrivileges)
-      .where(eq(providerVestaPrivileges.providerId, providerId))
-      .orderBy(desc(providerVestaPrivileges.updatedAt)),
-    db
-      .select({
-        id: providerFacilityCredentials.id,
-        facilityName: facilities.name,
-        facilityType: providerFacilityCredentials.facilityType,
-        priority: providerFacilityCredentials.priority,
-        decision: providerFacilityCredentials.decision,
-        notes: providerFacilityCredentials.notes,
-        privileges: providerFacilityCredentials.privileges,
-        updatedAt: providerFacilityCredentials.updatedAt,
-      })
-      .from(providerFacilityCredentials)
-      .leftJoin(facilities, eq(providerFacilityCredentials.facilityId, facilities.id))
-      .where(eq(providerFacilityCredentials.providerId, providerId))
-      .orderBy(desc(providerFacilityCredentials.updatedAt)),
-  ]);
-
-  const credentialIds = credentials.map((item) => item.id);
-
-  const workflowRows =
-    credentialIds.length === 0
-      ? []
-      : await db
+  const { credentials, licenseRows, privilegeRows, provider, workflowRows } = await withUserDb({
+    user,
+    run: async (db) => {
+      const [providerRow, licenseRows, privilegeRows, credentials] = await Promise.all([
+        db
           .select({
-            id: workflowPhases.id,
-            relatedId: workflowPhases.relatedId,
-            phaseName: workflowPhases.phaseName,
-            status: workflowPhases.status,
-            startDate: workflowPhases.startDate,
-            dueDate: workflowPhases.dueDate,
-            completedAt: workflowPhases.completedAt,
-            updatedAt: workflowPhases.updatedAt,
-            agentFirstName: agents.firstName,
-            agentLastName: agents.lastName,
+            id: providers.id,
+            firstName: providers.firstName,
+            middleName: providers.middleName,
+            lastName: providers.lastName,
+            degree: providers.degree,
+            email: providers.email,
+            phone: providers.phone,
+            createdAt: providers.createdAt,
+            updatedAt: providers.updatedAt,
+            notes: providers.notes,
           })
-          .from(workflowPhases)
-          .leftJoin(agents, eq(workflowPhases.agentAssigned, agents.id))
-          .where(
-            and(
-              eq(workflowPhases.workflowType, "pfc"),
-              inArray(workflowPhases.relatedId, credentialIds),
-            ),
-          )
-          .orderBy(asc(workflowPhases.phaseName), desc(workflowPhases.updatedAt));
+          .from(providers)
+          .where(eq(providers.id, providerId))
+          .limit(1),
+        db
+          .select()
+          .from(providerStateLicenses)
+          .where(eq(providerStateLicenses.providerId, providerId))
+          .orderBy(desc(providerStateLicenses.expiresAt), desc(providerStateLicenses.createdAt)),
+        db
+          .select()
+          .from(providerVestaPrivileges)
+          .where(eq(providerVestaPrivileges.providerId, providerId))
+          .orderBy(desc(providerVestaPrivileges.updatedAt)),
+        db
+          .select({
+            id: providerFacilityCredentials.id,
+            facilityName: facilities.name,
+            facilityType: providerFacilityCredentials.facilityType,
+            priority: providerFacilityCredentials.priority,
+            decision: providerFacilityCredentials.decision,
+            notes: providerFacilityCredentials.notes,
+            privileges: providerFacilityCredentials.privileges,
+            updatedAt: providerFacilityCredentials.updatedAt,
+          })
+          .from(providerFacilityCredentials)
+          .leftJoin(facilities, eq(providerFacilityCredentials.facilityId, facilities.id))
+          .where(eq(providerFacilityCredentials.providerId, providerId))
+          .orderBy(desc(providerFacilityCredentials.updatedAt)),
+      ]);
+
+      const credentialIds = credentials.map((item) => item.id);
+      const workflowRows =
+        credentialIds.length === 0
+          ? []
+          : await db
+              .select({
+                id: workflowPhases.id,
+                relatedId: workflowPhases.relatedId,
+                phaseName: workflowPhases.phaseName,
+                status: workflowPhases.status,
+                startDate: workflowPhases.startDate,
+                dueDate: workflowPhases.dueDate,
+                completedAt: workflowPhases.completedAt,
+                updatedAt: workflowPhases.updatedAt,
+                agentFirstName: agents.firstName,
+                agentLastName: agents.lastName,
+              })
+              .from(workflowPhases)
+              .leftJoin(agents, eq(workflowPhases.agentAssigned, agents.id))
+              .where(
+                and(
+                  eq(workflowPhases.workflowType, "pfc"),
+                  inArray(workflowPhases.relatedId, credentialIds),
+                ),
+              )
+              .orderBy(asc(workflowPhases.phaseName), desc(workflowPhases.updatedAt));
+
+      return {
+        credentials,
+        licenseRows,
+        privilegeRows,
+        provider: providerRow[0] ?? null,
+        workflowRows,
+      };
+    },
+  });
+
+  if (!provider) notFound();
 
   const normalizedWorkflowRows = workflowRows.map((row) => ({
     id: row.id,
