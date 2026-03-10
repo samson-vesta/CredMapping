@@ -275,8 +275,8 @@ export const providersRouter = createTRPCRouter({
         path: z.string().trim().optional(),
         priority: z.string().trim().optional(),
         initialOrRenewal: z.enum(["initial", "renewal"]).optional(),
-        expiresAt: z.string().optional(),
-        startsAt: z.string().optional(),
+        expiresAt: z.string().date().optional(),
+        startsAt: z.string().date().optional(),
         number: z.string().trim().optional(),
       }),
     )
@@ -318,8 +318,8 @@ export const providersRouter = createTRPCRouter({
         path: z.string().trim().optional(),
         priority: z.string().trim().optional(),
         initialOrRenewal: z.enum(["initial", "renewal"]).nullable().optional(),
-        expiresAt: z.string().optional(),
-        startsAt: z.string().optional(),
+        expiresAt: z.string().date().optional(),
+        startsAt: z.string().date().optional(),
         number: z.string().trim().optional(),
       }),
     )
@@ -401,9 +401,9 @@ export const providersRouter = createTRPCRouter({
       z.object({
         providerId: z.string().uuid(),
         privilegeTier: z.enum(["Inactive", "Full", "Temp", "In Progress"]).optional(),
-        currentPrivInitDate: z.string().optional(),
-        currentPrivEndDate: z.string().optional(),
-        termDate: z.string().optional(),
+        currentPrivInitDate: z.string().date().optional(),
+        currentPrivEndDate: z.string().date().optional(),
+        termDate: z.string().date().optional(),
         termReason: z.string().trim().optional(),
       }),
     )
@@ -438,9 +438,9 @@ export const providersRouter = createTRPCRouter({
       z.object({
         id: z.string().uuid(),
         privilegeTier: z.enum(["Inactive", "Full", "Temp", "In Progress"]).nullable().optional(),
-        currentPrivInitDate: z.string().optional(),
-        currentPrivEndDate: z.string().optional(),
-        termDate: z.string().optional(),
+        currentPrivInitDate: z.string().date().optional(),
+        currentPrivEndDate: z.string().date().optional(),
+        termDate: z.string().date().optional(),
         termReason: z.string().trim().optional(),
       }),
     )
