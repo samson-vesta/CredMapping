@@ -55,6 +55,7 @@ export function MissingDocsManager({
 }: MissingDocsManagerProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [form, setForm] = useState(defaultForm);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<
@@ -78,8 +79,8 @@ export function MissingDocsManager({
       .filter((doc) => {
         if (!query) return true;
         return [doc.information, doc.roadblocks, doc.followUpStatus]
-          .filter((v): v is string => Boolean(v))
-          .some((v) => v.toLowerCase().includes(query));
+          .filter((value): value is string => Boolean(value))
+          .some((value) => value.toLowerCase().includes(query));
       });
 
     rows.sort((a, b) => {
@@ -89,6 +90,7 @@ export function MissingDocsManager({
       const valueB = [b.nextFollowUpUS, b.nextFollowUpIn]
         .filter((value): value is string => Boolean(value))
         .sort()[0] ?? "9999-12-31";
+
       return sortOrder === "soonest"
         ? valueA.localeCompare(valueB)
         : valueB.localeCompare(valueA);
@@ -112,6 +114,7 @@ export function MissingDocsManager({
   const beginEdit = (doc: MissingDoc) => {
     setIsEditing(true);
     setEditingId(doc.id);
+    setExpandedId(doc.id);
     setForm({
       information: doc.information ?? "",
       roadblocks: doc.roadblocks ?? "",
@@ -140,6 +143,10 @@ export function MissingDocsManager({
 
     await onChanged();
     resetEditor();
+  };
+
+  const toggleExpanded = (docId: string) => {
+    setExpandedId((current) => (current === docId ? null : docId));
   };
 
   return (
@@ -223,11 +230,13 @@ export function MissingDocsManager({
           <div className="mb-4 grid gap-3 rounded-lg border border-border bg-muted/20 p-4 md:grid-cols-4">
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">Information</label>
-              <Input
+              <Textarea
+                rows={3}
+                className="resize-y"
                 placeholder="e.g. State License Copy"
                 value={form.information}
                 onChange={(e) =>
-                  setForm((s) => ({ ...s, information: e.target.value }))
+                  setForm((state) => ({ ...state, information: e.target.value }))
                 }
               />
             </div>
@@ -239,7 +248,7 @@ export function MissingDocsManager({
                 type="date"
                 value={form.nextFollowUpUS}
                 onChange={(e) =>
-                  setForm((s) => ({ ...s, nextFollowUpUS: e.target.value }))
+                  setForm((state) => ({ ...state, nextFollowUpUS: e.target.value }))
                 }
               />
             </div>
@@ -251,7 +260,7 @@ export function MissingDocsManager({
                 type="date"
                 value={form.nextFollowUpIn}
                 onChange={(e) =>
-                  setForm((s) => ({ ...s, nextFollowUpIn: e.target.value }))
+                  setForm((state) => ({ ...state, nextFollowUpIn: e.target.value }))
                 }
               />
             </div>
@@ -266,7 +275,7 @@ export function MissingDocsManager({
                 placeholder="Describe missing details and blockers"
                 value={form.roadblocks}
                 onChange={(e) =>
-                  setForm((s) => ({ ...s, roadblocks: e.target.value }))
+                  setForm((state) => ({ ...state, roadblocks: e.target.value }))
                 }
               />
             </div>
@@ -288,18 +297,21 @@ export function MissingDocsManager({
           <div className="h-12 w-full animate-pulse rounded bg-muted" />
         ) : filteredDocs.length > 0 ? (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border">
-            <div className="hide-scrollbar overflow-x-auto border-b border-border">
-              <table className="w-full min-w-[980px] table-fixed text-sm">
+            <ScrollIndicatorContainer
+              className="min-h-0 flex-1"
+              viewportClassName="hide-scrollbar overflow-auto"
+            >
+              <table className="w-full min-w-[1120px] table-fixed text-sm">
                 <colgroup>
-                  <col className="w-[19%]" />
-                  <col className="w-[31%]" />
-                  <col className="w-[14%]" />
-                  <col className="w-[14%]" />
-                  <col className="w-[14%]" />
-                  <col className="w-[8%]" />
+                  <col className="w-[20%]" />
+                  <col className="w-[28%]" />
+                  <col className="w-[16%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[12%]" />
                 </colgroup>
-                <thead>
-                  <tr className="bg-muted/50 text-muted-foreground">
+                <thead className="border-b border-border bg-muted/50 text-muted-foreground">
+                  <tr>
                     <th className="px-4 py-3 text-left font-medium">
                       Information
                     </th>
@@ -316,128 +328,179 @@ export function MissingDocsManager({
                     <th className="px-4 py-3 text-right font-medium">Actions</th>
                   </tr>
                 </thead>
-              </table>
-            </div>
-            <ScrollIndicatorContainer className="min-h-0 flex-1" viewportClassName="hide-scrollbar overflow-auto">
-              <table className="w-full min-w-[980px] table-fixed text-sm">
-                <colgroup>
-                  <col className="w-[19%]" />
-                  <col className="w-[31%]" />
-                  <col className="w-[14%]" />
-                  <col className="w-[14%]" />
-                  <col className="w-[14%]" />
-                  <col className="w-[8%]" />
-                </colgroup>
                 <tbody className="divide-y divide-border">
-                {filteredDocs.map((doc) =>
-                  editingId === doc.id ? (
-                    <tr key={doc.id} className="bg-muted/20">
-                      <td className="px-4 py-3 align-top">
-                        <Input
-                          placeholder="e.g. State License Copy"
-                          value={form.information}
-                          onChange={(e) =>
-                            setForm((s) => ({ ...s, information: e.target.value }))
-                          }
-                        />
-                      </td>
-                      <td className="px-4 py-3 align-top">
-                        <Textarea
-                          rows={2}
-                          placeholder="Describe missing details and blockers"
-                          value={form.roadblocks}
-                          onChange={(e) =>
-                            setForm((s) => ({ ...s, roadblocks: e.target.value }))
-                          }
-                        />
-                      </td>
-                      <td className="px-4 py-3 align-top">
-                        <select
-                          value={form.followUpStatus}
-                          onChange={(e) =>
-                            setForm((state) => ({
-                              ...state,
-                              followUpStatus: e.target.value as MissingDocStatus,
-                            }))
-                          }
-                          className="w-full rounded border border-border bg-background px-2.5 py-2 text-sm text-foreground"
-                        >
-                          <option value="Not Completed">Not Completed</option>
-                          <option value="Pending Response">Pending Response</option>
-                          <option value="Completed">Completed</option>
-                        </select>
-                      </td>
-                      <td className="px-4 py-3 align-top">
-                        <Input
-                          type="date"
-                          value={form.nextFollowUpUS}
-                          onChange={(e) =>
-                            setForm((s) => ({ ...s, nextFollowUpUS: e.target.value }))
-                          }
-                        />
-                      </td>
-                      <td className="px-4 py-3 align-top">
-                        <Input
-                          type="date"
-                          value={form.nextFollowUpIn}
-                          onChange={(e) =>
-                            setForm((s) => ({ ...s, nextFollowUpIn: e.target.value }))
-                          }
-                        />
-                      </td>
-                      <td className="px-4 py-3 text-right align-top">
-                        <div className="flex justify-end gap-2">
-                          <Button variant="outline" size="sm" onClick={resetEditor}>
-                            Cancel
-                          </Button>
-                          <Button
-                            size="sm"
-                            disabled={isMutating || !form.information.trim()}
-                            onClick={save}
+                  {filteredDocs.map((doc) =>
+                    editingId === doc.id ? (
+                      <tr key={doc.id} className="bg-muted/20">
+                        <td className="min-w-0 px-4 py-3 align-top">
+                          <Textarea
+                            rows={2}
+                            className="min-w-0 resize-y"
+                            placeholder="e.g. State License Copy"
+                            value={form.information}
+                            onChange={(e) =>
+                              setForm((state) => ({
+                                ...state,
+                                information: e.target.value,
+                              }))
+                            }
+                          />
+                        </td>
+                        <td className="min-w-0 px-4 py-3 align-top">
+                          <Textarea
+                            className="min-w-0 resize-y"
+                            rows={2}
+                            placeholder="Describe missing details and blockers"
+                            value={form.roadblocks}
+                            onChange={(e) =>
+                              setForm((state) => ({
+                                ...state,
+                                roadblocks: e.target.value,
+                              }))
+                            }
+                          />
+                        </td>
+                        <td className="min-w-0 px-4 py-3 align-top">
+                          <select
+                            value={form.followUpStatus}
+                            onChange={(e) =>
+                              setForm((state) => ({
+                                ...state,
+                                followUpStatus: e.target.value as MissingDocStatus,
+                              }))
+                            }
+                            className="w-full rounded border border-border bg-background px-2.5 py-2 text-sm text-foreground"
                           >
-                            Save
+                            <option value="Not Completed">Not Completed</option>
+                            <option value="Pending Response">
+                              Pending Response
+                            </option>
+                            <option value="Completed">Completed</option>
+                          </select>
+                        </td>
+                        <td className="min-w-0 px-4 py-3 align-top">
+                          <Input
+                            className="min-w-0"
+                            type="date"
+                            value={form.nextFollowUpUS}
+                            onChange={(e) =>
+                              setForm((state) => ({
+                                ...state,
+                                nextFollowUpUS: e.target.value,
+                              }))
+                            }
+                          />
+                        </td>
+                        <td className="min-w-0 px-4 py-3 align-top">
+                          <Input
+                            className="min-w-0"
+                            type="date"
+                            value={form.nextFollowUpIn}
+                            onChange={(e) =>
+                              setForm((state) => ({
+                                ...state,
+                                nextFollowUpIn: e.target.value,
+                              }))
+                            }
+                          />
+                        </td>
+                        <td className="min-w-0 px-4 py-3 align-top">
+                          <div className="flex min-w-0 flex-col gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full whitespace-nowrap"
+                              onClick={resetEditor}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              size="sm"
+                              className="w-full whitespace-nowrap"
+                              disabled={isMutating || !form.information.trim()}
+                              onClick={save}
+                            >
+                              Save
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      <tr
+                        key={doc.id}
+                        className="cursor-pointer hover:bg-muted/30"
+                        onClick={() => toggleExpanded(doc.id)}
+                        aria-expanded={expandedId === doc.id}
+                      >
+                        <td className="min-w-0 px-4 py-3 font-medium text-foreground">
+                          {expandedId === doc.id ? (
+                            <p className="whitespace-pre-wrap break-words">
+                              {doc.information ?? "-"}
+                            </p>
+                          ) : (
+                            <TruncatedTooltip
+                              as="p"
+                              text={doc.information ?? "-"}
+                              className="max-w-full"
+                              tooltipClassName="max-w-sm whitespace-pre-wrap break-words"
+                            />
+                          )}
+                        </td>
+                        <td className="min-w-0 px-4 py-3 text-muted-foreground italic">
+                          {expandedId === doc.id ? (
+                            <p className="whitespace-pre-wrap break-words">
+                              {doc.roadblocks ?? "-"}
+                            </p>
+                          ) : (
+                            <TruncatedTooltip
+                              as="p"
+                              text={doc.roadblocks ?? "-"}
+                              className="max-w-full"
+                              tooltipClassName="max-w-sm whitespace-pre-wrap break-words"
+                            />
+                          )}
+                        </td>
+                        <td className="min-w-0 px-4 py-3 text-muted-foreground">
+                          <p
+                            className={
+                              expandedId === doc.id
+                                ? "whitespace-pre-wrap break-words"
+                                : "truncate"
+                            }
+                          >
+                            {doc.followUpStatus ?? "Not Completed"}
+                          </p>
+                        </td>
+                        <td className="min-w-0 px-4 py-3 text-muted-foreground">
+                          <p className="truncate whitespace-nowrap">
+                            {doc.nextFollowUpUS
+                              ? format(new Date(doc.nextFollowUpUS), "MMM d, yyyy")
+                              : "-"}
+                          </p>
+                        </td>
+                        <td className="min-w-0 px-4 py-3 text-muted-foreground">
+                          <p className="truncate whitespace-nowrap">
+                            {doc.nextFollowUpIn
+                              ? format(new Date(doc.nextFollowUpIn), "MMM d, yyyy")
+                              : "-"}
+                          </p>
+                        </td>
+                        <td className="min-w-0 px-4 py-3 text-right">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="whitespace-nowrap"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              beginEdit(doc);
+                            }}
+                          >
+                            Edit
                           </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    <tr key={doc.id} className="hover:bg-muted/30">
-                      <td className="px-4 py-3 font-medium text-foreground">
-                        {doc.information}
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground italic">
-                        <TruncatedTooltip
-                          as="p"
-                          text={doc.roadblocks ?? "—"}
-                          className="max-w-full"
-                          tooltipClassName="max-w-sm whitespace-pre-wrap break-words"
-                        />
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {doc.followUpStatus ?? "Not Completed"}
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {doc.nextFollowUpUS
-                          ? format(new Date(doc.nextFollowUpUS), "MMM d, yyyy")
-                          : "—"}
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {doc.nextFollowUpIn
-                          ? format(new Date(doc.nextFollowUpIn), "MMM d, yyyy")
-                          : "—"}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => beginEdit(doc)}
-                        >
-                          Edit
-                        </Button>
-                      </td>
-                    </tr>
-                  ),
-                )}
+                        </td>
+                      </tr>
+                    ),
+                  )}
                 </tbody>
               </table>
             </ScrollIndicatorContainer>
