@@ -10,7 +10,6 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock,
-  Filter,
   Loader2,
   Pause,
   Plus,
@@ -25,7 +24,7 @@ import {
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import { Separator } from "~/components/ui/separator"
+import { Separator } from "~/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -53,11 +52,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "~/components/ui/sheet";
-import {
-  Dialog,
-  DialogClose,
-  DialogTrigger,
-} from "~/components/ui/dialog";
+import { Dialog, DialogClose, DialogTrigger } from "~/components/ui/dialog";
 import {
   ModalContent,
   ModalFooter,
@@ -82,6 +77,13 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { Textarea } from "~/components/ui/textarea";
 import { cn } from "~/lib/utils";
 import { Label } from "~/components/ui/label";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+} from "~/components/ui/pagination";
 
 type WorkflowPhaseInput = {
   phaseName: string;
@@ -95,7 +97,12 @@ type WorkflowPhaseInput = {
 /* ─── Helpers ──────────────────────────────────────────────── */
 
 /** Fallback suggestions when no statuses exist in the DB yet */
-const DEFAULT_STATUS_SUGGESTIONS = ["Pending", "In Progress", "Blocked", "Completed"];
+const DEFAULT_STATUS_SUGGESTIONS = [
+  "Pending",
+  "In Progress",
+  "Blocked",
+  "Completed",
+];
 
 const PFC_PHASES = [
   "Application Request",
@@ -104,7 +111,7 @@ const PFC_PHASES = [
   "QA2",
   "QA3",
   "Provider QA",
-  "Facility Decision"
+  "Facility Decision",
 ];
 
 const WORKFLOW_TYPE_LABELS: Record<string, string> = {
@@ -114,23 +121,40 @@ const WORKFLOW_TYPE_LABELS: Record<string, string> = {
   provider_vesta_privileges: "Vesta Privileges",
 };
 
+const WORKFLOW_TYPE_OUTLINE_STYLES: Record<string, string> = {
+  pfc: "border-violet-500/40 shadow-[inset_0_0_0_1px_rgba(139,92,246,0.12)]",
+  state_licenses:
+    "border-sky-500/40 shadow-[inset_0_0_0_1px_rgba(14,165,233,0.12)]",
+  prelive_pipeline:
+    "border-orange-500/40 shadow-[inset_0_0_0_1px_rgba(249,115,22,0.12)]",
+  provider_vesta_privileges:
+    "border-pink-500/40 shadow-[inset_0_0_0_1px_rgba(236,72,153,0.12)]",
+};
+
+const WORKFLOW_PAGE_SIZE = 8;
+const WORKFLOW_FETCH_LIMIT = 1000;
+
 function StatusBadge({ status }: { status: string | null }) {
   const s = (status ?? "Pending").toLowerCase();
   if (s === "completed" || s === "done" || s === "approved")
     return (
-      <Badge className="gap-1 bg-emerald-500/15 text-emerald-600 border-emerald-500/25 dark:text-emerald-400">
+      <Badge className="gap-1 border-emerald-500/25 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
         <CheckCircle2 className="size-3" /> {status}
       </Badge>
     );
-  if (s.includes("progress") || s.includes("processing") || s.includes("review"))
+  if (
+    s.includes("progress") ||
+    s.includes("processing") ||
+    s.includes("review")
+  )
     return (
-      <Badge className="gap-1 bg-blue-500/15 text-blue-600 border-blue-500/25 dark:text-blue-400">
+      <Badge className="gap-1 border-blue-500/25 bg-blue-500/15 text-blue-600 dark:text-blue-400">
         <Clock className="size-3" /> {status}
       </Badge>
     );
   if (s === "blocked" || s === "denied" || s === "rejected")
     return (
-      <Badge className="gap-1 bg-red-500/15 text-red-600 border-red-500/25 dark:text-red-400">
+      <Badge className="gap-1 border-red-500/25 bg-red-500/15 text-red-600 dark:text-red-400">
         <Pause className="size-3" /> {status}
       </Badge>
     );
@@ -145,9 +169,12 @@ function WorkflowTypeBadge({ type }: { type: string }) {
   const label = WORKFLOW_TYPE_LABELS[type] ?? type;
   const colorMap: Record<string, string> = {
     pfc: "bg-violet-500/15 text-violet-600 border-violet-500/25 dark:text-violet-400",
-    state_licenses: "bg-sky-500/15 text-sky-600 border-sky-500/25 dark:text-sky-400",
-    prelive_pipeline: "bg-orange-500/15 text-orange-600 border-orange-500/25 dark:text-orange-400",
-    provider_vesta_privileges: "bg-pink-500/15 text-pink-600 border-pink-500/25 dark:text-pink-400",
+    state_licenses:
+      "bg-sky-500/15 text-sky-600 border-sky-500/25 dark:text-sky-400",
+    prelive_pipeline:
+      "bg-orange-500/15 text-orange-600 border-orange-500/25 dark:text-orange-400",
+    provider_vesta_privileges:
+      "bg-pink-500/15 text-pink-600 border-pink-500/25 dark:text-pink-400",
   };
   return <Badge className={cn("gap-1", colorMap[type] ?? "")}>{label}</Badge>;
 }
@@ -155,7 +182,45 @@ function WorkflowTypeBadge({ type }: { type: string }) {
 function formatDate(d: string | Date | null | undefined): string {
   if (!d) return "—";
   const date = typeof d === "string" ? new Date(d) : d;
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function getPageNumbers(
+  currentPage: number,
+  totalPages: number,
+): Array<number | "ellipsis"> {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  if (currentPage <= 3) {
+    return [1, 2, 3, 4, "ellipsis", totalPages];
+  }
+
+  if (currentPage >= totalPages - 2) {
+    return [
+      1,
+      "ellipsis",
+      totalPages - 3,
+      totalPages - 2,
+      totalPages - 1,
+      totalPages,
+    ];
+  }
+
+  return [
+    1,
+    "ellipsis",
+    currentPage - 1,
+    currentPage,
+    currentPage + 1,
+    "ellipsis",
+    totalPages,
+  ];
 }
 
 /* ─── Incident Dialog ────────────────────────────────────── */
@@ -190,15 +255,31 @@ function IncidentDialog({
 
   const [subcategory, setSubcategory] = useState(incident?.subcategory ?? "");
   const [critical, setCritical] = useState(incident?.critical ?? false);
-  const [dateIdentified, setDateIdentified] = useState(incident?.dateIdentified ?? "");
-  const [description, setDescription] = useState(incident?.incidentDescription ?? "");
-  const [immediateResolution, setImmediateResolution] = useState(incident?.immediateResolutionAttempt ?? "");
+  const [dateIdentified, setDateIdentified] = useState(
+    incident?.dateIdentified ?? "",
+  );
+  const [description, setDescription] = useState(
+    incident?.incidentDescription ?? "",
+  );
+  const [immediateResolution, setImmediateResolution] = useState(
+    incident?.immediateResolutionAttempt ?? "",
+  );
   const [escalatedTo, setEscalatedTo] = useState("");
-  const [resolutionDate, setResolutionDate] = useState(incident?.resolutionDate ?? "");
-  const [finalResolution, setFinalResolution] = useState(incident?.finalResolution ?? "");
-  const [preventative, setPreventative] = useState(incident?.preventativeActionTaken ?? "");
-  const [followUpRequired, setFollowUpRequired] = useState(incident?.followUpRequired ?? false);
-  const [followUpDate, setFollowUpDate] = useState(incident?.followUpDate ?? "");
+  const [resolutionDate, setResolutionDate] = useState(
+    incident?.resolutionDate ?? "",
+  );
+  const [finalResolution, setFinalResolution] = useState(
+    incident?.finalResolution ?? "",
+  );
+  const [preventative, setPreventative] = useState(
+    incident?.preventativeActionTaken ?? "",
+  );
+  const [followUpRequired, setFollowUpRequired] = useState(
+    incident?.followUpRequired ?? false,
+  );
+  const [followUpDate, setFollowUpDate] = useState(
+    incident?.followUpDate ?? "",
+  );
   const [finalNotes, setFinalNotes] = useState(incident?.finalNotes ?? "");
   const [discussed, setDiscussed] = useState(incident?.discussed ?? false);
 
@@ -298,85 +379,143 @@ function IncidentDialog({
         )}
       </DialogTrigger>
 
-      <ModalContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+      <ModalContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <ModalHeader>
-          <ModalTitle>{isEdit ? "Edit Incident" : "Log New Incident"}</ModalTitle>
+          <ModalTitle>
+            {isEdit ? "Edit Incident" : "Log New Incident"}
+          </ModalTitle>
         </ModalHeader>
 
         <div className="space-y-4 py-2">
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2 space-y-1.5">
               <Label>Subcategory *</Label>
-              <Input value={subcategory} onChange={(e) => setSubcategory(e.target.value)} placeholder="e.g. Missing Documentation" />
+              <Input
+                value={subcategory}
+                onChange={(e) => setSubcategory(e.target.value)}
+                placeholder="e.g. Missing Documentation"
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Date Identified *</Label>
-              <Input type="date" value={dateIdentified} onChange={(e) => setDateIdentified(e.target.value)} />
+              <Input
+                type="date"
+                value={dateIdentified}
+                onChange={(e) => setDateIdentified(e.target.value)}
+              />
             </div>
-            <div className="flex items-end gap-3">
-              <div className="flex items-center gap-2">
-                <Checkbox id="critical" checked={critical} onCheckedChange={(v) => setCritical(v === true)} />
-                <Label htmlFor="critical" className="font-normal">Critical Incident</Label>
-              </div>
-            </div>
-
             {!isEdit && (
-              <div className="col-span-2 space-y-1.5">
+              <div className="space-y-1.5">
                 <Label>Escalated To *</Label>
                 <Select value={escalatedTo} onValueChange={setEscalatedTo}>
-                  <SelectTrigger><SelectValue placeholder="Select agent…" /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select agent…" />
+                  </SelectTrigger>
                   <SelectContent>
                     {agents.map((a) => (
-                      <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
             )}
 
+            <div className="col-span-2 flex items-center gap-2 pt-1">
+              <Checkbox
+                id="critical"
+                checked={critical}
+                onCheckedChange={(v) => setCritical(v === true)}
+              />
+              <Label htmlFor="critical" className="font-normal">
+                Critical Incident
+              </Label>
+            </div>
+
             <div className="col-span-2 space-y-1.5">
               <Label>Description</Label>
-              <Textarea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} />
+              <Textarea
+                rows={2}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
             </div>
 
             <div className="col-span-2 space-y-1.5">
               <Label>Immediate Resolution Attempt</Label>
-              <Textarea rows={2} value={immediateResolution} onChange={(e) => setImmediateResolution(e.target.value)} />
+              <Textarea
+                rows={2}
+                value={immediateResolution}
+                onChange={(e) => setImmediateResolution(e.target.value)}
+              />
             </div>
 
             {isEdit && (
               <>
                 <div className="space-y-1.5">
                   <Label>Resolution Date</Label>
-                  <Input type="date" value={resolutionDate} onChange={(e) => setResolutionDate(e.target.value)} />
+                  <Input
+                    type="date"
+                    value={resolutionDate}
+                    onChange={(e) => setResolutionDate(e.target.value)}
+                  />
                 </div>
                 <div className="flex items-end gap-3">
                   <div className="flex items-center gap-2">
-                    <Checkbox id="followUp" checked={followUpRequired} onCheckedChange={(v) => setFollowUpRequired(v === true)} />
-                    <Label htmlFor="followUp" className="font-normal">Follow-up Required</Label>
+                    <Checkbox
+                      id="followUp"
+                      checked={followUpRequired}
+                      onCheckedChange={(v) => setFollowUpRequired(v === true)}
+                    />
+                    <Label htmlFor="followUp" className="font-normal">
+                      Follow-up Required
+                    </Label>
                   </div>
                 </div>
                 {followUpRequired && (
                   <div className="col-span-2 space-y-1.5">
                     <Label>Follow-up Date</Label>
-                    <Input type="date" value={followUpDate} onChange={(e) => setFollowUpDate(e.target.value)} />
+                    <Input
+                      type="date"
+                      value={followUpDate}
+                      onChange={(e) => setFollowUpDate(e.target.value)}
+                    />
                   </div>
                 )}
                 <div className="col-span-2 space-y-1.5">
                   <Label>Final Resolution</Label>
-                  <Textarea rows={2} value={finalResolution} onChange={(e) => setFinalResolution(e.target.value)} />
+                  <Textarea
+                    rows={2}
+                    value={finalResolution}
+                    onChange={(e) => setFinalResolution(e.target.value)}
+                  />
                 </div>
                 <div className="col-span-2 space-y-1.5">
                   <Label>Preventative Action Taken</Label>
-                  <Textarea rows={2} value={preventative} onChange={(e) => setPreventative(e.target.value)} />
+                  <Textarea
+                    rows={2}
+                    value={preventative}
+                    onChange={(e) => setPreventative(e.target.value)}
+                  />
                 </div>
                 <div className="col-span-2 space-y-1.5">
                   <Label>Final Notes</Label>
-                  <Textarea rows={2} value={finalNotes} onChange={(e) => setFinalNotes(e.target.value)} />
+                  <Textarea
+                    rows={2}
+                    value={finalNotes}
+                    onChange={(e) => setFinalNotes(e.target.value)}
+                  />
                 </div>
                 <div className="col-span-2 flex items-center gap-2">
-                  <Checkbox id="discussed" checked={discussed} onCheckedChange={(v) => setDiscussed(v === true)} />
-                  <Label htmlFor="discussed" className="font-normal">Discussed</Label>
+                  <Checkbox
+                    id="discussed"
+                    checked={discussed}
+                    onCheckedChange={(v) => setDiscussed(v === true)}
+                  />
+                  <Label htmlFor="discussed" className="font-normal">
+                    Discussed
+                  </Label>
                 </div>
               </>
             )}
@@ -419,7 +558,11 @@ function DeleteIncidentDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive">
+        <Button
+          size="sm"
+          variant="ghost"
+          className="text-destructive hover:text-destructive h-7 w-7 p-0"
+        >
           <Trash2 className="size-3.5" />
         </Button>
       </DialogTrigger>
@@ -427,8 +570,10 @@ function DeleteIncidentDialog({
         <ModalHeader>
           <ModalTitle>Delete Incident</ModalTitle>
         </ModalHeader>
-        <p className="text-sm text-muted-foreground py-2">
-          Are you sure you want to delete the incident &quot;{incident.subcategory ?? "Untitled"}&quot;? This action cannot be undone.
+        <p className="text-muted-foreground py-2 text-sm">
+          Are you sure you want to delete the incident &quot;
+          {incident.subcategory ?? "Untitled"}&quot;? This action cannot be
+          undone.
         </p>
         <ModalFooter>
           <DialogClose asChild>
@@ -436,10 +581,14 @@ function DeleteIncidentDialog({
           </DialogClose>
           <Button
             variant="destructive"
-            onClick={() => void deleteMutation.mutate({ id: String(incident.id) })}
+            onClick={() =>
+              void deleteMutation.mutate({ id: String(incident.id) })
+            }
             disabled={deleteMutation.isPending}
           >
-            {deleteMutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
+            {deleteMutation.isPending && (
+              <Loader2 className="mr-2 size-4 animate-spin" />
+            )}
             Delete
           </Button>
         </ModalFooter>
@@ -462,18 +611,23 @@ function WorkflowDetailSheet({
   statusSuggestions: string[];
 }) {
   const utils = api.useUtils();
-  const { data: wf, isLoading } = api.workflows.getById.useQuery({ id: workflowId });
-  const { data: incidents = [] } = api.workflows.listIncidents.useQuery({ workflowId });
+  const { data: wf, isLoading } = api.workflows.getById.useQuery({
+    id: workflowId,
+  });
+  const { data: incidents = [] } = api.workflows.listIncidents.useQuery({
+    workflowId,
+  });
 
   // Supporting agents
   const supportingIds = useMemo(
-    () => ((wf?.supportingAgents as string[] | null) ?? []),
+    () => (wf?.supportingAgents as string[] | null) ?? [],
     [wf?.supportingAgents],
   );
-  const { data: supportingNames = [] } = api.workflows.resolveAgentNames.useQuery(
-    { ids: supportingIds },
-    { enabled: supportingIds.length > 0 },
-  );
+  const { data: supportingNames = [] } =
+    api.workflows.resolveAgentNames.useQuery(
+      { ids: supportingIds },
+      { enabled: supportingIds.length > 0 },
+    );
 
   // Edit state (only the fields we allow editing)
   const [status, setStatus] = useState("");
@@ -538,23 +692,23 @@ function WorkflowDetailSheet({
 
   return (
     <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
-        <SheetHeader>
+      <SheetContent className="w-full overflow-y-auto sm:max-w-2xl">
+        <SheetHeader className="border-b px-6 pt-6 pr-14 pb-4">
           <SheetTitle>{wf?.phaseName ?? "Loading…"}</SheetTitle>
         </SheetHeader>
 
         {isLoading ? (
           <div className="flex items-center justify-center py-20">
-            <Loader2 className="size-6 animate-spin text-muted-foreground" />
+            <Loader2 className="text-muted-foreground size-6 animate-spin" />
           </div>
         ) : wf ? (
-          <Tabs defaultValue="details" className="mt-4">
+          <Tabs defaultValue="details" className="px-6 pt-5 pb-6">
             <TabsList>
               <TabsTrigger value="details">Details</TabsTrigger>
               <TabsTrigger value="incidents">
                 Incidents
                 {incidents.length > 0 && (
-                  <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none">
+                  <span className="bg-muted ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] leading-none font-medium">
                     {incidents.length}
                   </span>
                 )}
@@ -562,7 +716,7 @@ function WorkflowDetailSheet({
             </TabsList>
 
             {/* ─── Details Tab ─── */}
-            <TabsContent value="details" className="space-y-4 mt-4">
+            <TabsContent value="details" className="mt-4 space-y-4">
               {/* Metadata */}
               <div className="flex flex-wrap gap-2">
                 <WorkflowTypeBadge type={wf.workflowType} />
@@ -573,12 +727,19 @@ function WorkflowDetailSheet({
               <div className="space-y-3 rounded-md border p-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="col-span-2 space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">Phase Name</Label>
-                    <Input value={phaseName} onChange={(e) => setPhaseName(e.target.value)} />
+                    <Label className="text-muted-foreground text-xs">
+                      Phase Name
+                    </Label>
+                    <Input
+                      value={phaseName}
+                      onChange={(e) => setPhaseName(e.target.value)}
+                    />
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">Status</Label>
+                    <Label className="text-muted-foreground text-xs">
+                      Status
+                    </Label>
                     <Input
                       list="status-suggestions"
                       value={status}
@@ -593,39 +754,80 @@ function WorkflowDetailSheet({
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">Assigned Agent</Label>
-                    <Select value={agentAssigned ?? "__none"} onValueChange={(v) => setAgentAssigned(v === "__none" ? null : v)}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                    <Label className="text-muted-foreground text-xs">
+                      Assigned Agent
+                    </Label>
+                    <Select
+                      value={agentAssigned ?? "__none"}
+                      onValueChange={(v) =>
+                        setAgentAssigned(v === "__none" ? null : v)
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="__none">Unassigned</SelectItem>
                         {agentList.map((a) => (
-                          <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                          <SelectItem key={a.id} value={a.id}>
+                            {a.name}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">Start Date</Label>
-                    <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                    <Label className="text-muted-foreground text-xs">
+                      Start Date
+                    </Label>
+                    <Input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                    />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">Due Date</Label>
-                    <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+                    <Label className="text-muted-foreground text-xs">
+                      Due Date
+                    </Label>
+                    <Input
+                      type="date"
+                      value={dueDate}
+                      onChange={(e) => setDueDate(e.target.value)}
+                    />
                   </div>
                   <div className="col-span-2 space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">Completed Date</Label>
-                    <Input type="date" value={completedAt} onChange={(e) => setCompletedAt(e.target.value)} />
+                    <Label className="text-muted-foreground text-xs">
+                      Completed Date
+                    </Label>
+                    <Input
+                      type="date"
+                      value={completedAt}
+                      onChange={(e) => setCompletedAt(e.target.value)}
+                    />
                   </div>
                   <div className="col-span-2 space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">Notes</Label>
-                    <Textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
+                    <Label className="text-muted-foreground text-xs">
+                      Notes
+                    </Label>
+                    <Textarea
+                      rows={3}
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                    />
                   </div>
                 </div>
 
                 <div className="flex justify-end">
-                  <Button onClick={handleSave} disabled={updateMutation.isPending} size="sm">
-                    {updateMutation.isPending && <Loader2 className="mr-2 size-3.5 animate-spin" />}
+                  <Button
+                    onClick={handleSave}
+                    disabled={updateMutation.isPending}
+                    size="sm"
+                  >
+                    {updateMutation.isPending && (
+                      <Loader2 className="mr-2 size-3.5 animate-spin" />
+                    )}
                     Save Changes
                   </Button>
                 </div>
@@ -634,7 +836,9 @@ function WorkflowDetailSheet({
               {/* Supporting agents */}
               {supportingNames.length > 0 && (
                 <div className="space-y-2 rounded-md border p-4">
-                  <p className="text-xs font-medium text-muted-foreground uppercase">Supporting Agents</p>
+                  <p className="text-muted-foreground text-xs font-medium uppercase">
+                    Supporting Agents
+                  </p>
                   <div className="flex flex-wrap gap-2">
                     {supportingNames.map((a) => (
                       <Badge key={a.id} variant="secondary" className="gap-1">
@@ -648,30 +852,36 @@ function WorkflowDetailSheet({
               {/* Assignment info + self-assign */}
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Currently Assigned</p>
+                  <p className="text-muted-foreground text-xs">
+                    Currently Assigned
+                  </p>
                   <p className="flex items-center gap-1.5">
-                    <User className="size-3.5 text-muted-foreground" />
+                    <User className="text-muted-foreground size-3.5" />
                     {assignedName ?? "Unassigned"}
                   </p>
                   {!wf.agentAssigned && (
                     <Button
                       size="sm"
                       variant="outline"
-                      className="mt-1 gap-1.5 h-7 text-xs"
+                      className="mt-1 h-7 gap-1.5 text-xs"
                       disabled={selfAssignMutation.isPending}
-                      onClick={() => void selfAssignMutation.mutate({ id: workflowId })}
+                      onClick={() =>
+                        void selfAssignMutation.mutate({ id: workflowId })
+                      }
                     >
-                      {selfAssignMutation.isPending
-                        ? <Loader2 className="size-3 animate-spin" />
-                        : <UserPlus className="size-3" />}
+                      {selfAssignMutation.isPending ? (
+                        <Loader2 className="size-3 animate-spin" />
+                      ) : (
+                        <UserPlus className="size-3" />
+                      )}
                       Claim this workflow
                     </Button>
                   )}
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Created</p>
+                  <p className="text-muted-foreground text-xs">Created</p>
                   <p className="flex items-center gap-1.5">
-                    <CalendarDays className="size-3.5 text-muted-foreground" />
+                    <CalendarDays className="text-muted-foreground size-3.5" />
                     {formatDate(String(wf.createdAt))}
                   </p>
                 </div>
@@ -679,7 +889,7 @@ function WorkflowDetailSheet({
             </TabsContent>
 
             {/* ─── Incidents Tab ─── */}
-            <TabsContent value="incidents" className="space-y-4 mt-4">
+            <TabsContent value="incidents" className="mt-4 space-y-4">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-medium">Incident Log</p>
                 <IncidentDialog
@@ -691,30 +901,42 @@ function WorkflowDetailSheet({
 
               {incidents.length === 0 ? (
                 <div className="rounded-md border border-dashed p-8 text-center">
-                  <AlertTriangle className="mx-auto size-8 text-muted-foreground/50" />
-                  <p className="mt-2 text-sm text-muted-foreground">No incidents logged yet.</p>
+                  <AlertTriangle className="text-muted-foreground/50 mx-auto size-8" />
+                  <p className="text-muted-foreground mt-2 text-sm">
+                    No incidents logged yet.
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-3">
                   {incidents.map((inc) => (
-                    <div key={String(inc.id)} className={cn("rounded-md border p-3 space-y-2", Boolean(inc.critical) && "border-red-500/50 bg-red-500/5")}>
+                    <div
+                      key={String(inc.id)}
+                      className={cn(
+                        "space-y-2 rounded-md border p-3",
+                        Boolean(inc.critical) &&
+                          "border-red-500/50 bg-red-500/5",
+                      )}
+                    >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium">{inc.subcategory}</span>
+                            <span className="text-sm font-medium">
+                              {inc.subcategory}
+                            </span>
                             {inc.critical && (
-                              <Badge className="bg-red-500/15 text-red-600 border-red-500/25 text-[10px] py-0 h-4">
+                              <Badge className="h-4 border-red-500/25 bg-red-500/15 py-0 text-[10px] text-red-600">
                                 CRITICAL
                               </Badge>
                             )}
                             {inc.followUpRequired && !inc.resolutionDate && (
-                              <Badge className="bg-amber-500/15 text-amber-600 border-amber-500/25 text-[10px] py-0 h-4">
+                              <Badge className="h-4 border-amber-500/25 bg-amber-500/15 py-0 text-[10px] text-amber-600">
                                 FOLLOW-UP
                               </Badge>
                             )}
                           </div>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            Reported by {inc.reporterName ?? "Unknown"} · {formatDate(String(inc.dateIdentified))}
+                          <p className="text-muted-foreground mt-0.5 text-xs">
+                            Reported by {inc.reporterName ?? "Unknown"} ·{" "}
+                            {formatDate(String(inc.dateIdentified))}
                           </p>
                         </div>
                         <div className="flex items-center gap-1">
@@ -724,17 +946,24 @@ function WorkflowDetailSheet({
                             incident={inc}
                             onSuccess={refreshIncidents}
                           />
-                          <DeleteIncidentDialog incident={inc} onSuccess={refreshIncidents} />
+                          <DeleteIncidentDialog
+                            incident={inc}
+                            onSuccess={refreshIncidents}
+                          />
                         </div>
                       </div>
 
                       {inc.incidentDescription && (
-                        <p className="text-sm text-muted-foreground">{inc.incidentDescription}</p>
+                        <p className="text-muted-foreground text-sm">
+                          {inc.incidentDescription}
+                        </p>
                       )}
 
                       {inc.finalResolution && (
-                        <div className="rounded bg-muted/50 px-2 py-1.5">
-                          <p className="text-[10px] font-medium text-muted-foreground uppercase">Resolution</p>
+                        <div className="bg-muted/50 rounded px-2 py-1.5">
+                          <p className="text-muted-foreground text-[10px] font-medium uppercase">
+                            Resolution
+                          </p>
                           <p className="text-sm">{inc.finalResolution}</p>
                         </div>
                       )}
@@ -745,7 +974,9 @@ function WorkflowDetailSheet({
             </TabsContent>
           </Tabs>
         ) : (
-          <p className="text-muted-foreground text-sm py-4">Workflow phase not found.</p>
+          <p className="text-muted-foreground px-6 py-4 text-sm">
+            Workflow phase not found.
+          </p>
         )}
       </SheetContent>
     </Sheet>
@@ -763,7 +994,9 @@ function AddWorkflowDialog() {
   const [openFacility, setOpenFacility] = useState(false);
 
   // Identifiers
-  const [workflowType, setWorkflowType] = useState<"pfc" | "state_licenses" | "prelive_pipeline" | "provider_vesta_privileges">("pfc");
+  const [workflowType, setWorkflowType] = useState<
+    "pfc" | "state_licenses" | "prelive_pipeline" | "provider_vesta_privileges"
+  >("pfc");
   const [providerId, setProviderId] = useState<string>("");
   const [facilityId, setFacilityId] = useState<string>("");
 
@@ -771,7 +1004,8 @@ function AddWorkflowDialog() {
   const [facilityType, setFacilityType] = useState<string>("");
   const [privileges, setPrivileges] = useState<string>("");
   const [priority, setPriority] = useState<string>("");
-  const [applicationRequired, setApplicationRequired] = useState<boolean>(false);
+  const [applicationRequired, setApplicationRequired] =
+    useState<boolean>(false);
   const [pfcNotes, setPfcNotes] = useState<string>("");
 
   // State Licenses States
@@ -780,24 +1014,32 @@ function AddWorkflowDialog() {
   const [licensePath, setLicensePath] = useState<string>("");
   const [licensePriority, setLicensePriority] = useState<string>("");
   const [licenseNotes, setLicenseNotes] = useState<string>("");
-  const [licenseInitialOrRenewal, setLicenseInitialOrRenewal] = useState<"initial" | "renewal" | undefined>();
+  const [licenseInitialOrRenewal, setLicenseInitialOrRenewal] = useState<
+    "initial" | "renewal" | undefined
+  >();
   const [licenseEmailSubject, setLicenseEmailSubject] = useState<string>("");
   const [licenseNumber, setLicenseNumber] = useState<string>("");
 
   // Pre-Live Pipeline States
   const [prelivePriority, setPrelivePriority] = useState<string>("");
   const [preliveGoLiveDate, setPreliveGoLiveDate] = useState<string>("");
-  const [preliveCredentialingDueDate, setPreliveCredentialingDueDate] = useState<string>("");
-  const [preliveTempsPossible, setPreliveTempsPossible] = useState<boolean>(false);
-  const [prelivePayorEnrollmentRequired, setPrelivePayorEnrollmentRequired] = useState<boolean>(false);
-  const [preliveMedicalDirectorNeeded, setPreliveMedicalDirectorNeeded] = useState<boolean>(false);
+  const [preliveCredentialingDueDate, setPreliveCredentialingDueDate] =
+    useState<string>("");
+  const [preliveTempsPossible, setPreliveTempsPossible] =
+    useState<boolean>(false);
+  const [prelivePayorEnrollmentRequired, setPrelivePayorEnrollmentRequired] =
+    useState<boolean>(false);
+  const [preliveMedicalDirectorNeeded, setPreliveMedicalDirectorNeeded] =
+    useState<boolean>(false);
   const [preliveRsoNeeded, setPreliveRsoNeeded] = useState<boolean>(false);
   const [preliveLipNeeded, setPreliveLipNeeded] = useState<boolean>(false);
 
   // Vesta Privileges States
-  const [vestaPrivilegeTier, setVestaPrivilegeTier] = useState<"Inactive" | "Full" | "Temp" | "In Progress" | undefined>("In Progress");
+  const [vestaPrivilegeTier, setVestaPrivilegeTier] = useState<
+    "Inactive" | "Full" | "Temp" | "In Progress" | undefined
+  >("In Progress");
 
-  const [phases, setPhases] = useState<WorkflowPhaseInput[]>(() => 
+  const [phases, setPhases] = useState<WorkflowPhaseInput[]>(() =>
     PFC_PHASES.map((name) => ({
       phaseName: name,
       startDate: new Date().toISOString().split("T")[0]!,
@@ -805,37 +1047,41 @@ function AddWorkflowDialog() {
       status: "Pending",
       agentAssigned: "",
       workflowNotes: "",
-    }))
+    })),
   );
 
   // Update logic when workflow type changes
   useEffect(() => {
     if (workflowType === "pfc") {
-      setPhases(PFC_PHASES.map((name) => ({
-        phaseName: name,
-        startDate: new Date().toISOString().split("T")[0]!,
-        dueDate: "",
-        status: "Pending",
-        agentAssigned: "",
-        workflowNotes: "",
-      })));
+      setPhases(
+        PFC_PHASES.map((name) => ({
+          phaseName: name,
+          startDate: new Date().toISOString().split("T")[0]!,
+          dueDate: "",
+          status: "Pending",
+          agentAssigned: "",
+          workflowNotes: "",
+        })),
+      );
     } else {
       // Default to 3 generic phases for other types
-      setPhases([1, 2, 3].map((num) => ({
-        phaseName: `Phase ${num}`,
-        startDate: new Date().toISOString().split("T")[0]!,
-        dueDate: "",
-        status: "Pending",
-        agentAssigned: "",
-        workflowNotes: "",
-      })));
+      setPhases(
+        [1, 2, 3].map((num) => ({
+          phaseName: `Phase ${num}`,
+          startDate: new Date().toISOString().split("T")[0]!,
+          dueDate: "",
+          status: "Pending",
+          agentAssigned: "",
+          workflowNotes: "",
+        })),
+      );
     }
   }, [workflowType]);
 
   const updatePhase = <K extends keyof WorkflowPhaseInput>(
     index: number,
     field: K,
-    value: WorkflowPhaseInput[K]
+    value: WorkflowPhaseInput[K],
   ) => {
     const nextPhases = [...phases];
     const targetPhase = nextPhases[index];
@@ -855,7 +1101,7 @@ function AddWorkflowDialog() {
         status: "Pending",
         agentAssigned: "",
         workflowNotes: "",
-      }
+      },
     ]);
   };
 
@@ -863,15 +1109,20 @@ function AddWorkflowDialog() {
     setPhases(phases.filter((_, index) => index !== indexToRemove));
   };
 
-  const { data: providers = [], isLoading: isLoadingProviders } = api.workflows.listProvidersForDropdown.useQuery(undefined, {
-    enabled: open,
-  });
-  const { data: facilities = [], isLoading: isLoadingFacilities } = api.workflows.listFacilitiesForDropdown.useQuery(undefined, {
-    enabled: open,
-  });
-  const { data: agentList = [] } = api.workflows.listAgents.useQuery(undefined, {
-    enabled: open,
-  });
+  const { data: providers = [], isLoading: isLoadingProviders } =
+    api.workflows.listProvidersForDropdown.useQuery(undefined, {
+      enabled: open,
+    });
+  const { data: facilities = [], isLoading: isLoadingFacilities } =
+    api.workflows.listFacilitiesForDropdown.useQuery(undefined, {
+      enabled: open,
+    });
+  const { data: agentList = [] } = api.workflows.listAgents.useQuery(
+    undefined,
+    {
+      enabled: open,
+    },
+  );
 
   const createMutation = api.workflows.create.useMutation({
     onSuccess: () => {
@@ -887,7 +1138,7 @@ function AddWorkflowDialog() {
     setProviderId("");
     setFacilityId("");
     setWorkflowType("pfc");
-    
+
     // Reset PFC
     setFacilityType("");
     setPrivileges("");
@@ -918,18 +1169,24 @@ function AddWorkflowDialog() {
     // Reset Vesta Privs
     setVestaPrivilegeTier("In Progress");
 
-    setPhases(PFC_PHASES.map((name) => ({
+    setPhases(
+      PFC_PHASES.map((name) => ({
         phaseName: name,
         startDate: new Date().toISOString().split("T")[0]!,
         dueDate: "",
         status: "Pending",
         agentAssigned: "",
         workflowNotes: "",
-    })));
+      })),
+    );
   }
 
   function handleCreate() {
-    const needsProvider = ["pfc", "state_licenses", "provider_vesta_privileges"].includes(workflowType);
+    const needsProvider = [
+      "pfc",
+      "state_licenses",
+      "provider_vesta_privileges",
+    ].includes(workflowType);
     const needsFacility = ["pfc", "prelive_pipeline"].includes(workflowType);
 
     if (needsProvider && !providerId) {
@@ -946,100 +1203,193 @@ function AddWorkflowDialog() {
       workflowType,
       providerId: needsProvider ? providerId : undefined,
       facilityId: needsFacility ? facilityId : undefined,
-      phases: phases.map(p => ({
+      phases: phases.map((p) => ({
         ...p,
         dueDate: p.dueDate || undefined,
         agentAssigned: p.agentAssigned || undefined,
-        workflowNotes: p.workflowNotes || undefined
+        workflowNotes: p.workflowNotes || undefined,
       })),
 
       // PFC Data
-      facilityType: workflowType === "pfc" ? facilityType || undefined : undefined,
+      facilityType:
+        workflowType === "pfc" ? facilityType || undefined : undefined,
       privileges: workflowType === "pfc" ? privileges || undefined : undefined,
       priority: workflowType === "pfc" ? priority || undefined : undefined,
-      applicationRequired: workflowType === "pfc" ? applicationRequired : undefined,
+      applicationRequired:
+        workflowType === "pfc" ? applicationRequired : undefined,
       pfcNotes: workflowType === "pfc" ? pfcNotes || undefined : undefined,
 
       // State License Data
-      licenseState: workflowType === "state_licenses" ? licenseState || undefined : undefined,
-      licenseStatus: workflowType === "state_licenses" ? licenseStatus || undefined : undefined,
-      licensePath: workflowType === "state_licenses" ? licensePath || undefined : undefined,
-      licensePriority: workflowType === "state_licenses" ? licensePriority || undefined : undefined,
-      licenseNotes: workflowType === "state_licenses" ? licenseNotes || undefined : undefined,
-      licenseInitialOrRenewal: workflowType === "state_licenses" ? licenseInitialOrRenewal : undefined,
-      licenseEmailSubjectOrTicketNum: workflowType === "state_licenses" ? licenseEmailSubject || undefined : undefined,
-      licenseNumber: workflowType === "state_licenses" ? licenseNumber || undefined : undefined,
+      licenseState:
+        workflowType === "state_licenses"
+          ? licenseState || undefined
+          : undefined,
+      licenseStatus:
+        workflowType === "state_licenses"
+          ? licenseStatus || undefined
+          : undefined,
+      licensePath:
+        workflowType === "state_licenses"
+          ? licensePath || undefined
+          : undefined,
+      licensePriority:
+        workflowType === "state_licenses"
+          ? licensePriority || undefined
+          : undefined,
+      licenseNotes:
+        workflowType === "state_licenses"
+          ? licenseNotes || undefined
+          : undefined,
+      licenseInitialOrRenewal:
+        workflowType === "state_licenses" ? licenseInitialOrRenewal : undefined,
+      licenseEmailSubjectOrTicketNum:
+        workflowType === "state_licenses"
+          ? licenseEmailSubject || undefined
+          : undefined,
+      licenseNumber:
+        workflowType === "state_licenses"
+          ? licenseNumber || undefined
+          : undefined,
 
       // Pre-Live Pipeline Data
-      prelivePriority: workflowType === "prelive_pipeline" ? prelivePriority || undefined : undefined,
-      preliveGoLiveDate: workflowType === "prelive_pipeline" ? preliveGoLiveDate || undefined : undefined,
-      preliveCredentialingDueDate: workflowType === "prelive_pipeline" ? preliveCredentialingDueDate || undefined : undefined,
-      preliveTempsPossible: workflowType === "prelive_pipeline" ? preliveTempsPossible : undefined,
-      prelivePayorEnrollmentRequired: workflowType === "prelive_pipeline" ? prelivePayorEnrollmentRequired : undefined,
-      preliveMedicalDirectorNeeded: workflowType === "prelive_pipeline" ? preliveMedicalDirectorNeeded : undefined,
-      preliveRsoNeeded: workflowType === "prelive_pipeline" ? preliveRsoNeeded : undefined,
-      preliveLipNeeded: workflowType === "prelive_pipeline" ? preliveLipNeeded : undefined,
+      prelivePriority:
+        workflowType === "prelive_pipeline"
+          ? prelivePriority || undefined
+          : undefined,
+      preliveGoLiveDate:
+        workflowType === "prelive_pipeline"
+          ? preliveGoLiveDate || undefined
+          : undefined,
+      preliveCredentialingDueDate:
+        workflowType === "prelive_pipeline"
+          ? preliveCredentialingDueDate || undefined
+          : undefined,
+      preliveTempsPossible:
+        workflowType === "prelive_pipeline" ? preliveTempsPossible : undefined,
+      prelivePayorEnrollmentRequired:
+        workflowType === "prelive_pipeline"
+          ? prelivePayorEnrollmentRequired
+          : undefined,
+      preliveMedicalDirectorNeeded:
+        workflowType === "prelive_pipeline"
+          ? preliveMedicalDirectorNeeded
+          : undefined,
+      preliveRsoNeeded:
+        workflowType === "prelive_pipeline" ? preliveRsoNeeded : undefined,
+      preliveLipNeeded:
+        workflowType === "prelive_pipeline" ? preliveLipNeeded : undefined,
 
       // Vesta Privileges Data
-      vestaPrivilegeTier: workflowType === "provider_vesta_privileges" ? vestaPrivilegeTier : undefined,
+      vestaPrivilegeTier:
+        workflowType === "provider_vesta_privileges"
+          ? vestaPrivilegeTier
+          : undefined,
     });
   }
 
   return (
-    <Dialog open={open} onOpenChange={(next) => {
-      setOpen(next);
-      if (!next) resetForm();
-    }}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) resetForm();
+      }}
+    >
       <DialogTrigger asChild>
         <Button className="gap-2">
           <Plus className="size-4" /> Add Workflow
         </Button>
       </DialogTrigger>
 
-      <ModalContent className="sm:max-w-2xl overflow-visible">
+      <ModalContent className="overflow-visible sm:max-w-2xl">
         <ModalHeader>
           <ModalTitle>Start Credentialing Process</ModalTitle>
         </ModalHeader>
-        
-        <div className="space-y-6 py-4 max-h-[75vh] overflow-y-auto px-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-          
+
+        <div className="max-h-[75vh] space-y-6 overflow-y-auto px-1 py-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {/* Workflow Type Selector */}
           <div className="space-y-1.5 px-1">
             <Label>Workflow Type</Label>
-            <Select value={workflowType} onValueChange={(v: "pfc" | "state_licenses" | "prelive_pipeline" | "provider_vesta_privileges") => setWorkflowType(v)}>
+            <Select
+              value={workflowType}
+              onValueChange={(
+                v:
+                  | "pfc"
+                  | "state_licenses"
+                  | "prelive_pipeline"
+                  | "provider_vesta_privileges",
+              ) => setWorkflowType(v)}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="pfc">Provider Facility Credentials (PFC)</SelectItem>
+                <SelectItem value="pfc">
+                  Provider Facility Credentials (PFC)
+                </SelectItem>
                 <SelectItem value="state_licenses">State Licenses</SelectItem>
-                <SelectItem value="prelive_pipeline">Pre-Live Pipeline</SelectItem>
-                <SelectItem value="provider_vesta_privileges">Vesta Privileges</SelectItem>
+                <SelectItem value="prelive_pipeline">
+                  Pre-Live Pipeline
+                </SelectItem>
+                <SelectItem value="provider_vesta_privileges">
+                  Vesta Privileges
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           {/* Identifiers */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-1">
-            {(workflowType === "pfc" || workflowType === "provider_vesta_privileges") && (
-              <div className="space-y-1.5 flex flex-col">
+          <div className="grid grid-cols-1 gap-4 px-1 sm:grid-cols-2">
+            {(workflowType === "pfc" ||
+              workflowType === "provider_vesta_privileges") && (
+              <div className="flex flex-col space-y-1.5">
                 <Label>Provider *</Label>
-                <Popover modal={true} open={openProvider} onOpenChange={setOpenProvider}>
+                <Popover
+                  modal={true}
+                  open={openProvider}
+                  onOpenChange={setOpenProvider}
+                >
                   <PopoverTrigger asChild>
-                    <Button variant="outline" role="combobox" className="justify-between font-normal w-full" disabled={isLoadingProviders}>
-                      <span className="truncate">{providerId ? providers.find(p => p.id === providerId)?.name : "Search..."}</span>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      className="w-full justify-between font-normal"
+                      disabled={isLoadingProviders}
+                    >
+                      <span className="truncate">
+                        {providerId
+                          ? providers.find((p) => p.id === providerId)?.name
+                          : "Search..."}
+                      </span>
                       <ArrowUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <PopoverContent
+                    className="w-[--radix-popover-trigger-width] p-0"
+                    align="start"
+                  >
                     <Command>
                       <CommandInput placeholder="Search name..." />
                       <CommandList>
                         <CommandEmpty>No providers found.</CommandEmpty>
                         <CommandGroup>
                           {providers.map((p) => (
-                            <CommandItem key={p.id} value={p.name} onSelect={() => { setProviderId(p.id); setOpenProvider(false); }}>
-                              <CheckCircle2 className={cn("mr-2 h-4 w-4", providerId === p.id ? "opacity-100" : "opacity-0")} />
+                            <CommandItem
+                              key={p.id}
+                              value={p.name}
+                              onSelect={() => {
+                                setProviderId(p.id);
+                                setOpenProvider(false);
+                              }}
+                            >
+                              <CheckCircle2
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  providerId === p.id
+                                    ? "opacity-100"
+                                    : "opacity-0",
+                                )}
+                              />
                               {p.name}
                             </CommandItem>
                           ))}
@@ -1051,25 +1401,56 @@ function AddWorkflowDialog() {
               </div>
             )}
 
-            {(workflowType === "pfc" || workflowType === "prelive_pipeline") && (
-              <div className="space-y-1.5 flex flex-col">
+            {(workflowType === "pfc" ||
+              workflowType === "prelive_pipeline") && (
+              <div className="flex flex-col space-y-1.5">
                 <Label>Facility *</Label>
-                <Popover modal={true} open={openFacility} onOpenChange={setOpenFacility}>
+                <Popover
+                  modal={true}
+                  open={openFacility}
+                  onOpenChange={setOpenFacility}
+                >
                   <PopoverTrigger asChild>
-                    <Button variant="outline" role="combobox" className="justify-between font-normal w-full" disabled={isLoadingFacilities}>
-                      <span className="truncate">{facilityId ? facilities.find(f => f.id === facilityId)?.name : "Search..."}</span>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      className="w-full justify-between font-normal"
+                      disabled={isLoadingFacilities}
+                    >
+                      <span className="truncate">
+                        {facilityId
+                          ? facilities.find((f) => f.id === facilityId)?.name
+                          : "Search..."}
+                      </span>
                       <ArrowUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <PopoverContent
+                    className="w-[--radix-popover-trigger-width] p-0"
+                    align="start"
+                  >
                     <Command>
                       <CommandInput placeholder="Search facility..." />
                       <CommandList>
                         <CommandEmpty>No facilities found.</CommandEmpty>
                         <CommandGroup>
                           {facilities.map((f) => (
-                            <CommandItem key={f.id} value={f.name ?? ""} onSelect={() => { setFacilityId(f.id); setOpenFacility(false); }}>
-                              <CheckCircle2 className={cn("mr-2 h-4 w-4", facilityId === f.id ? "opacity-100" : "opacity-0")} />
+                            <CommandItem
+                              key={f.id}
+                              value={f.name ?? ""}
+                              onSelect={() => {
+                                setFacilityId(f.id);
+                                setOpenFacility(false);
+                              }}
+                            >
+                              <CheckCircle2
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  facilityId === f.id
+                                    ? "opacity-100"
+                                    : "opacity-0",
+                                )}
+                              />
                               {f.name}
                             </CommandItem>
                           ))}
@@ -1083,24 +1464,54 @@ function AddWorkflowDialog() {
 
             {workflowType === "state_licenses" && (
               <>
-                <div className="space-y-1.5 flex flex-col">
+                <div className="flex flex-col space-y-1.5">
                   <Label>Provider *</Label>
-                  <Popover modal={true} open={openProvider} onOpenChange={setOpenProvider}>
+                  <Popover
+                    modal={true}
+                    open={openProvider}
+                    onOpenChange={setOpenProvider}
+                  >
                     <PopoverTrigger asChild>
-                      <Button variant="outline" role="combobox" className="justify-between font-normal w-full" disabled={isLoadingProviders}>
-                        <span className="truncate">{providerId ? providers.find(p => p.id === providerId)?.name : "Search..."}</span>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className="w-full justify-between font-normal"
+                        disabled={isLoadingProviders}
+                      >
+                        <span className="truncate">
+                          {providerId
+                            ? providers.find((p) => p.id === providerId)?.name
+                            : "Search..."}
+                        </span>
                         <ArrowUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <PopoverContent
+                      className="w-[--radix-popover-trigger-width] p-0"
+                      align="start"
+                    >
                       <Command>
                         <CommandInput placeholder="Search name..." />
                         <CommandList>
                           <CommandEmpty>No providers found.</CommandEmpty>
                           <CommandGroup>
                             {providers.map((p) => (
-                              <CommandItem key={p.id} value={p.name} onSelect={() => { setProviderId(p.id); setOpenProvider(false); }}>
-                                <CheckCircle2 className={cn("mr-2 h-4 w-4", providerId === p.id ? "opacity-100" : "opacity-0")} />
+                              <CommandItem
+                                key={p.id}
+                                value={p.name}
+                                onSelect={() => {
+                                  setProviderId(p.id);
+                                  setOpenProvider(false);
+                                }}
+                              >
+                                <CheckCircle2
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    providerId === p.id
+                                      ? "opacity-100"
+                                      : "opacity-0",
+                                  )}
+                                />
                                 {p.name}
                               </CommandItem>
                             ))}
@@ -1113,7 +1524,11 @@ function AddWorkflowDialog() {
 
                 <div className="space-y-1.5">
                   <Label>State *</Label>
-                  <Input value={licenseState} onChange={(e) => setLicenseState(e.target.value)} placeholder="e.g. Florida" />
+                  <Input
+                    value={licenseState}
+                    onChange={(e) => setLicenseState(e.target.value)}
+                    placeholder="e.g. Florida"
+                  />
                 </div>
               </>
             )}
@@ -1123,12 +1538,21 @@ function AddWorkflowDialog() {
 
           <div className="space-y-4">
             <div className="flex items-center justify-between px-1">
-              <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
-                {workflowType === "pfc" ? "Relationship Info" : 
-                workflowType === "state_licenses" ? "License Details" :
-                workflowType === "prelive_pipeline" ? "Pipeline Milestones" : "Vesta Details"}
+              <h4 className="text-muted-foreground text-xs font-bold tracking-widest uppercase">
+                {workflowType === "pfc"
+                  ? "Relationship Info"
+                  : workflowType === "state_licenses"
+                    ? "License Details"
+                    : workflowType === "prelive_pipeline"
+                      ? "Pipeline Milestones"
+                      : "Vesta Details"}
               </h4>
-              <Badge variant="outline" className="text-[10px] font-normal opacity-70">Optional</Badge>
+              <Badge
+                variant="outline"
+                className="text-[10px] font-normal opacity-70"
+              >
+                Optional
+              </Badge>
             </div>
 
             {/* PFC FIELDS */}
@@ -1137,23 +1561,44 @@ function AddWorkflowDialog() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Label>Facility Type</Label>
-                    <Input value={facilityType} onChange={(e) => setFacilityType(e.target.value)} placeholder="e.g. Hospital" />
+                    <Input
+                      value={facilityType}
+                      onChange={(e) => setFacilityType(e.target.value)}
+                      placeholder="e.g. Hospital"
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <Label>Priority</Label>
-                    <Input value={priority} onChange={(e) => setPriority(e.target.value)} placeholder="High/Med/Low" />
+                    <Input
+                      value={priority}
+                      onChange={(e) => setPriority(e.target.value)}
+                      placeholder="High/Med/Low"
+                    />
                   </div>
                   <div className="col-span-2 space-y-1.5">
                     <Label>Privileges</Label>
-                    <Input value={privileges} onChange={(e) => setPrivileges(e.target.value)} placeholder="e.g. Initial" />
+                    <Input
+                      value={privileges}
+                      onChange={(e) => setPrivileges(e.target.value)}
+                      placeholder="e.g. Initial"
+                    />
                   </div>
                 </div>
                 <div className="space-y-1.5">
                   <Label>PFC Notes</Label>
-                  <Textarea rows={2} value={pfcNotes} onChange={(e) => setPfcNotes(e.target.value)} placeholder="Internal notes about this relationship..." />
+                  <Textarea
+                    rows={2}
+                    value={pfcNotes}
+                    onChange={(e) => setPfcNotes(e.target.value)}
+                    placeholder="Internal notes about this relationship..."
+                  />
                 </div>
                 <div className="flex items-center gap-2">
-                  <Checkbox id="appReq" checked={applicationRequired} onCheckedChange={(v) => setApplicationRequired(!!v)} />
+                  <Checkbox
+                    id="appReq"
+                    checked={applicationRequired}
+                    onCheckedChange={(v) => setApplicationRequired(!!v)}
+                  />
                   <Label htmlFor="appReq">Application Required</Label>
                 </div>
               </div>
@@ -1164,17 +1609,32 @@ function AddWorkflowDialog() {
               <div className="space-y-4 px-1">
                 <div className="space-y-1.5">
                   <Label>Current Status</Label>
-                  <Input value={licenseStatus} onChange={(e) => setLicenseStatus(e.target.value)} placeholder="e.g. Pending Compact LOQ" />
+                  <Input
+                    value={licenseStatus}
+                    onChange={(e) => setLicenseStatus(e.target.value)}
+                    placeholder="e.g. Pending Compact LOQ"
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Label>Priority</Label>
-                    <Input value={licensePriority} onChange={(e) => setLicensePriority(e.target.value)} placeholder="High/Med/Low" />
+                    <Input
+                      value={licensePriority}
+                      onChange={(e) => setLicensePriority(e.target.value)}
+                      placeholder="High/Med/Low"
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <Label>Type</Label>
-                    <Select value={licenseInitialOrRenewal} onValueChange={(v: "initial" | "renewal") => setLicenseInitialOrRenewal(v)}>
-                      <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                    <Select
+                      value={licenseInitialOrRenewal}
+                      onValueChange={(v: "initial" | "renewal") =>
+                        setLicenseInitialOrRenewal(v)
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select..." />
+                      </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="initial">Initial</SelectItem>
                         <SelectItem value="renewal">Renewal</SelectItem>
@@ -1183,20 +1643,37 @@ function AddWorkflowDialog() {
                   </div>
                   <div className="space-y-1.5">
                     <Label>Email / Ticket #</Label>
-                    <Input value={licenseEmailSubject} onChange={(e) => setLicenseEmailSubject(e.target.value)} placeholder="Ref number" />
+                    <Input
+                      value={licenseEmailSubject}
+                      onChange={(e) => setLicenseEmailSubject(e.target.value)}
+                      placeholder="Ref number"
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <Label>License #</Label>
-                    <Input value={licenseNumber} onChange={(e) => setLicenseNumber(e.target.value)} placeholder="If known" />
+                    <Input
+                      value={licenseNumber}
+                      onChange={(e) => setLicenseNumber(e.target.value)}
+                      placeholder="If known"
+                    />
                   </div>
                 </div>
                 <div className="space-y-1.5">
                   <Label>Path / URL</Label>
-                  <Input value={licensePath} onChange={(e) => setLicensePath(e.target.value)} placeholder="e.g. via Medical Board" />
+                  <Input
+                    value={licensePath}
+                    onChange={(e) => setLicensePath(e.target.value)}
+                    placeholder="e.g. via Medical Board"
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label>License Notes</Label>
-                  <Textarea rows={2} value={licenseNotes} onChange={(e) => setLicenseNotes(e.target.value)} placeholder="Any specific state requirements..." />
+                  <Textarea
+                    rows={2}
+                    value={licenseNotes}
+                    onChange={(e) => setLicenseNotes(e.target.value)}
+                    placeholder="Any specific state requirements..."
+                  />
                 </div>
               </div>
             )}
@@ -1207,38 +1684,86 @@ function AddWorkflowDialog() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Label>Target Go-Live</Label>
-                    <Input type="date" value={preliveGoLiveDate} onChange={(e) => setPreliveGoLiveDate(e.target.value)} />
+                    <Input
+                      type="date"
+                      value={preliveGoLiveDate}
+                      onChange={(e) => setPreliveGoLiveDate(e.target.value)}
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <Label>Credentialing Due</Label>
-                    <Input type="date" value={preliveCredentialingDueDate} onChange={(e) => setPreliveCredentialingDueDate(e.target.value)} />
+                    <Input
+                      type="date"
+                      value={preliveCredentialingDueDate}
+                      onChange={(e) =>
+                        setPreliveCredentialingDueDate(e.target.value)
+                      }
+                    />
                   </div>
-                  <div className="space-y-1.5 col-span-2">
+                  <div className="col-span-2 space-y-1.5">
                     <Label>Priority</Label>
-                    <Input value={prelivePriority} onChange={(e) => setPrelivePriority(e.target.value)} placeholder="High/Med/Low" />
+                    <Input
+                      value={prelivePriority}
+                      onChange={(e) => setPrelivePriority(e.target.value)}
+                      placeholder="High/Med/Low"
+                    />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-y-3 pt-2">
                   <div className="flex items-center gap-2">
-                    <Checkbox id="temps" checked={preliveTempsPossible} onCheckedChange={(v) => setPreliveTempsPossible(!!v)} />
-                    <Label htmlFor="temps" className="text-sm">Temps Possible</Label>
+                    <Checkbox
+                      id="temps"
+                      checked={preliveTempsPossible}
+                      onCheckedChange={(v) => setPreliveTempsPossible(!!v)}
+                    />
+                    <Label htmlFor="temps" className="text-sm">
+                      Temps Possible
+                    </Label>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Checkbox id="payor" checked={prelivePayorEnrollmentRequired} onCheckedChange={(v) => setPrelivePayorEnrollmentRequired(!!v)} />
-                    <Label htmlFor="payor" className="text-sm">Payor Enrollment</Label>
+                    <Checkbox
+                      id="payor"
+                      checked={prelivePayorEnrollmentRequired}
+                      onCheckedChange={(v) =>
+                        setPrelivePayorEnrollmentRequired(!!v)
+                      }
+                    />
+                    <Label htmlFor="payor" className="text-sm">
+                      Payor Enrollment
+                    </Label>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Checkbox id="director" checked={preliveMedicalDirectorNeeded} onCheckedChange={(v) => setPreliveMedicalDirectorNeeded(!!v)} />
-                    <Label htmlFor="director" className="text-sm">Med Director Needed</Label>
+                    <Checkbox
+                      id="director"
+                      checked={preliveMedicalDirectorNeeded}
+                      onCheckedChange={(v) =>
+                        setPreliveMedicalDirectorNeeded(!!v)
+                      }
+                    />
+                    <Label htmlFor="director" className="text-sm">
+                      Med Director Needed
+                    </Label>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Checkbox id="rso" checked={preliveRsoNeeded} onCheckedChange={(v) => setPreliveRsoNeeded(!!v)} />
-                    <Label htmlFor="rso" className="text-sm">RSO Needed</Label>
+                    <Checkbox
+                      id="rso"
+                      checked={preliveRsoNeeded}
+                      onCheckedChange={(v) => setPreliveRsoNeeded(!!v)}
+                    />
+                    <Label htmlFor="rso" className="text-sm">
+                      RSO Needed
+                    </Label>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Checkbox id="lip" checked={preliveLipNeeded} onCheckedChange={(v) => setPreliveLipNeeded(!!v)} />
-                    <Label htmlFor="lip" className="text-sm">LIP Needed</Label>
+                    <Checkbox
+                      id="lip"
+                      checked={preliveLipNeeded}
+                      onCheckedChange={(v) => setPreliveLipNeeded(!!v)}
+                    />
+                    <Label htmlFor="lip" className="text-sm">
+                      LIP Needed
+                    </Label>
                   </div>
                 </div>
               </div>
@@ -1249,8 +1774,15 @@ function AddWorkflowDialog() {
               <div className="space-y-4 px-1">
                 <div className="space-y-1.5">
                   <Label>Initial Privilege Tier</Label>
-                  <Select value={vestaPrivilegeTier} onValueChange={(v: "Inactive" | "Full" | "Temp" | "In Progress") => setVestaPrivilegeTier(v)}>
-                    <SelectTrigger><SelectValue placeholder="Select Tier..." /></SelectTrigger>
+                  <Select
+                    value={vestaPrivilegeTier}
+                    onValueChange={(
+                      v: "Inactive" | "Full" | "Temp" | "In Progress",
+                    ) => setVestaPrivilegeTier(v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select Tier..." />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="In Progress">In Progress</SelectItem>
                       <SelectItem value="Temp">Temp</SelectItem>
@@ -1268,70 +1800,149 @@ function AddWorkflowDialog() {
           {/* Workflow Phases with Accordion */}
           <div className="space-y-4 px-1">
             <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Configure Workflow Phases</h4>
-              <Button variant="outline" size="sm" onClick={addPhase} className="h-7 text-xs">
-                <Plus className="size-3 mr-1" /> Add Phase
+              <h4 className="text-muted-foreground text-xs font-bold tracking-widest uppercase">
+                Configure Workflow Phases
+              </h4>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={addPhase}
+                className="h-7 text-xs"
+              >
+                <Plus className="mr-1 size-3" /> Add Phase
               </Button>
             </div>
-            <Accordion type="single" collapsible className="w-full border rounded-md overflow-hidden bg-background">
-              {(phases && phases.length > 0) ? phases.map((phase, index) => (
-                <AccordionItem key={index} value={`phase-${index}`} className="px-3 border-b last:border-b-0 w-full">
-                  <div className="w-full flex items-center gap-2 [&>h3]:flex-1">
-                    <AccordionTrigger className="hover:no-underline py-3 flex-1 w-full">
-                      <div className="flex items-center gap-3">
-                        <Badge variant="secondary" className="h-5 w-5 flex items-center justify-center p-0 rounded-full">{index + 1}</Badge>
-                        <span className="font-medium text-sm">{phase.phaseName}</span>
-                      </div>
-                    </AccordionTrigger>
-                    
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-8 w-8 text-destructive hover:bg-destructive/10 shrink-0" 
-                      onClick={() => removePhase(index)}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  </div>
+            <Accordion
+              type="single"
+              collapsible
+              className="bg-background w-full overflow-hidden rounded-md border"
+            >
+              {phases && phases.length > 0 ? (
+                phases.map((phase, index) => (
+                  <AccordionItem
+                    key={index}
+                    value={`phase-${index}`}
+                    className="w-full border-b px-3 last:border-b-0"
+                  >
+                    <div className="flex w-full items-center gap-2 [&>h3]:flex-1">
+                      <AccordionTrigger className="w-full flex-1 py-3 hover:no-underline">
+                        <div className="flex items-center gap-3">
+                          <Badge
+                            variant="secondary"
+                            className="flex h-5 w-5 items-center justify-center rounded-full p-0"
+                          >
+                            {index + 1}
+                          </Badge>
+                          <span className="text-sm font-medium">
+                            {phase.phaseName}
+                          </span>
+                        </div>
+                      </AccordionTrigger>
 
-                  <AccordionContent className="pb-4 space-y-4 pt-1">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <Label className="text-[11px] uppercase">Phase Name</Label>
-                        <Input size={1} value={phase.phaseName} onChange={(e) => updatePhase(index, 'phaseName', e.target.value)} />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-[11px] uppercase">Status</Label>
-                        <Input size={1} value={phase.status} onChange={(e) => updatePhase(index, 'status', e.target.value)} />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-[11px] uppercase">Start Date</Label>
-                        <Input type="date" value={phase.startDate} onChange={(e) => updatePhase(index, 'startDate', e.target.value)} />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-[11px] uppercase">Due Date</Label>
-                        <Input type="date" value={phase.dueDate} onChange={(e) => updatePhase(index, 'dueDate', e.target.value)} />
-                      </div>
-                      <div className="col-span-2 space-y-1.5">
-                        <Label className="text-[11px] uppercase">Assign Agent</Label>
-                        <Select value={phase.agentAssigned} onValueChange={(v) => updatePhase(index, 'agentAssigned', v)}>
-                          <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
-                          <SelectContent>
-                            {agentList.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive hover:bg-destructive/10 h-8 w-8 shrink-0"
+                        onClick={() => removePhase(index)}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
                     </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-[11px] uppercase">Phase Notes</Label>
-                      <Textarea rows={2} value={phase.workflowNotes} onChange={(e) => updatePhase(index, 'workflowNotes', e.target.value)} />
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-              )) : (
+
+                    <AccordionContent className="space-y-4 pt-1 pb-4">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-[11px] uppercase">
+                            Phase Name
+                          </Label>
+                          <Input
+                            size={1}
+                            value={phase.phaseName}
+                            onChange={(e) =>
+                              updatePhase(index, "phaseName", e.target.value)
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-[11px] uppercase">
+                            Status
+                          </Label>
+                          <Input
+                            size={1}
+                            value={phase.status}
+                            onChange={(e) =>
+                              updatePhase(index, "status", e.target.value)
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-[11px] uppercase">
+                            Start Date
+                          </Label>
+                          <Input
+                            type="date"
+                            value={phase.startDate}
+                            onChange={(e) =>
+                              updatePhase(index, "startDate", e.target.value)
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-[11px] uppercase">
+                            Due Date
+                          </Label>
+                          <Input
+                            type="date"
+                            value={phase.dueDate}
+                            onChange={(e) =>
+                              updatePhase(index, "dueDate", e.target.value)
+                            }
+                          />
+                        </div>
+                        <div className="col-span-2 space-y-1.5">
+                          <Label className="text-[11px] uppercase">
+                            Assign Agent
+                          </Label>
+                          <Select
+                            value={phase.agentAssigned}
+                            onValueChange={(v) =>
+                              updatePhase(index, "agentAssigned", v)
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Unassigned" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {agentList.map((a) => (
+                                <SelectItem key={a.id} value={a.id}>
+                                  {a.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[11px] uppercase">
+                          Phase Notes
+                        </Label>
+                        <Textarea
+                          rows={2}
+                          value={phase.workflowNotes}
+                          onChange={(e) =>
+                            updatePhase(index, "workflowNotes", e.target.value)
+                          }
+                        />
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                ))
+              ) : (
                 <div className="rounded-md border border-dashed p-8 text-center">
-                  <AlertTriangle className="mx-auto size-8 text-muted-foreground/50" />
-                  <p className="mt-2 text-sm text-muted-foreground">No phases added yet.</p>
+                  <AlertTriangle className="text-muted-foreground/50 mx-auto size-8" />
+                  <p className="text-muted-foreground mt-2 text-sm">
+                    No phases added yet.
+                  </p>
                 </div>
               )}
             </Accordion>
@@ -1342,16 +1953,22 @@ function AddWorkflowDialog() {
           <DialogClose asChild>
             <Button variant="outline">Cancel</Button>
           </DialogClose>
-          <Button 
-            onClick={handleCreate} 
-           disabled={
-              createMutation.isPending || 
-              (["pfc", "state_licenses", "provider_vesta_privileges"].includes(workflowType) && !providerId) ||
-              (["pfc", "prelive_pipeline"].includes(workflowType) && !facilityId) ||
+          <Button
+            onClick={handleCreate}
+            disabled={
+              createMutation.isPending ||
+              (["pfc", "state_licenses", "provider_vesta_privileges"].includes(
+                workflowType,
+              ) &&
+                !providerId) ||
+              (["pfc", "prelive_pipeline"].includes(workflowType) &&
+                !facilityId) ||
               (workflowType === "state_licenses" && !licenseState)
             }
           >
-            {createMutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
+            {createMutation.isPending && (
+              <Loader2 className="mr-2 size-4 animate-spin" />
+            )}
             Create Workflow
           </Button>
         </ModalFooter>
@@ -1365,45 +1982,55 @@ function AddWorkflowDialog() {
 export default function WorkflowsClient() {
   const utils = api.useUtils();
 
-  // Filter state
   const [workflowType, setWorkflowType] = useState<string>("all");
-  const [status, setStatus] = useState<string>("all");
-  const [assignedToMe, setAssignedToMe] = useState(false);
-  const [assignedToAgent, setAssignedToAgent] = useState<string>("all");
-  const [hasIncidents, setHasIncidents] = useState(false);
+  const [agentFilter, setAgentFilter] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<string>("date_assigned_desc");
   const [search, setSearch] = useState("");
-  const [offset, setOffset] = useState(0);
-  const limit = 40;
-
-  // Selected workflow for detail sheet
+  const [currentPage, setCurrentPage] = useState(1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
-  const { data: workflows = [], isLoading, isFetching } = api.workflows.list.useQuery(
+  const {
+    data: workflows = [],
+    isLoading,
+    isFetching,
+  } = api.workflows.list.useQuery(
     {
-      workflowType: workflowType as "all" | "pfc" | "state_licenses" | "prelive_pipeline" | "provider_vesta_privileges",
-      status: status === "all" ? undefined : status,
-      assignedToMe,
-      assignedToAgent: assignedToAgent !== "all" ? assignedToAgent : undefined,
-      hasIncidents,
-      search: search.trim() || undefined,
-      limit,
-      offset,
+      workflowType: workflowType as
+        | "all"
+        | "pfc"
+        | "state_licenses"
+        | "prelive_pipeline"
+        | "provider_vesta_privileges",
+      assignedToMe: agentFilter === "__me__",
+      assignedToAgent:
+        agentFilter !== "all" && agentFilter !== "__me__"
+          ? agentFilter
+          : undefined,
+      limit: WORKFLOW_FETCH_LIMIT,
+      offset: 0,
     },
     { refetchOnWindowFocus: false },
   );
 
   const { data: agentList = [] } = api.workflows.listAgents.useQuery();
-  const { data: dbStatuses = [] } = api.workflows.distinctStatuses.useQuery(
-    { workflowType: workflowType as "all" | "pfc" | "state_licenses" | "prelive_pipeline" | "provider_vesta_privileges" },
-  );
+  const { data: dbStatuses = [] } = api.workflows.distinctStatuses.useQuery({
+    workflowType: workflowType as
+      | "all"
+      | "pfc"
+      | "state_licenses"
+      | "prelive_pipeline"
+      | "provider_vesta_privileges",
+  });
 
-  // Merge DB statuses with defaults so the filter/suggestions always have useful options
   const statusSuggestions: string[] = useMemo(() => {
     const safeStatuses: string[] = Array.isArray(dbStatuses)
       ? (dbStatuses as unknown[]).map((s) => String(s))
       : [];
-    const merged = new Set<string>([...safeStatuses, ...DEFAULT_STATUS_SUGGESTIONS]);
+    const merged = new Set<string>([
+      ...safeStatuses,
+      ...DEFAULT_STATUS_SUGGESTIONS,
+    ]);
     return [...merged].sort();
   }, [dbStatuses]);
 
@@ -1415,9 +2042,6 @@ export default function WorkflowsClient() {
     onError: (e) => toast.error(String(e.message)),
   });
 
-  const hasMore = workflows.length === limit;
-
-  // ── Group flat phases by parent workflow (relatedId + workflowType) ──
   const groupedWorkflows = useMemo(() => {
     const groups = new Map<
       string,
@@ -1431,6 +2055,8 @@ export default function WorkflowsClient() {
         totalCount: number;
         incidentCount: number;
         latestUpdate: string | Date | null;
+        latestStartDate: string | Date | null;
+        latestAssignedDate: string | Date | null;
         hasOverdue: boolean;
         hasBlocked: boolean;
       }
@@ -1442,12 +2068,13 @@ export default function WorkflowsClient() {
       const isDone = [
         statusLower.includes("complet"),
         statusLower === "done",
-        statusLower === "approved"
+        statusLower === "approved",
       ].some(Boolean);
       const isOverdue =
         !!wf.dueDate && new Date(String(wf.dueDate)) < new Date() && !isDone;
       const isBlocked = statusLower === "blocked";
-      const phaseIncidents = typeof wf.incidentCount === "number" ? wf.incidentCount : 0;
+      const phaseIncidents =
+        typeof wf.incidentCount === "number" ? wf.incidentCount : 0;
 
       const existing = groups.get(key);
       if (existing) {
@@ -1457,6 +2084,22 @@ export default function WorkflowsClient() {
         if (isDone) existing.completedCount++;
         if (isOverdue) existing.hasOverdue = true;
         if (isBlocked) existing.hasBlocked = true;
+        if (
+          wf.startDate &&
+          (!existing.latestStartDate ||
+            new Date(String(wf.startDate)) >
+              new Date(String(existing.latestStartDate)))
+        ) {
+          existing.latestStartDate = wf.startDate;
+        }
+        if (
+          wf.createdAt &&
+          (!existing.latestAssignedDate ||
+            new Date(String(wf.createdAt)) >
+              new Date(String(existing.latestAssignedDate)))
+        ) {
+          existing.latestAssignedDate = wf.createdAt;
+        }
         if (
           wf.updatedAt &&
           (!existing.latestUpdate ||
@@ -1476,22 +2119,83 @@ export default function WorkflowsClient() {
           totalCount: 1,
           incidentCount: phaseIncidents,
           latestUpdate: wf.updatedAt,
+          latestStartDate: wf.startDate,
+          latestAssignedDate: wf.createdAt,
           hasOverdue: isOverdue,
           hasBlocked: isBlocked,
         });
       }
     }
 
-    return Array.from(groups.values()).sort((a, b) => {
-      const aTime = a.latestUpdate
-        ? new Date(a.latestUpdate as string).getTime()
-        : 0;
-      const bTime = b.latestUpdate
-        ? new Date(b.latestUpdate as string).getTime()
-        : 0;
-      return bTime - aTime;
-    });
+    return Array.from(groups.values());
   }, [workflows]);
+
+  const filteredWorkflows = useMemo(() => {
+    const trimmedSearch = search.trim().toLowerCase();
+
+    const matchingGroups = trimmedSearch
+      ? groupedWorkflows.filter((group) => {
+          const matchesContext = group.contextLabel
+            .toLowerCase()
+            .includes(trimmedSearch);
+          const matchesType = (
+            WORKFLOW_TYPE_LABELS[group.workflowType] ?? group.workflowType
+          )
+            .toLowerCase()
+            .includes(trimmedSearch);
+          const matchesPhase = group.phases.some((phase) => {
+            const phaseName = String(phase.phaseName ?? "").toLowerCase();
+            const assignedName = String(phase.assignedName ?? "").toLowerCase();
+            return (
+              phaseName.includes(trimmedSearch) ||
+              assignedName.includes(trimmedSearch)
+            );
+          });
+
+          return matchesContext || matchesType || matchesPhase;
+        })
+      : groupedWorkflows;
+
+    const getTimestamp = (value: string | Date | null) =>
+      value ? new Date(value).getTime() : 0;
+
+    return [...matchingGroups].sort((a, b) => {
+      const aStarted = getTimestamp(a.latestStartDate);
+      const bStarted = getTimestamp(b.latestStartDate);
+      const aAssigned = getTimestamp(a.latestAssignedDate);
+      const bAssigned = getTimestamp(b.latestAssignedDate);
+
+      if (sortBy === "date_started_asc") return aStarted - bStarted;
+      if (sortBy === "date_started_desc") return bStarted - aStarted;
+      if (sortBy === "date_assigned_asc") return aAssigned - bAssigned;
+      return bAssigned - aAssigned;
+    });
+  }, [groupedWorkflows, search, sortBy]);
+
+  const filteredPhases = useMemo(
+    () => filteredWorkflows.flatMap((group) => group.phases),
+    [filteredWorkflows],
+  );
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredWorkflows.length / WORKFLOW_PAGE_SIZE),
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [workflowType, agentFilter, search, sortBy]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const paginatedGroups = useMemo(() => {
+    const startIndex = (currentPage - 1) * WORKFLOW_PAGE_SIZE;
+    return filteredWorkflows.slice(startIndex, startIndex + WORKFLOW_PAGE_SIZE);
+  }, [currentPage, filteredWorkflows]);
 
   function toggleGroup(key: string) {
     setExpandedGroups((prev) => {
@@ -1504,38 +2208,19 @@ export default function WorkflowsClient() {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Workflow className="size-6" /> Workflows
-          </h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Manage credentialing workflow phases, track progress, and log incidents.
-          </p>
-        </div>
-
-        <AddWorkflowDialog />
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,1.8fr)_180px_180px_220px_auto]">
+        <div className="relative min-w-0">
+          <Search className="text-muted-foreground absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
           <Input
-            className="pl-9 w-[200px]"
-            placeholder="Search phases…"
+            className="h-10 w-full pl-9"
+            placeholder="Search workflows, phases, or agents…"
             value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setOffset(0);
-            }}
+            onChange={(e) => setSearch(e.target.value)}
           />
         </div>
 
-        <Select value={workflowType} onValueChange={(v) => { setWorkflowType(v); setStatus("all"); setOffset(0); }}>
-          <SelectTrigger className="w-[160px]">
-            <Filter className="size-3.5 mr-1.5 text-muted-foreground" />
+        <Select value={workflowType} onValueChange={setWorkflowType}>
+          <SelectTrigger className="h-10 w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -1543,39 +2228,15 @@ export default function WorkflowsClient() {
             <SelectItem value="pfc">PFC</SelectItem>
             <SelectItem value="state_licenses">State Licenses</SelectItem>
             <SelectItem value="prelive_pipeline">Pre-Live Pipeline</SelectItem>
-            <SelectItem value="provider_vesta_privileges">Vesta Privileges</SelectItem>
+            <SelectItem value="provider_vesta_privileges">
+              Vesta Privileges
+            </SelectItem>
           </SelectContent>
         </Select>
 
-        <Select value={status} onValueChange={(v) => { setStatus(v); setOffset(0); }}>
-          <SelectTrigger className="w-[140px]">
-            <ArrowUpDown className="size-3.5 mr-1.5 text-muted-foreground" />
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            {statusSuggestions.map((s) => (
-              <SelectItem key={s} value={s}>{s}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {/* Assigned-to filter: "All Agents", "My Workflows", or a specific agent */}
-        <Select
-          value={assignedToMe ? "__me__" : assignedToAgent}
-          onValueChange={(v) => {
-            if (v === "__me__") {
-              setAssignedToMe(true);
-              setAssignedToAgent("all");
-            } else {
-              setAssignedToMe(false);
-              setAssignedToAgent(v);
-            }
-            setOffset(0);
-          }}
-        >
-          <SelectTrigger className="w-[170px]">
-            <Users className="size-3.5 mr-1.5 text-muted-foreground" />
+        <Select value={agentFilter} onValueChange={setAgentFilter}>
+          <SelectTrigger className="h-10 w-full">
+            <Users className="text-muted-foreground mr-1.5 size-3.5" />
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -1589,275 +2250,279 @@ export default function WorkflowsClient() {
           </SelectContent>
         </Select>
 
-        <Button
-          variant={hasIncidents ? "default" : "outline"}
-          size="sm"
-          onClick={() => { setHasIncidents(!hasIncidents); setOffset(0); }}
-          className="gap-1.5"
-        >
-          <AlertTriangle className="size-3.5" />
-          {hasIncidents ? "Has Incidents" : "All"}
-        </Button>
-        
-        {isFetching && !isLoading && (
-          <Loader2 className="size-4 animate-spin text-muted-foreground" />
-        )}
+        <Select value={sortBy} onValueChange={setSortBy}>
+          <SelectTrigger className="h-10 w-full">
+            <ArrowUpDown className="text-muted-foreground mr-1.5 size-3.5" />
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="date_assigned_desc">
+              Date Assigned: Newest
+            </SelectItem>
+            <SelectItem value="date_assigned_asc">
+              Date Assigned: Oldest
+            </SelectItem>
+            <SelectItem value="date_started_desc">
+              Date Started: Newest
+            </SelectItem>
+            <SelectItem value="date_started_asc">
+              Date Started: Oldest
+            </SelectItem>
+          </SelectContent>
+        </Select>
+
+        <div className="flex items-center justify-end gap-2">
+          {isFetching && !isLoading && (
+            <Loader2 className="text-muted-foreground size-4 animate-spin" />
+          )}
+          <AddWorkflowDialog />
+        </div>
       </div>
 
-      {/* Grouped Workflow Cards */}
       {isLoading ? (
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="size-6 animate-spin text-muted-foreground" />
+        <div className="flex h-64 items-center justify-center">
+          <Loader2 className="text-muted-foreground size-6 animate-spin" />
         </div>
-      ) : groupedWorkflows.length === 0 ? (
-        <div className="rounded-md border border-dashed bg-muted/20 h-64 flex flex-col items-center justify-center text-center p-8">
-          <Workflow className="size-10 text-muted-foreground/50" />
+      ) : filteredWorkflows.length === 0 ? (
+        <div className="bg-muted/20 flex h-64 flex-col items-center justify-center rounded-md border border-dashed p-8 text-center">
+          <Workflow className="text-muted-foreground/50 size-10" />
           <h3 className="mt-4 text-lg font-semibold">No workflows found</h3>
-          <p className="mt-2 text-sm text-muted-foreground max-w-xs">
-            {search || workflowType !== "all" || status !== "all" || assignedToMe || assignedToAgent !== "all" || hasIncidents
+          <p className="text-muted-foreground mt-2 max-w-xs text-sm">
+            {search || workflowType !== "all" || agentFilter !== "all"
               ? "Try adjusting your filters."
               : "Workflow phases are created when providers are assigned to facilities."}
           </p>
         </div>
       ) : (
-        <>
-          {/* Toolbar: count + expand/collapse */}
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              {String(groupedWorkflows.length)} workflow{groupedWorkflows.length !== 1 ? "s" : ""} ·{" "}
-              {String(workflows.length)} total phase{workflows.length !== 1 ? "s" : ""}
-            </p>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-xs"
-              onClick={() => {
-                if (expandedGroups.size === groupedWorkflows.length) {
-                  setExpandedGroups(new Set());
-                } else {
-                  setExpandedGroups(
-                    new Set(groupedWorkflows.map((g) => String(g.key))),
-                  );
-                }
-              }}
-            >
-              {expandedGroups.size === groupedWorkflows.length
-                ? "Collapse All"
-                : "Expand All"}
-            </Button>
-          </div>
+        <div className="space-y-3">
+          {paginatedGroups.map((group) => {
+            const isExpanded = expandedGroups.has(String(group.key));
+            const progress =
+              group.totalCount > 0
+                ? Math.round((group.completedCount / group.totalCount) * 100)
+                : 0;
 
-          {/* Workflow cards */}
-          <div className="space-y-3">
-            {groupedWorkflows.map((group) => {
-              const isExpanded = expandedGroups.has(String(group.key));
-              const progress =
-                group.totalCount > 0
-                  ? Math.round(
-                      (group.completedCount / group.totalCount) * 100,
-                    )
-                  : 0;
-
-              return (
-                <div
-                  key={group.key}
-                  className="rounded-lg border bg-card overflow-hidden"
+            return (
+              <div
+                key={group.key}
+                className={cn(
+                  "bg-card overflow-hidden rounded-lg border",
+                  WORKFLOW_TYPE_OUTLINE_STYLES[group.workflowType],
+                )}
+              >
+                <button
+                  className="hover:bg-muted/50 w-full p-4 text-left transition-colors"
+                  onClick={() => toggleGroup(String(group.key))}
                 >
-                  {/* ── Card header (click to expand) ── */}
-                  <button
-                    className="w-full flex items-start gap-3 p-4 text-left hover:bg-muted/50 transition-colors"
-                    onClick={() => toggleGroup(String(group.key))}
-                  >
+                  <div className="flex items-start gap-3">
                     <ChevronRight
                       className={cn(
-                        "size-4 mt-0.5 shrink-0 transition-transform duration-200",
+                        "mt-1 size-4 shrink-0 transition-transform duration-200",
                         isExpanded && "rotate-90",
                       )}
                     />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="font-semibold truncate">
-                          {group.contextLabel}
-                        </h3>
-                        <WorkflowTypeBadge type={group.workflowType} />
-                        {group.hasOverdue && (
-                          <Badge className="bg-red-500/15 text-red-600 border-red-500/25 text-[10px] py-0 h-4">
-                            OVERDUE
-                          </Badge>
-                        )}
-                        {group.hasBlocked && (
-                          <Badge className="bg-amber-500/15 text-amber-600 border-amber-500/25 text-[10px] py-0 h-4">
-                            BLOCKED
-                          </Badge>
-                        )}
-                        {group.incidentCount > 0 && (
-                          <Badge className="bg-orange-500/15 text-orange-600 border-orange-500/25 text-[10px] py-0 h-4 gap-0.5">
-                            <AlertTriangle className="size-2.5" />
-                            {group.incidentCount} incident{group.incidentCount !== 1 ? "s" : ""}
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-4 mt-1.5 text-xs text-muted-foreground">
-                        <span>
-                          {group.completedCount}/{group.totalCount} phase
-                          {group.totalCount !== 1 ? "s" : ""} done
-                        </span>
-                        <span>Updated {formatDate(group.latestUpdate ? String(group.latestUpdate) : new Date().toISOString())}</span>
-                      </div>
-                      {/* Progress bar */}
-                      <div className="mt-2 h-1.5 w-full max-w-[200px] rounded-full bg-muted overflow-hidden">
-                        <div
-                          className={cn(
-                            "h-full rounded-full transition-all",
-                            progress === 100
-                              ? "bg-emerald-500"
-                              : "bg-blue-500",
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <p className="text-muted-foreground text-[11px] font-semibold tracking-[0.18em] uppercase">
+                            {WORKFLOW_TYPE_LABELS[group.workflowType] ??
+                              group.workflowType}
+                          </p>
+                          <h3 className="truncate text-base font-semibold">
+                            {group.contextLabel}
+                          </h3>
+                        </div>
+                        <div className="flex flex-wrap justify-start gap-2 sm:max-w-[50%] sm:justify-end">
+                          {group.hasOverdue && (
+                            <Badge className="h-5 border-red-500/25 bg-red-500/15 py-0 text-[10px] text-red-600">
+                              OVERDUE
+                            </Badge>
                           )}
-                          style={{ width: `${progress}%` }}
-                        />
+                          {group.hasBlocked && (
+                            <Badge className="h-5 border-amber-500/25 bg-amber-500/15 py-0 text-[10px] text-amber-600">
+                              BLOCKED
+                            </Badge>
+                          )}
+                          {group.incidentCount > 0 && (
+                            <Badge className="h-5 gap-1 border-orange-500/25 bg-orange-500/15 py-0 text-[10px] text-orange-600">
+                              <AlertTriangle className="size-2.5" />
+                              {group.incidentCount} incident
+                              {group.incidentCount !== 1 ? "s" : ""}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="mt-3 flex items-center gap-3">
+                        <div className="bg-muted h-2 flex-1 overflow-hidden rounded-full">
+                          <div
+                            className={cn(
+                              "h-full rounded-full transition-all",
+                              progress === 100
+                                ? "bg-emerald-500"
+                                : "bg-blue-500",
+                            )}
+                            style={{ width: `${progress}%` }}
+                          />
+                        </div>
+                        <span className="text-muted-foreground shrink-0 text-xs">
+                          {group.completedCount}/{group.totalCount} phase
+                          {group.totalCount !== 1 ? "s" : ""} done · Updated{" "}
+                          {formatDate(
+                            group.latestUpdate
+                              ? String(group.latestUpdate)
+                              : undefined,
+                          )}
+                        </span>
                       </div>
                     </div>
-                  </button>
+                  </div>
+                </button>
 
-                  {/* ── Expanded phase list ── */}
-                  {isExpanded && (
-                    <div className="border-t">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Phase</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Assigned</TableHead>
-                            <TableHead>Start</TableHead>
-                            <TableHead>Due</TableHead>
-                            <TableHead className="text-right">
-                              Updated
-                            </TableHead>
+                {isExpanded && (
+                  <div className="border-t">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Phase</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Assigned</TableHead>
+                          <TableHead>Start</TableHead>
+                          <TableHead>Due</TableHead>
+                          <TableHead className="text-right">Updated</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {group.phases.map((phase) => (
+                          <TableRow
+                            key={phase.id}
+                            className="hover:bg-muted/50 cursor-pointer"
+                            onClick={() => setSelectedId(String(phase.id))}
+                          >
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-1.5">
+                                {String(phase.phaseName)}
+                                <ChevronRight className="text-muted-foreground size-3" />
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <StatusBadge status={phase.status} />
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {phase.assignedName ? (
+                                <>
+                                  {phase.assignedName}
+                                  {phase.supportingAgentIds.length > 0 && (
+                                    <span className="ml-1 text-[10px] opacity-60">
+                                      +{phase.supportingAgentIds.length}
+                                    </span>
+                                  )}
+                                </>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 gap-1 px-1.5 text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400"
+                                  disabled={selfAssignMutation.isPending}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    selfAssignMutation.mutate({
+                                      id: String(phase.id),
+                                    });
+                                  }}
+                                >
+                                  <UserPlus className="size-3" /> Claim
+                                </Button>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground text-xs">
+                              {formatDate(
+                                phase.startDate
+                                  ? String(phase.startDate)
+                                  : undefined,
+                              )}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground text-xs">
+                              {phase.dueDate ? (
+                                <span
+                                  className={
+                                    new Date(String(phase.dueDate)) <
+                                      new Date() &&
+                                    !(phase.status ?? "")
+                                      .toLowerCase()
+                                      .includes("complet")
+                                      ? "font-medium text-red-500"
+                                      : ""
+                                  }
+                                >
+                                  {formatDate(String(phase.dueDate))}
+                                </span>
+                              ) : (
+                                "—"
+                              )}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground text-right text-xs">
+                              {formatDate(
+                                phase.updatedAt
+                                  ? String(phase.updatedAt)
+                                  : undefined,
+                              )}
+                            </TableCell>
                           </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {group.phases.map((phase) => (
-                            <TableRow
-                              key={phase.id}
-                              className="cursor-pointer hover:bg-muted/50"
-                              onClick={() => setSelectedId(String(phase.id))}
-                            >
-                              <TableCell className="font-medium">
-                                <div className="flex items-center gap-1.5">
-                                  {String(phase.phaseName)}
-                                  <ChevronRight className="size-3 text-muted-foreground" />
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <StatusBadge status={phase.status} />
-                              </TableCell>
-                              <TableCell className="text-muted-foreground">
-                                {phase.assignedName ? (
-                                  <>
-                                    {phase.assignedName}
-                                    {phase.supportingAgentIds.length > 0 && (
-                                      <span className="ml-1 text-[10px] opacity-60">
-                                        +{phase.supportingAgentIds.length}
-                                      </span>
-                                    )}
-                                  </>
-                                ) : (
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-6 gap-1 px-1.5 text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400"
-                                    disabled={selfAssignMutation.isPending}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      selfAssignMutation.mutate({
-                                        id: String(phase.id),
-                                      });
-                                    }}
-                                  >
-                                    <UserPlus className="size-3" /> Claim
-                                  </Button>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-muted-foreground text-xs">
-                                {formatDate(phase.startDate ? String(phase.startDate) : new Date().toISOString())}
-                              </TableCell>
-                              <TableCell className="text-muted-foreground text-xs">
-                                {phase.dueDate ? (
-                                  <span
-                                    className={
-                                      new Date(String(phase.dueDate)) < new Date() &&
-                                      !(phase.status ?? "")
-                                        .toLowerCase()
-                                        .includes("complet")
-                                        ? "text-red-500 font-medium"
-                                        : ""
-                                    }
-                                  >
-                                    {formatDate(phase.dueDate ? String(phase.dueDate) : new Date().toISOString())}
-                                  </span>
-                                ) : (
-                                  "—"
-                                )}
-                              </TableCell>
-                              <TableCell className="text-right text-muted-foreground text-xs">
-                                {formatDate(phase.updatedAt ? String(phase.updatedAt) : new Date().toISOString())}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </>
-      )}
-
-      {/* Pagination */}
-      {(offset > 0 || hasMore) && (
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <p>
-            Showing {offset + 1}–{offset + workflows.length} phases
-          </p>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={offset === 0}
-              onClick={() => setOffset(Math.max(0, offset - limit))}
-            >
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!hasMore}
-              onClick={() => setOffset(offset + limit)}
-            >
-              Next
-            </Button>
-          </div>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {/* Summary */}
-      {workflows.length > 0 && (
-        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+      {totalPages > 1 && (
+        <Pagination>
+          <PaginationContent>
+            {getPageNumbers(currentPage, totalPages).map((item, index) => (
+              <PaginationItem key={`${String(item)}-${index}`}>
+                {item === "ellipsis" ? (
+                  <PaginationEllipsis />
+                ) : (
+                  <PaginationLink
+                    href="#"
+                    isActive={item === currentPage}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      setCurrentPage(item);
+                    }}
+                  >
+                    {item}
+                  </PaginationLink>
+                )}
+              </PaginationItem>
+            ))}
+          </PaginationContent>
+        </Pagination>
+      )}
+
+      {filteredPhases.length > 0 && (
+        <div className="text-muted-foreground flex items-center gap-4 text-xs">
           <span>
-            {workflows.filter(
-              (w) => {
+            {
+              filteredPhases.filter((w) => {
                 const status = (w.status ?? "").toLowerCase();
-                return Boolean(status.includes("complet")) || Boolean(status === "done");
-              }
-            ).length}{" "}
+                return (
+                  Boolean(status.includes("complet")) ||
+                  Boolean(status === "done")
+                );
+              }).length
+            }{" "}
             completed
           </span>
           <span>·</span>
           <span>
             {
-              workflows.filter(
+              filteredPhases.filter(
                 (w) => (w.status ?? "").toLowerCase() === "blocked",
               ).length
             }{" "}
@@ -1866,20 +2531,19 @@ export default function WorkflowsClient() {
           <span>·</span>
           <span>
             {
-              workflows.filter(
-                (w) => {
-                  return Boolean(w.dueDate &&
-                    new Date(String(w.dueDate)) < new Date() &&
-                    !(w.status ?? "").toLowerCase().includes("complet"));
-                }
-              ).length
+              filteredPhases.filter((w) => {
+                return Boolean(
+                  w.dueDate &&
+                  new Date(String(w.dueDate)) < new Date() &&
+                  !(w.status ?? "").toLowerCase().includes("complet"),
+                );
+              }).length
             }{" "}
             overdue
           </span>
         </div>
       )}
 
-      {/* Detail Sheet */}
       {selectedId && (
         <WorkflowDetailSheet
           workflowId={selectedId}
