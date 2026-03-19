@@ -106,8 +106,8 @@ export const auditLogRouter = createTRPCRouter({
   list: protectedProcedure
     .input(
       z.object({
-        fromDate: z.string().optional(),
-        toDate: z.string().optional(),
+        fromDate: z.string().date().optional(),
+        toDate: z.string().date().optional(),
         action: z.enum(["all", "insert", "update", "delete"]).optional(),
         tableName: z.string().optional(),
         actorEmail: z.string().optional(),

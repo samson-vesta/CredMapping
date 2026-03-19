@@ -1,8 +1,8 @@
 import { and, count, desc, eq, ilike, inArray, isNotNull, or, sql } from "drizzle-orm";
 import { Mail, Phone } from "lucide-react";
 import Link from "next/link";
-import { ProvidersPendingProvider, ProvidersListOverlay } from "~/app/(external)/providers/providers-pending-context";
-import { ProvidersTopSection } from "~/app/(external)/providers/providers-top-section";
+import { ProvidersPendingProvider, ProvidersListOverlay } from "~/components/providers/providers-pending-context";
+import { ProvidersTopSection } from "~/components/providers/providers-top-section";
 import { ProvidersAutoAdvance } from "~/components/providers-auto-advance";
 import { VirtualScrollContainer } from "~/components/ui/virtual-scroll-container";
 import { requireRequestAuthContext } from "~/server/auth/request-context";
