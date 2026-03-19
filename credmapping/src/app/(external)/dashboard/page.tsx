@@ -1,5 +1,5 @@
 import { desc, eq } from "drizzle-orm";
-import { DashboardClient } from "~/app/(external)/dashboard/dashboard-client";
+import { DashboardClient } from "~/components/dashboard/dashboard-client";
 import { requireRequestAuthContext } from "~/server/auth/request-context";
 import { withUserDb } from "~/server/db";
 import {
